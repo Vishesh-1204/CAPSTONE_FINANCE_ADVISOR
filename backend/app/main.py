@@ -4,6 +4,7 @@ from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 import logging
 
+
 from app.core.config import settings
 from app.core.logging_config import configure_logging
 from app.db.session import engine
@@ -12,6 +13,8 @@ from app.api.routes import auth
 
 # Import models so Base knows about them before create_all runs
 from app.models import user  # noqa: F401
+from app.api.routes import transactions
+from app.models import transaction  # noqa: F401
 
 configure_logging()
 logger = logging.getLogger(__name__)
@@ -27,6 +30,7 @@ app.add_middleware(
 )
 
 app.include_router(auth.router)
+app.include_router(transactions.router)
 
 
 @app.on_event("startup")
@@ -40,3 +44,7 @@ async def on_startup() -> None:
 @app.get("/health")
 def health_check() -> dict:
     return {"status": "ok", "project": settings.PROJECT_NAME}
+
+
+
+
