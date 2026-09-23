@@ -26,5 +26,9 @@ class Transaction(Base):
     # Nullable because it's empty until the agent categorizes it (Pass B)
     category: Mapped[str | None] = mapped_column(String(100), nullable=True)
 
+        # Filled by the Expense Intelligence Agent during categorization
+    category_confidence: Mapped[float | None] = mapped_column(Float, nullable=True)
+    category_reasoning: Mapped[str | None] = mapped_column(String(1000), nullable=True)
+
     transaction_date: Mapped[datetime] = mapped_column(DateTime(timezone=True), nullable=False)
     created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=func.now())
