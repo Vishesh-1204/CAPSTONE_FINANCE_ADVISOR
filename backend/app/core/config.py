@@ -23,6 +23,23 @@ class Settings(BaseSettings):
     ALGORITHM: str = "HS256"
     ACCESS_TOKEN_EXPIRE_MINUTES: int = 60
 
+        # --- LLM configuration ---
+    # Which provider the factory should build: "gemini" | "openai" | "huggingface"
+    LLM_PROVIDER: str = "gemini"
+
+    # Lower temperature = more deterministic output.
+    # Categorization is a classification task, not creative writing,
+    # so we want consistency, not variety.
+    LLM_TEMPERATURE: float = 0.0
+
+    # Gemini (free tier via Google AI Studio)
+    GEMINI_API_KEY: str | None = None
+    GEMINI_MODEL: str = "gemini-2.5-flash-lite"
+
+    # OpenAI (alternative provider)
+    OPENAI_API_KEY: str | None = None
+    OPENAI_MODEL: str = "gpt-4o-mini"
+
     model_config = SettingsConfigDict(env_file=".env", extra="ignore")
 
 
