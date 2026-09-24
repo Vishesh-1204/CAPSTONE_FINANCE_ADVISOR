@@ -17,7 +17,15 @@ class TransactionResponse(BaseModel):
     description: str
     amount: float
     category: str | None
+    category_confidence: float | None
+    category_reasoning: str | None
     transaction_date: datetime
     created_at: datetime
 
     model_config = ConfigDict(from_attributes=True)
+
+class CategorizationSummary(BaseModel):
+    """Result summary returned after a batch categorization run."""
+    total_processed: int
+    successfully_categorized: int
+    failed: int
