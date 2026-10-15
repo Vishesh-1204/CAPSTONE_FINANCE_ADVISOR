@@ -1,17 +1,22 @@
 # app/schemas/transaction.py
+#
+# Purpose: Pydantic request/response shapes for the transaction endpoints.
+# Amounts are Decimal in the database; responses send them as JSON numbers.
 
 from datetime import datetime
+from typing import Literal
 
-from pydantic import BaseModel, ConfigDict, field_validator
+from pydantic import BaseModel, ConfigDict, Field, field_validator
 
-from app.core.categories import CATEGORY_NAMES, canonical_category
+from app.core.categories import ALL_CATEGORY_NAMES, canonical_category
 
 
 class TransactionCreate(BaseModel):
-    """Shape of data required to manually log a new expense."""
-    description: str
-    amount: float
+    """Shape of data required to manually log one transaction."""
+    description: str = Field(min_length=1, max_length=500)
+    amount: float = Field(gt=0, description="Always positive; use `direction` for money in vs out.")
     transaction_date: datetime
+    direction: Literal["debit", "credit"] = "debit"
 
 
 class TransactionResponse(BaseModel):
@@ -19,11 +24,21 @@ class TransactionResponse(BaseModel):
     id: int
     description: str
     amount: float
+    direction: str                   # 'debit' | 'credit'
+    txn_type: str | None             # 'expense' | 'income' | 'investment_out' | 'investment_in' | 'transfer'
+    investment_subtype: str | None   # 'sip' | 'lump_sum' | 'wallet_topup'
+    channel: str | None
+    payee_key: str | None
     category: str | None
     category_confidence: float | None
     category_reasoning: str | None
     category_source: str | None      # 'rule' | 'memory' | 'llm' | 'user'
+    agent_category: str | None       # the agent's original suggestion
+    user_locked: bool
     needs_review: bool
+    balance: float | None
+    balance_ok: bool | None
+    import_batch_id: int | None
     transaction_date: datetime
     created_at: datetime
 
@@ -41,7 +56,7 @@ class CategoryCorrection(BaseModel):
     def category_must_be_known(cls, value: str) -> str:
         canonical = canonical_category(value)
         if canonical is None:
-            raise ValueError(f"Unknown category. Choose one of: {', '.join(CATEGORY_NAMES)}")
+            raise ValueError(f"Unknown category. Choose one of: {', '.join(ALL_CATEGORY_NAMES)}")
         return canonical
 
 
@@ -54,7 +69,7 @@ class CategorizationSummary(BaseModel):
     """Result of a categorization run."""
     total_processed: int
     categorized_by_memory: int       # matched something the user confirmed before
-    categorized_by_rules: int        # matched a keyword rule
+    categorized_by_rules: int        # matched a keyword rule or the investment/income dictionary
     categorized_by_llm: int          # decided by the LLM
     needs_review: int                # low-confidence results a human should check
     failed: int                      # still uncategorized; run again later
@@ -66,5 +81,5 @@ class CsvImportSummary(BaseModel):
     imported: int
     skipped_invalid: int             # unreadable rows (bad date/amount, empty description)
     skipped_duplicates: int          # already in your account
-    skipped_credits: int             # money coming in (salary, refunds); not expenses
+    skipped_credits: int             # money coming in; imported from S4 (statement upload)
     next_step: str

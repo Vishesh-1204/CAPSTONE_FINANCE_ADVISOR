@@ -16,11 +16,15 @@ import io
 import logging
 import re
 from datetime import datetime, timezone
+from decimal import Decimal
 
 from fastapi import HTTPException, status
 from sqlalchemy.orm import Session
 
+from app.core.money import to_money
+from app.core.transaction_types import DEBIT
 from app.models.transaction import Transaction
+from app.services.transaction_enrichment import enrich_transaction
 
 logger = logging.getLogger(__name__)
 
@@ -56,12 +60,12 @@ def _map_headers(fieldnames: list[str]) -> dict[str, str]:
     return mapping
 
 
-def _parse_amount(text: str) -> float:
-    """'Rs. 1,234.50' / '₹1,234.50' / '1234' -> float. Raises ValueError if empty or unreadable."""
+def _parse_amount(text: str) -> Decimal:
+    """'Rs. 1,234.50' / '₹1,234.50' / '1234' -> Decimal('1234.50'). Raises ValueError if empty or unreadable."""
     cleaned = re.sub(r"(?i)(rs\.?|inr|₹|,|\s)", "", text or "")
     if not cleaned:
         raise ValueError("empty amount")
-    return float(cleaned)
+    return to_money(cleaned)
 
 
 def _parse_date(text: str) -> datetime:
@@ -109,7 +113,7 @@ def import_transactions_from_csv(db: Session, user_id: int, file_bytes: bytes) -
             f"Found: {', '.join(reader.fieldnames)}",
         )
 
-    parsed: list[tuple[str, float, datetime]] = []
+    parsed: list[tuple[str, Decimal, datetime]] = []
     skipped_invalid = skipped_credits = 0
 
     for row_number, row in enumerate(reader, start=2):      # row 1 is the header
@@ -150,15 +154,21 @@ def import_transactions_from_csv(db: Session, user_id: int, file_bytes: bytes) -
         .filter(Transaction.user_id == user_id, Transaction.transaction_date >= earliest, Transaction.transaction_date <= latest)
         .all()
     )
-    existing_keys = {(d.strip().lower(), round(a, 2), dt.date()) for d, a, dt in existing}
+    # Amounts are compared as 2-decimal Decimals: with floats, 99.10 from the file
+    # and 99.10 from the database could compare as different numbers.
+    existing_keys = {(d.strip().lower(), to_money(a), dt.date()) for d, a, dt in existing}
 
     new_rows: list[Transaction] = []
     skipped_duplicates = 0
     for description, amount, when in parsed:
-        if (description.lower(), round(amount, 2), when.date()) in existing_keys:
+        if (description.lower(), amount, when.date()) in existing_keys:
             skipped_duplicates += 1
             continue
-        new_rows.append(Transaction(user_id=user_id, description=description, amount=amount, transaction_date=when))
+        transaction = Transaction(
+            user_id=user_id, description=description, amount=amount, direction=DEBIT, transaction_date=when
+        )
+        enrich_transaction(transaction)
+        new_rows.append(transaction)
 
     db.add_all(new_rows)
     db.commit()

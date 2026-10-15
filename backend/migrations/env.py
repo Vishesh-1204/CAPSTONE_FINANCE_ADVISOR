@@ -16,7 +16,7 @@ from sqlalchemy import engine_from_config, pool
 from app.db.base_class import Base
 # Import every model module so Base.metadata knows all tables
 # (needed for `alembic revision --autogenerate` and the drift test).
-from app.models import transaction, user  # noqa: F401
+import app.models  # noqa: F401
 
 config = context.config
 

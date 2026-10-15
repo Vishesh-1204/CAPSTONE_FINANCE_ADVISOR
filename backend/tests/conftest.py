@@ -31,10 +31,12 @@ def db():
     engine.dispose()
 
 
-def add_tx(db, description: str, amount: float = 100.0, user_id: int = 1, day: int = 5) -> Transaction:
-    """Test helper: insert one uncategorized transaction."""
+def add_tx(
+    db, description: str, amount: float = 100.0, user_id: int = 1, day: int = 5, direction: str = "debit"
+) -> Transaction:
+    """Test helper: insert one uncategorized transaction (txn_type left NULL, like a pre-v3 row)."""
     tx = Transaction(
-        user_id=user_id, description=description, amount=amount,
+        user_id=user_id, description=description, amount=amount, direction=direction,
         transaction_date=datetime(2026, 9, day, tzinfo=timezone.utc),
     )
     db.add(tx)

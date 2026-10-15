@@ -72,3 +72,26 @@ def test_non_csv_upload_is_rejected(client):
 
 def test_empty_categorize_run_is_a_harmless_zero(client):
     assert client.post("/api/transactions/categorize").json()["total_processed"] == 0
+
+
+def test_manual_credit_entry_returns_the_new_fields(client):
+    r = client.post(
+        "/api/transactions/",
+        json={"description": "SB INT PD SEP", "amount": 312.40, "direction": "credit", "transaction_date": "2026-09-30T00:00:00"},
+    )
+    body = r.json()
+    assert r.status_code == 201
+    assert body["direction"] == "credit" and body["txn_type"] == "income" and body["amount"] == 312.4
+    assert body["user_locked"] is False and body["agent_category"] is None
+
+
+def test_zero_or_negative_amount_is_rejected(client):
+    for amount in (0, -50):
+        r = client.post("/api/transactions/", json={"description": "x", "amount": amount, "transaction_date": "2026-09-15T10:00:00"})
+        assert r.status_code == 422
+
+
+def test_user_may_pick_an_income_label(client):
+    client.post("/api/transactions/", json={"description": "Gift from uncle", "amount": 500, "direction": "credit", "transaction_date": "2026-09-15T10:00:00"})
+    r = client.patch("/api/transactions/1/category", json={"category": "other income"})
+    assert r.status_code == 200 and r.json()["transaction"]["category"] == "Other Income"

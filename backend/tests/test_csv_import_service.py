@@ -73,3 +73,16 @@ def test_file_with_no_valid_rows_gives_400(db):
     with pytest.raises(HTTPException) as error:
         run(db, "description,amount,date\nX,abc,garbage\n")
     assert error.value.status_code == 400
+
+
+def test_imported_rows_are_enriched_and_stored_as_exact_decimals(db):
+    run(db, "description,amount,date\nUPI/412345678901/ZERODHA/zerodha.broking@hdfcbank,99.10,2026-09-15\n")
+    tx = db.query(Transaction).one()
+    assert str(tx.amount) == "99.10" and tx.direction == "debit"
+    assert (tx.channel, tx.payee_key, tx.txn_type) == ("upi", "zerodha.broking@hdfcbank", "investment_out")
+
+
+def test_duplicate_check_is_exact_for_paise_amounts(db):
+    text = "description,amount,date\nCoffee,99.10,2026-09-15\nTea,0.30,2026-09-15\n"
+    run(db, text)
+    assert run(db, text)["skipped_duplicates"] == 2

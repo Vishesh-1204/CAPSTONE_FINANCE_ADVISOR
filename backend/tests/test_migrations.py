@@ -17,7 +17,7 @@ from alembic.migration import MigrationContext
 from sqlalchemy import create_engine, inspect
 
 from app.db.base_class import Base
-from app.models import transaction, user  # noqa: F401  (registers the tables)
+import app.models  # noqa: F401  (registers every table)
 
 BACKEND_DIR = Path(__file__).resolve().parent.parent
 
@@ -62,3 +62,36 @@ def test_downgrade_to_base_removes_everything(db_url):
 
     tables = set(inspect(create_engine(db_url)).get_table_names())
     assert tables <= {"alembic_version"}
+
+
+def test_0002_upgrades_existing_rows_without_losing_data(db_url):
+    """Simulates the real dev database: rows created at 0001, then upgraded to 0002."""
+    config = _alembic_config(db_url)
+    command.upgrade(config, "0001")
+
+    engine = create_engine(db_url)
+    with engine.begin() as connection:
+        connection.exec_driver_sql(
+            "INSERT INTO users (id, email, full_name, hashed_password, is_active) VALUES (1, 'a@x.com', 'A', 'x', 1)"
+        )
+        connection.exec_driver_sql(
+            "INSERT INTO transactions (user_id, description, amount, category, category_source, needs_review, "
+            "transaction_date) VALUES "
+            "(1, 'Swiggy', 450.5, 'Food & Dining', 'rule', 0, '2026-09-01'), "
+            "(1, 'Raj Mess', 3000, 'Groceries', 'user', 0, '2026-09-02'), "
+            "(1, 'Unknown', 10, NULL, NULL, 0, '2026-09-03')"
+        )
+
+    command.upgrade(config, "head")
+
+    with engine.connect() as connection:
+        rows = connection.exec_driver_sql(
+            "SELECT description, amount, direction, user_locked, agent_category, txn_type "
+            "FROM transactions ORDER BY id"
+        ).all()
+    swiggy, mess, unknown = rows
+    assert float(swiggy.amount) == 450.5 and swiggy.direction == "debit"
+    assert swiggy.agent_category == "Food & Dining" and not swiggy.user_locked     # agent decided it
+    assert mess.user_locked and mess.agent_category is None                      # the user decided it
+    assert unknown.agent_category is None and not unknown.user_locked
+    assert all(row.txn_type is None for row in rows)          # filled by the next categorize run

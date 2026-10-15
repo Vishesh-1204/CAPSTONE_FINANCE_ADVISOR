@@ -7,24 +7,29 @@ import logging
 
 from sqlalchemy.orm import Session
 
+from app.core.money import to_money
 from app.models.transaction import Transaction
 from app.schemas.transaction import TransactionCreate
+from app.services.transaction_enrichment import enrich_transaction
 
 logger = logging.getLogger(__name__)
 
 
 def create_transaction(db: Session, user_id: int, data: TransactionCreate) -> Transaction:
-    """Saves one expense for a user. Category stays empty until the agent runs."""
+    """Saves one transaction for a user. Category stays empty until the agent runs."""
     transaction = Transaction(
         user_id=user_id,
         description=data.description.strip(),
-        amount=data.amount,
+        amount=to_money(data.amount),
+        direction=data.direction,
         transaction_date=data.transaction_date,
     )
+    enrich_transaction(transaction)          # channel, payee_key, txn_type from the narration
     db.add(transaction)
     db.commit()
     db.refresh(transaction)
-    logger.info(f"Transaction created for user_id={user_id}: {transaction.description} ({transaction.amount})")
+    # Log ids and types only: descriptions can contain names / UPI IDs
+    logger.info(f"Transaction created id={transaction.id} user_id={user_id} type={transaction.txn_type}")
     return transaction
 
 

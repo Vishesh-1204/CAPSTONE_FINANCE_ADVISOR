@@ -5,11 +5,16 @@
 # cheapest, most reliable method first and only asks the LLM when it must:
 #
 #   Layer 1  MEMORY  - "you told me this exact description is Groceries before"
-#   Layer 2  RULES   - keyword match (Swiggy, Netflix ...), exactly one category
-#   Layer 3  LLM     - batched, with the user's own corrections as examples
+#   Layer 2  RULES   - a) investment/income/transfer dictionary (txn_type detector)
+#                      b) expense keyword match (Swiggy, Netflix ...), exactly one category
+#   Layer 3  LLM     - batched, with the user's own corrections as examples.
+#                      Only DEBITS of type 'expense' ever reach it: credits always
+#                      get a deterministic label.
 #
 # Every result records WHO decided (category_source), how sure it was, and
-# whether a human should double-check it (needs_review).
+# whether a human should double-check it (needs_review). Debits and credits are
+# grouped separately: a "Groww" debit (investment) and a "Groww" credit
+# (redemption) must never share one decision.
 
 import logging
 import statistics
@@ -22,9 +27,12 @@ from sqlalchemy.orm import Session
 
 from app.agents.expense_categorizer import CategorizationResult, ExpenseCategorizerAgent, PendingItem
 from app.core.config import settings
+from app.core.transaction_types import CREDIT
 from app.models.transaction import Transaction
 from app.services.rule_based_categorizer import RULE_CONFIDENCE, rule_categorize
 from app.services.text_normalizer import normalize_description
+from app.services.transaction_enrichment import enrich_transaction
+from app.services.txn_type_detector import detect_txn_type
 
 logger = logging.getLogger(__name__)
 
@@ -34,9 +42,15 @@ _SUMMARY_FIELD = {"memory": "categorized_by_memory", "rule": "categorized_by_rul
 # Stop calling the LLM after this many batches in a row fail (quota used up, bad key...)
 _MAX_CONSECUTIVE_FAILURES = 2
 
+# Rows are grouped by (direction, description_key)
+GroupKey = tuple[str, str]
+
 
 def _apply(transaction: Transaction, result: CategorizationResult) -> None:
     """Writes a decision onto a transaction row."""
+    if result.source != "user" and transaction.agent_category is None:
+        # Remember the agent's FIRST suggestion, so overrides can be measured later
+        transaction.agent_category = result.category
     transaction.category = result.category
     transaction.category_confidence = result.confidence
     transaction.category_reasoning = result.reasoning
@@ -44,24 +58,24 @@ def _apply(transaction: Transaction, result: CategorizationResult) -> None:
     transaction.needs_review = result.confidence < settings.CATEGORIZER_REVIEW_THRESHOLD
 
 
-def _load_memory(db: Session, user_id: int, keys: set[str]) -> dict[str, str]:
+def _load_memory(db: Session, user_id: int, keys: set[GroupKey]) -> dict[GroupKey, str]:
     """
-    Description-key -> category for rows the USER confirmed.
+    (direction, description_key) -> category for rows the USER confirmed.
     Ordered oldest to newest, so a newer correction overwrites an older one.
     """
     if not keys:
         return {}
     rows = (
-        db.query(Transaction.description_key, Transaction.category)
+        db.query(Transaction.direction, Transaction.description_key, Transaction.category)
         .filter(
             Transaction.user_id == user_id,
             Transaction.category_source == "user",
-            Transaction.description_key.in_(list(keys)),
+            Transaction.description_key.in_({key for _, key in keys}),
         )
         .order_by(Transaction.id.asc())
         .all()
     )
-    return {key: category for key, category in rows}
+    return {(direction, key): category for direction, key, category in rows if (direction, key) in keys}
 
 
 def _load_examples(db: Session, user_id: int) -> list[tuple[str, str]]:
@@ -102,6 +116,7 @@ def _reset_ai_results(db: Session, user_id: int) -> int:
                 Transaction.category_confidence: None,
                 Transaction.category_reasoning: None,
                 Transaction.category_source: None,
+                Transaction.agent_category: None,      # the row is redone from scratch
                 Transaction.needs_review: False,
             },
             synchronize_session=False,
@@ -112,8 +127,44 @@ def _reset_ai_results(db: Session, user_id: int) -> int:
     return cleared
 
 
+def _backfill_types(db: Session, user_id: int) -> int:
+    """
+    Rows saved before v3 (or by an old import) have no txn_type yet. Derive it,
+    plus channel and payee_key, from the narration. Local and cheap: no LLM.
+    """
+    rows = db.query(Transaction).filter(Transaction.user_id == user_id, Transaction.txn_type.is_(None)).all()
+    for transaction in rows:
+        enrich_transaction(transaction)
+    if rows:
+        db.commit()
+        logger.info(f"Backfilled txn_type for {len(rows)} transactions of user_id={user_id}")
+    return len(rows)
+
+
+def _deterministic_result(rows: list[Transaction]) -> CategorizationResult | None:
+    """
+    Layer 2. a) The type detector: investments, self-transfers and EVERY credit
+    get a label here. b) Expense keyword rules for ordinary debits.
+    Returns None when only the LLM can decide.
+    """
+    sample = rows[0]
+    detection = detect_txn_type(sample.description, sample.direction, sample.channel)
+    if detection.category is not None:
+        reason = (
+            f"Matched '{detection.keyword}' ({detection.txn_type})." if detection.keyword
+            else "Money received with no recognisable source; please check."
+        )
+        return CategorizationResult(detection.category, detection.confidence, reason, "rule")
+
+    if settings.CATEGORIZER_ENABLE_RULES:
+        match = rule_categorize(sample.description)
+        if match:
+            return CategorizationResult(match.category, RULE_CONFIDENCE, f"Matched keyword '{match.keyword}'.", "rule")
+    return None
+
+
 def _categorize_with_llm(
-    db: Session, user_id: int, unresolved: dict[str, list[Transaction]], summary: dict
+    db: Session, user_id: int, unresolved: dict[GroupKey, list[Transaction]], summary: dict
 ) -> None:
     """Layer 3: sends the leftover unique descriptions to the LLM, batch by batch."""
     total_rows = sum(len(rows) for rows in unresolved.values())
@@ -152,7 +203,8 @@ def _categorize_with_llm(
             PendingItem(
                 item_id=index,
                 description=unresolved[key][0].description,
-                amount=statistics.median(t.amount for t in unresolved[key]),
+                # float(): amounts are Decimal in the DB, and JSON cannot encode Decimal
+                amount=float(statistics.median(t.amount for t in unresolved[key])),
                 occurrences=len(unresolved[key]),
             )
             for index, key in enumerate(batch_keys)
@@ -182,6 +234,7 @@ def categorize_pending_transactions(db: Session, user_id: int, reset_ai_results:
     """
     if reset_ai_results:
         _reset_ai_results(db, user_id)
+    _backfill_types(db, user_id)
 
     pending = (
         db.query(Transaction)
@@ -196,26 +249,28 @@ def categorize_pending_transactions(db: Session, user_id: int, reset_ai_results:
     if not pending:
         return summary
 
-    # Group identical descriptions: classify "Monthly house rent" once, apply to all 3 rows
-    groups: dict[str, list[Transaction]] = defaultdict(list)
+    # Group identical descriptions: classify "Monthly house rent" once, apply to all 3 rows.
+    # Direction is part of the key: the same text as debit and as credit means different things.
+    groups: dict[GroupKey, list[Transaction]] = defaultdict(list)
     for transaction in pending:
         transaction.description_key = normalize_description(transaction.description)
-        groups[transaction.description_key].append(transaction)
+        groups[(transaction.direction, transaction.description_key)].append(transaction)
 
     memory = _load_memory(db, user_id, set(groups)) if settings.CATEGORIZER_ENABLE_MEMORY else {}
 
-    unresolved: dict[str, list[Transaction]] = {}
+    unresolved: dict[GroupKey, list[Transaction]] = {}
     for key, rows in groups.items():
-        result: CategorizationResult | None = None
-
+        result: CategorizationResult | None
         if key in memory:
             result = CategorizationResult(memory[key], 1.0, "Matches a category you confirmed earlier.", "memory")
-        elif settings.CATEGORIZER_ENABLE_RULES:
-            match = rule_categorize(rows[0].description)
-            if match:
-                result = CategorizationResult(match.category, RULE_CONFIDENCE, f"Matched keyword '{match.keyword}'.", "rule")
+        else:
+            result = _deterministic_result(rows)
 
         if result is None:
+            if key[0] == CREDIT:     # defensive: the detector always labels credits
+                logger.error("A credit reached the LLM stage; skipping it (detector bug)")
+                summary["failed"] += len(rows)
+                continue
             unresolved[key] = rows
             continue
         for transaction in rows:
@@ -260,6 +315,7 @@ def apply_user_correction(
     key = normalize_description(transaction.description)
     transaction.description_key = key
     _apply(transaction, CategorizationResult(category, 1.0, "Confirmed by you.", "user"))
+    transaction.user_locked = True        # the agent must never overwrite a user's choice
 
     similar_updated = 0
     if apply_to_similar:

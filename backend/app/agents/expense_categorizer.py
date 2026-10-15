@@ -20,7 +20,7 @@ from langchain_core.output_parsers import StrOutputParser
 from langchain_core.prompts import ChatPromptTemplate
 from tenacity import retry, retry_if_exception, stop_after_attempt, wait_exponential
 
-from app.core.categories import CATEGORY_GUIDE, CATEGORY_NAMES, FALLBACK_CATEGORY, canonical_category
+from app.core.categories import CATEGORY_GUIDE, CATEGORY_NAMES, FALLBACK_CATEGORY, canonical_expense_category
 from app.llm.factory import get_llm_provider
 
 logger = logging.getLogger(__name__)
@@ -136,7 +136,8 @@ def parse_batch_response(raw: str, valid_ids: set[int]) -> dict[int, Categorizat
             confidence = 0.0
         reasoning = str(entry.get("reasoning", "")).strip()[:500] or "No reasoning provided."
 
-        category = canonical_category(entry.get("category"))
+        # Only EXPENSE categories are valid here: income labels are never the LLM's call
+        category = canonical_expense_category(entry.get("category"))
         if category is None:
             logger.warning(f"Model returned unknown category {entry.get('category')!r}; using '{FALLBACK_CATEGORY}'.")
             category, confidence = FALLBACK_CATEGORY, min(confidence, 0.3)
@@ -173,7 +174,7 @@ class ExpenseCategorizerAgent:
         """One LLM request for the whole batch, with retry on transient problems."""
         items_json = json.dumps(
             [
-                {"id": i.item_id, "description": i.description, "amount": round(i.amount, 2), "occurrences": i.occurrences}
+                {"id": i.item_id, "description": i.description, "amount": round(float(i.amount), 2), "occurrences": i.occurrences}
                 for i in items
             ],
             ensure_ascii=False,

@@ -80,3 +80,9 @@ def test_empty_batch_makes_no_call():
     chain = FakeChain("[]")
     assert ExpenseCategorizerAgent(chain=chain).categorize_batch([], []) == {}
     assert chain.calls == 0
+
+
+def test_llm_may_not_choose_an_income_label():
+    raw = '[{"id": 0, "category": "Salary", "confidence": 0.9, "reasoning": "x"}]'
+    result = parse_batch_response(raw, {0})[0]
+    assert result.category == "Other" and result.confidence <= 0.3
