@@ -14,6 +14,7 @@ from fastapi import APIRouter, Depends, File, HTTPException, Query, UploadFile
 from sqlalchemy.orm import Session
 
 from app.api.deps import get_current_user
+from app.api.routes.statements import read_upload
 from app.db.session import get_db
 from app.models.user import User
 from app.schemas.transaction import (
@@ -30,7 +31,7 @@ from app.schemas.transaction import (
 )
 from app.services.categorization_service import categorize_pending_transactions
 from app.services.category_override_service import apply_user_correction, bulk_set_category, unlock_transaction
-from app.services.csv_import_service import import_transactions_from_csv
+from app.services.statement_import_service import import_statement
 from app.services.summary_service import monthly_summary
 from app.services.transaction_service import TransactionFilters, create_transaction, list_transactions
 
@@ -99,18 +100,22 @@ async def upload_csv(
     current_user: User = Depends(get_current_user),
 ):
     """
-    Bulk-imports expenses from a CSV (bank export or description,amount,date).
-    Duplicates already in your account are skipped. Rows start uncategorized.
+    Backward-compatible alias of POST /api/statements/upload for CSV files
+    (same pipeline; credits are now imported too). Prefer the new endpoint.
     """
     if not file.filename or not file.filename.lower().endswith(".csv"):
         raise HTTPException(status_code=400, detail="Please upload a .csv file.")
 
-    file_bytes = await file.read()
-    if len(file_bytes) > MAX_UPLOAD_BYTES:
-        raise HTTPException(status_code=413, detail="File too large (limit 5 MB).")
-
-    counts = import_transactions_from_csv(db, user_id=current_user.id, file_bytes=file_bytes)
-    return CsvImportSummary(**counts, next_step="POST /api/transactions/categorize")
+    file_bytes = await read_upload(file, MAX_UPLOAD_BYTES)
+    summary = import_statement(db, user_id=current_user.id, filename=file.filename, file_bytes=file_bytes)
+    return CsvImportSummary(
+        imported=summary["rows_imported"],
+        skipped_invalid=summary["rows_invalid"],
+        skipped_duplicates=summary["rows_duplicate"],
+        skipped_credits=0,
+        import_batch_id=summary["import_batch_id"],
+        next_step=summary["next_step"],
+    )
 
 
 @router.post("/categorize", response_model=CategorizationSummary)

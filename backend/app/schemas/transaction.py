@@ -136,9 +136,10 @@ class CategorizationSummary(BaseModel):
 
 
 class CsvImportSummary(BaseModel):
-    """Result of a CSV upload."""
+    """Result of POST /upload-csv (v2 shape, kept for old clients)."""
     imported: int
     skipped_invalid: int             # unreadable rows (bad date/amount, empty description)
     skipped_duplicates: int          # already in your account
-    skipped_credits: int             # money coming in; imported from S4 (statement upload)
+    skipped_credits: int             # DEPRECATED: always 0, credits are imported since v3
+    import_batch_id: int | None = None
     next_step: str
