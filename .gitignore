@@ -23,3 +23,8 @@ Thumbs.db
 
 # Docker
 *.log
+
+
+sample_transactions.csv
+sample2.csv
+backend/.env
