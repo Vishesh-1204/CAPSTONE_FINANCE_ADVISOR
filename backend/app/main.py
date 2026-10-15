@@ -7,14 +7,8 @@ import logging
 
 from app.core.config import settings
 from app.core.logging_config import configure_logging
-from app.db.session import engine
-from app.db.base_class import Base
 from app.api.routes import auth
-
-# Import models so Base knows about them before create_all runs
-from app.models import user  # noqa: F401
 from app.api.routes import transactions
-from app.models import transaction  # noqa: F401
 
 configure_logging()
 logger = logging.getLogger(__name__)
@@ -35,10 +29,9 @@ app.include_router(transactions.router)
 
 @app.on_event("startup")
 async def on_startup() -> None:
+    # The schema is managed by Alembic migrations (`alembic upgrade head` runs
+    # before uvicorn in the Docker CMD), so the app no longer calls create_all.
     logger.info(f"Starting {settings.PROJECT_NAME} in {settings.ENVIRONMENT} mode")
-    # Creates tables if they don't already exist (dev-only convenience)
-    Base.metadata.create_all(bind=engine)
-    logger.info("Database tables verified/created.")
 
 
 @app.get("/health")
