@@ -87,6 +87,12 @@ class RuleMatch:
     keyword: str
 
 
+def has_any_keyword(description: str) -> bool:
+    """True if ANY category keyword appears (even an ambiguous multi-category match)."""
+    text = normalize_description(description)
+    return any(pattern.search(text) for pattern in _PATTERNS.values())
+
+
 def rule_categorize(description: str) -> RuleMatch | None:
     """
     Returns a RuleMatch if the description points to exactly one category,

@@ -102,6 +102,31 @@ def _detect_credit(text: str) -> TypeDetection:
     return TypeDetection(TXN_INCOME, category=OTHER_INCOME_CATEGORY, confidence=UNKNOWN_CREDIT_CONFIDENCE)
 
 
+def mentions_investment_platform(description: str) -> bool:
+    """True if the narration names a broker, mutual fund or savings product."""
+    return bool(_INVESTMENT.search(normalize_description(description)))
+
+
+def txn_type_for_category(category: str, direction: str, current_type: str | None) -> str:
+    """
+    The txn_type implied when the USER picks a category, so the two never
+    contradict each other (callers check category_fits_direction first).
+      debit:  Investments & Savings -> investment_out; Transfers keeps 'transfer'
+              if it already was one (self-transfer), else it is a P2P expense.
+      credit: Investment Redemption -> investment_in; Transfers -> transfer;
+              any income label -> income.
+    """
+    if direction == CREDIT:
+        if category == INVESTMENT_REDEMPTION_CATEGORY:
+            return TXN_INVESTMENT_IN
+        return TXN_TRANSFER if category == TRANSFERS_CATEGORY else TXN_INCOME
+    if category == INVESTMENTS_CATEGORY:
+        return TXN_INVESTMENT_OUT
+    if category == TRANSFERS_CATEGORY and current_type == TXN_TRANSFER:
+        return TXN_TRANSFER
+    return TXN_EXPENSE
+
+
 def detect_txn_type(description: str, direction: str, channel: str | None = None) -> TypeDetection:
     """
     Classifies a transaction's type from its raw narration and direction.

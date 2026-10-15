@@ -40,10 +40,21 @@ class Settings(BaseSettings):
     OPENAI_API_KEY: str | None = None
     OPENAI_MODEL: str = "gpt-4o-mini"
 
+    # Secondary provider tried when the primary fails (quota, outage). Empty = no fallback.
+    # If both fail, rows stay uncategorized with a clear message (never labelled "Other").
+    LLM_FALLBACK_PROVIDER: str | None = None
+
+    # Comma-separated browser origins allowed to call the API (the Next.js dev server)
+    CORS_ORIGINS: str = "http://localhost:3000"
+
     # --- Expense categorizer (Phase 3B v2) ---
     # Ablation switches: turn a layer off to measure how much it contributes.
     CATEGORIZER_ENABLE_MEMORY: bool = True    # reuse the user's past corrections
     CATEGORIZER_ENABLE_RULES: bool = True     # keyword rules before calling the LLM
+    CATEGORIZER_ENABLE_PAYEE_RULES: bool = True   # the user's "remember this payee" rules
+    # Payments that look person-to-person are labelled Transfers locally and are
+    # NEVER sent to the LLM. Turn off only for the privacy-leakage ablation.
+    CATEGORIZER_ENABLE_PERSON_GUARD: bool = True
     # Descriptions sent to the LLM per request, and the pause between requests
     # (free-tier Gemini allows only ~10-15 requests/minute).
     CATEGORIZER_BATCH_SIZE: int = 20
@@ -54,6 +65,11 @@ class Settings(BaseSettings):
     CATEGORIZER_FEW_SHOT_LIMIT: int = 10
 
     model_config = SettingsConfigDict(env_file=".env", extra="ignore")
+
+    @property
+    def cors_origin_list(self) -> list[str]:
+        """CORS_ORIGINS split into a clean list ('a, b' -> ['a', 'b'])."""
+        return [origin.strip() for origin in self.CORS_ORIGINS.split(",") if origin.strip()]
 
 
 # Singleton instance — import this everywhere instead of re-reading .env

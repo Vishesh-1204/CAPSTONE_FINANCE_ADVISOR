@@ -45,14 +45,14 @@ def test_full_flow_add_upload_categorize_review_correct(client):
     body = r.json()
     assert r.status_code == 200 and body["categorized_by_rules"] == 1 and body["categorized_by_llm"] == 1 and body["needs_review"] == 1
 
-    review = client.get("/api/transactions/", params={"needs_review": True}).json()
+    review = client.get("/api/transactions/", params={"needs_review": True}).json()["items"]
     assert [t["description"] for t in review] == ["Weird merchant"]
 
     fixed = client.patch(f"/api/transactions/{review[0]['id']}/category", json={"category": "food & dining"})
     assert fixed.status_code == 200
     assert fixed.json()["transaction"]["category"] == "Food & Dining"
     assert fixed.json()["transaction"]["category_source"] == "user"
-    assert client.get("/api/transactions/", params={"needs_review": True}).json() == []
+    assert client.get("/api/transactions/", params={"needs_review": True}).json()["items"] == []
 
 
 def test_invalid_category_is_rejected_with_422(client):

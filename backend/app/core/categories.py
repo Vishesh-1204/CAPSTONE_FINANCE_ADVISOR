@@ -61,6 +61,26 @@ _CANONICAL_ALL = {name.lower(): name for name in ALL_CATEGORY_NAMES}
 _CANONICAL_EXPENSE = {name.lower(): name for name in CATEGORY_NAMES}
 
 
+# Which labels make sense for each direction. Transfers fits both
+# (self-transfer out / in). An expense label on a credit, or "Salary" on a
+# debit, is rejected so txn_type can never become nonsense.
+CREDIT_CATEGORY_NAMES: list[str] = INCOME_CATEGORY_NAMES + [INVESTMENT_REDEMPTION_CATEGORY, TRANSFERS_CATEGORY]
+_ALLOWED_BY_DIRECTION: dict[str, frozenset[str]] = {
+    "debit": frozenset(CATEGORY_NAMES),
+    "credit": frozenset(CREDIT_CATEGORY_NAMES),
+}
+
+
+def category_fits_direction(category: str, direction: str) -> bool:
+    """True if `category` is a sensible label for a debit/credit transaction."""
+    return category in _ALLOWED_BY_DIRECTION.get(direction, frozenset())
+
+
+def categories_for_direction(direction: str) -> list[str]:
+    """The labels a user may choose for a debit or a credit (for error messages / UI)."""
+    return CATEGORY_NAMES if direction == "debit" else CREDIT_CATEGORY_NAMES
+
+
 def canonical_category(value: object) -> str | None:
     """Returns the exact label for a loosely-typed value (any family), or None if it isn't one."""
     if not isinstance(value, str):

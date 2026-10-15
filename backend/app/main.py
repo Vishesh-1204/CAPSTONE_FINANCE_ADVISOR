@@ -7,8 +7,7 @@ import logging
 
 from app.core.config import settings
 from app.core.logging_config import configure_logging
-from app.api.routes import auth
-from app.api.routes import transactions
+from app.api.routes import auth, payee_rules, transactions
 
 configure_logging()
 logger = logging.getLogger(__name__)
@@ -17,7 +16,7 @@ app = FastAPI(title=settings.PROJECT_NAME)
 
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=["http://localhost:3000"],
+    allow_origins=settings.cors_origin_list,     # from CORS_ORIGINS in .env
     allow_credentials=True,
     allow_methods=["*"],
     allow_headers=["*"],
@@ -25,6 +24,7 @@ app.add_middleware(
 
 app.include_router(auth.router)
 app.include_router(transactions.router)
+app.include_router(payee_rules.router)
 
 
 @app.on_event("startup")
