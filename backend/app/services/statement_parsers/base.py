@@ -42,6 +42,7 @@ class ParsedRow:
     credit: Decimal | None
     balance: Decimal | None = None
     ref: str | None = None
+    balance_ok: bool | None = None    # set by the import pipeline's balance check
 
     @property
     def direction(self) -> str:

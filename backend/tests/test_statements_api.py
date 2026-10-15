@@ -64,3 +64,26 @@ def test_old_upload_csv_alias_still_works_and_now_imports_credits(client):
     assert body["import_batch_id"] is not None
     credit = client.get("/api/transactions/", params={"txn_type": "income"}).json()
     assert credit["total"] == 1
+
+
+# ---------------------------------------------------------------- S5: PDF / XLSX over HTTP
+
+from pathlib import Path  # noqa: E402
+
+FIXTURES = Path(__file__).parent / "fixtures" / "statements"
+
+
+def test_pdf_upload_with_password_form_field(client):
+    pdf = (FIXTURES / "protected.pdf").read_bytes()
+    assert upload(client, pdf, filename="protected.pdf").status_code == 400
+    wrong = upload(client, pdf, filename="protected.pdf", password="nope")
+    assert wrong.status_code == 400 and "incorrect" in wrong.json()["detail"]
+    ok = upload(client, pdf, filename="protected.pdf", password="test1234")
+    assert ok.status_code == 201 and ok.json()["rows_imported"] == 24
+
+
+def test_scanned_pdf_and_xlsx_over_http(client):
+    scanned = upload(client, (FIXTURES / "scanned.pdf").read_bytes(), filename="scanned.pdf")
+    assert scanned.status_code == 422 and "scanned" in scanned.json()["detail"]
+    xlsx = upload(client, (FIXTURES / "statement.xlsx").read_bytes(), filename="statement.xlsx")
+    assert xlsx.status_code == 201 and xlsx.json()["source_type"] == "xlsx"

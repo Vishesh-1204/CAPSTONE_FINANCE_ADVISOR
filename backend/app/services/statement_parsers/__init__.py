@@ -7,9 +7,13 @@ from pathlib import PurePath
 
 from app.services.statement_parsers.base import ParsedRow, ParseResult, StatementParser, StatementParseError
 from app.services.statement_parsers.csv_parser import CsvParser
+from app.services.statement_parsers.pdf_parser import PdfParser
+from app.services.statement_parsers.xlsx_parser import XlsxParser
 
 PARSERS: dict[str, type[StatementParser]] = {
     ".csv": CsvParser,
+    ".xlsx": XlsxParser,
+    ".pdf": PdfParser,
 }
 
 

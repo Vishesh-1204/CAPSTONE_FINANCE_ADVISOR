@@ -172,6 +172,21 @@ def _debit_credit(cells: list[object], columns: dict[str, int]) -> tuple[Decimal
     return abs(amount), None
 
 
+_GLUE_CHARS = "/@-._"
+
+
+def join_narration(previous: str, continuation: str) -> str:
+    """
+    Joins a wrapped narration line onto the previous one. Bank text such as
+    UPI/412345678901/SWIGGY/swiggy@icici is often cut mid-token, so when either
+    side of the cut is a separator (/ @ - . _) the pieces are glued WITHOUT a
+    space; otherwise it was a normal word wrap and a space is inserted.
+    """
+    if previous.endswith(tuple(_GLUE_CHARS)) or continuation.startswith(tuple(_GLUE_CHARS)):
+        return f"{previous}{continuation}"[:500]
+    return f"{previous} {continuation}"[:500]
+
+
 def _row_is_empty(cells: list[object]) -> bool:
     return all(_text(c) == "" for c in cells)
 
@@ -219,7 +234,7 @@ def assemble_rows(grid: list[list[object]], first_row_number: int = 1) -> ParseR
             # Footer lines are skipped. Other dateless, amountless text CONTINUES the
             # previous narration (a long PDF narration wrapped onto the next line).
             if not looks_like_footer and narration and rows:
-                rows[-1].narration = f"{rows[-1].narration} {narration}"[:500]
+                rows[-1].narration = join_narration(rows[-1].narration, narration)
             continue
 
         if len(rows) + invalid >= MAX_ROWS:

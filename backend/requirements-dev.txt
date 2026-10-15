@@ -1,0 +1,14 @@
+# backend/requirements-dev.txt
+#
+# Purpose: tools needed only for DEVELOPMENT and TESTING, never shipped in a
+# production image. Installed when the image is built with INSTALL_DEV=true
+# (docker-compose.yml does this for local development).
+
+-r requirements.txt
+
+# Tests
+pytest==8.3.3
+httpx==0.27.2
+
+# Generates the synthetic bank-statement PDFs in tests/fixtures/statements/
+reportlab==4.4.10
