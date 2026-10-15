@@ -28,3 +28,5 @@ Thumbs.db
 sample_transactions.csv
 sample2.csv
 backend/.env
+# Evaluation runs (regenerate any time). Copy the run you cite in the paper into docs/.
+backend/evaluation/results/

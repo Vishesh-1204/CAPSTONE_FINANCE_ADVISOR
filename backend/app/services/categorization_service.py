@@ -24,6 +24,7 @@ import logging
 import statistics
 import time
 from collections import defaultdict
+from collections.abc import Callable
 
 from sqlalchemy.orm import Session
 
@@ -54,6 +55,7 @@ _MAX_CONSECUTIVE_FAILURES = 2
 
 # A person-payee guess is deliberately below the review threshold
 PERSON_GUARD_CONFIDENCE = 0.5
+PERSON_GUARD_REASON = "Looks like a payment to a person; please confirm."
 
 # Rows are grouped by (direction, description_key)
 GroupKey = tuple[str, str]
@@ -200,14 +202,23 @@ def _apply_payee_rules(
     return remaining
 
 
+# Builds the LLM agent. Injected by the evaluation harness (to record what is sent);
+# None means the real ExpenseCategorizerAgent.
+AgentFactory = Callable[[], ExpenseCategorizerAgent]
+
+
 def _categorize_with_llm(
-    db: Session, user_id: int, unresolved: dict[GroupKey, list[Transaction]], summary: dict
+    db: Session,
+    user_id: int,
+    unresolved: dict[GroupKey, list[Transaction]],
+    summary: dict,
+    agent_factory: AgentFactory | None = None,
 ) -> None:
     """Layer 5: sends the leftover unique CLEANED descriptions to the LLM, batch by batch."""
     total_rows = sum(len(rows) for rows in unresolved.values())
 
     try:
-        agent = ExpenseCategorizerAgent()
+        agent = (agent_factory or ExpenseCategorizerAgent)()
     except Exception as exc:  # most often: API key missing for every configured provider
         logger.error(f"LLM unavailable: {exc}")
         summary["failed"] += total_rows
@@ -264,12 +275,15 @@ def _categorize_with_llm(
         db.commit()   # save progress after every batch, so a crash never loses finished work
 
 
-def categorize_pending_transactions(db: Session, user_id: int, reset_ai_results: bool = False) -> dict:
+def categorize_pending_transactions(
+    db: Session, user_id: int, reset_ai_results: bool = False, agent_factory: AgentFactory | None = None
+) -> dict:
     """
     Categorizes every uncategorized, unlocked transaction of one user.
 
     reset_ai_results=True first clears all UNLOCKED categories, which is how you
     re-run the improved agent over old data. Locked (user-set) rows are kept.
+    agent_factory: optional LLM agent builder (the evaluation injects a recorder).
     """
     if reset_ai_results:
         _reset_ai_results(db, user_id)
@@ -319,8 +333,7 @@ def categorize_pending_transactions(db: Session, user_id: int, reset_ai_results:
         if result is None and settings.CATEGORIZER_ENABLE_PERSON_GUARD:
             if looks_like_person(rows[0].description, rows[0].channel):
                 guarded = CategorizationResult(
-                    TRANSFERS_CATEGORY, PERSON_GUARD_CONFIDENCE,
-                    "Looks like a payment to a person; please confirm.", "rule",
+                    TRANSFERS_CATEGORY, PERSON_GUARD_CONFIDENCE, PERSON_GUARD_REASON, "rule",
                 )
                 for transaction in rows:
                     _apply(transaction, guarded)
@@ -345,7 +358,7 @@ def categorize_pending_transactions(db: Session, user_id: int, reset_ai_results:
         logger.info(f"Person-payee guard kept {summary['person_payees_guarded']} rows away from the LLM")
 
     if unresolved:
-        _categorize_with_llm(db, user_id, unresolved, summary)
+        _categorize_with_llm(db, user_id, unresolved, summary, agent_factory)
 
     summary["needs_review"] = sum(1 for t in pending if t.needs_review)
     if summary["failed"] and not summary["message"]:

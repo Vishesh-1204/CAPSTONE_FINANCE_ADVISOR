@@ -1,71 +1,115 @@
-description,amount,category
-Swiggy order - dinner,450,Food & Dining
-Zomato lunch order,320,Food & Dining
-Dominos pizza,599,Food & Dining
-Starbucks coffee,380,Food & Dining
-UPI/412345678901/SWIGGY/okaxis,380,Food & Dining
-UPI-ZOMATO-ZOMATO@HDFCBANK-512345678902,450,Food & Dining
-UPI-HOTEL SAGAR RESTAURANT-412345678901,640,Food & Dining
-Big Bazaar groceries,2340,Groceries
-BigBasket order,1850,Groceries
-Blinkit vegetables and milk,420,Groceries
-D-Mart monthly provisions,4120,Groceries
-IMPS/BIGBASKET/AB123456,2100,Groceries
-Uber ride to airport,820,Transportation
-Ola cab to office,240,Transportation
-Metro card recharge,500,Transportation
-Petrol pump fuel,1500,Transportation
-Rapido bike taxi,85,Transportation
-POS 4829 UBER INDIA,310,Transportation
-Monthly house rent,25000,Housing & Rent
-Flat rent September,18000,Housing & Rent
-Society maintenance charges,2200,Housing & Rent
-Home loan EMI,32000,Housing & Rent
-Electricity bill September,1890,Utilities
-Airtel broadband bill,1179,Utilities
-Jio mobile recharge,299,Utilities
-Water bill,350,Utilities
-Piped gas bill,640,Utilities
-Apollo pharmacy medicines,780,Healthcare
-Doctor consultation fee,600,Healthcare
-Blood test at diagnostic lab,1200,Healthcare
-Dental checkup,1500,Healthcare
-Cinema tickets,600,Entertainment
-BookMyShow movie booking,750,Entertainment
-Bowling night with friends,900,Entertainment
-Concert tickets,2500,Entertainment
-Myntra clothes shopping,7800,Shopping
-Amazon shopping,5200,Shopping
-Flipkart headphones,1999,Shopping
-Nike running shoes,6499,Shopping
-Udemy Python course,499,Education
-College semester fee,45000,Education
-Books for exam preparation,850,Education
-Coursera certificate course,3500,Education
-MakeMyTrip flight tickets,8200,Travel
-IRCTC train ticket Mumbai,1240,Travel
-Hotel booking Goa,6500,Travel
-OYO room booking,2100,Travel
-LIC premium payment,12000,Insurance
-Health insurance premium,18500,Insurance
-Car insurance renewal,9800,Insurance
-NEFT-LIC OF INDIA-PREMIUM,12000,Insurance
-Zerodha mutual fund SIP,5000,Investments & Savings
-PPF deposit,10000,Investments & Savings
-Fixed deposit opening,50000,Investments & Savings
-Groww SIP,3000,Investments & Savings
-Salon haircut,500,Personal Care
-Spa and massage,1800,Personal Care
-Gym membership,2500,Personal Care
-Skincare products from Nykaa,1450,Personal Care
-Netflix monthly subscription,649,Subscriptions
-Spotify premium,119,Subscriptions
-Amazon Prime annual membership,1499,Subscriptions
-YouTube Premium,129,Subscriptions
-iCloud storage plan,75,Subscriptions
-UPI/NETFLIX COM/MUMBAI,649,Subscriptions
-Donation to temple,500,Other
-Cash withdrawal ATM,5000,Other
-Bank service charges,236,Other
-Courier charges,150,Other
-Donation to NGO,1000,Other
+description,amount,category,direction,is_person,phase
+Swiggy order - dinner,450,Food & Dining,debit,0,1
+Zomato lunch order,320,Food & Dining,debit,0,1
+Dominos pizza,599,Food & Dining,debit,0,1
+Starbucks coffee,380,Food & Dining,debit,0,1
+UPI/412345678901/SWIGGY/okaxis,380,Food & Dining,debit,0,1
+UPI-ZOMATO-ZOMATO@HDFCBANK-512345678902,450,Food & Dining,debit,0,1
+UPI-HOTEL SAGAR RESTAURANT-412345678901,640,Food & Dining,debit,0,1
+Big Bazaar groceries,2340,Groceries,debit,0,1
+BigBasket order,1850,Groceries,debit,0,1
+Blinkit vegetables and milk,420,Groceries,debit,0,1
+D-Mart monthly provisions,4120,Groceries,debit,0,1
+IMPS/BIGBASKET/AB123456,2100,Groceries,debit,0,1
+Uber ride to airport,820,Transportation,debit,0,1
+Ola cab to office,240,Transportation,debit,0,1
+Metro card recharge,500,Transportation,debit,0,1
+Petrol pump fuel,1500,Transportation,debit,0,1
+Rapido bike taxi,85,Transportation,debit,0,1
+POS 4829 UBER INDIA,310,Transportation,debit,0,1
+Monthly house rent,25000,Housing & Rent,debit,0,1
+Flat rent September,18000,Housing & Rent,debit,0,1
+Society maintenance charges,2200,Housing & Rent,debit,0,1
+Home loan EMI,32000,Housing & Rent,debit,0,1
+Electricity bill September,1890,Utilities,debit,0,1
+Airtel broadband bill,1179,Utilities,debit,0,1
+Jio mobile recharge,299,Utilities,debit,0,1
+Water bill,350,Utilities,debit,0,1
+Piped gas bill,640,Utilities,debit,0,1
+Apollo pharmacy medicines,780,Healthcare,debit,0,1
+Doctor consultation fee,600,Healthcare,debit,0,1
+Blood test at diagnostic lab,1200,Healthcare,debit,0,1
+Dental checkup,1500,Healthcare,debit,0,1
+Cinema tickets,600,Entertainment,debit,0,1
+BookMyShow movie booking,750,Entertainment,debit,0,1
+Bowling night with friends,900,Entertainment,debit,0,1
+Concert tickets,2500,Entertainment,debit,0,1
+Myntra clothes shopping,7800,Shopping,debit,0,1
+Amazon shopping,5200,Shopping,debit,0,1
+Flipkart headphones,1999,Shopping,debit,0,1
+Nike running shoes,6499,Shopping,debit,0,1
+Udemy Python course,499,Education,debit,0,1
+College semester fee,45000,Education,debit,0,1
+Books for exam preparation,850,Education,debit,0,1
+Coursera certificate course,3500,Education,debit,0,1
+MakeMyTrip flight tickets,8200,Travel,debit,0,1
+IRCTC train ticket Mumbai,1240,Travel,debit,0,1
+Hotel booking Goa,6500,Travel,debit,0,1
+OYO room booking,2100,Travel,debit,0,1
+LIC premium payment,12000,Insurance,debit,0,1
+Health insurance premium,18500,Insurance,debit,0,1
+Car insurance renewal,9800,Insurance,debit,0,1
+NEFT-LIC OF INDIA-PREMIUM,12000,Insurance,debit,0,1
+Zerodha mutual fund SIP,5000,Investments & Savings,debit,0,1
+PPF deposit,10000,Investments & Savings,debit,0,1
+Fixed deposit opening,50000,Investments & Savings,debit,0,1
+Groww SIP,3000,Investments & Savings,debit,0,1
+Salon haircut,500,Personal Care,debit,0,1
+Spa and massage,1800,Personal Care,debit,0,1
+Gym membership,2500,Personal Care,debit,0,1
+Skincare products from Nykaa,1450,Personal Care,debit,0,1
+Netflix monthly subscription,649,Subscriptions,debit,0,1
+Spotify premium,119,Subscriptions,debit,0,1
+Amazon Prime annual membership,1499,Subscriptions,debit,0,1
+YouTube Premium,129,Subscriptions,debit,0,1
+iCloud storage plan,75,Subscriptions,debit,0,1
+UPI/NETFLIX COM/MUMBAI,649,Subscriptions,debit,0,1
+Donation to temple,500,Other,debit,0,1
+Cash withdrawal ATM,5000,Other,debit,0,1
+Bank service charges,236,Other,debit,0,1
+Courier charges,150,Other,debit,0,1
+Donation to NGO,1000,Other,debit,0,1
+NEFT-GLOBEX SOLUTIONS SALARY AUG,92000,Salary,credit,0,1
+SAL CREDIT INITECH PVT LTD,78000,Salary,credit,0,1
+SB INT PD 01-04-2026 TO 30-06-2026,285.5,Interest,credit,0,1
+FD INTEREST CREDIT 1234,1840,Interest,credit,0,1
+ACH C- UMBRELLA CORP DIV 2026,900,Dividend,credit,0,1
+DIVIDEND WAYNE ENTERPRISES,450,Dividend,credit,0,1
+AMAZON REFUND ORDER 4021,1299,Refund & Cashback,credit,0,1
+CASHBACK CREDIT CARD OFFER,150,Refund & Cashback,credit,0,1
+UPI/512300000001/SWIGGY/swiggy@icici REVERSAL,320,Refund & Cashback,credit,0,1
+ZERODHA BROKING FUNDS WITHDRAWAL,15000,Investment Redemption,credit,0,1
+NIPPON INDIA MF REDEMPTION PROCEEDS,22000,Investment Redemption,credit,0,1
+UPI/512300000002/GROWW/groww.payout@axisbank,6000,Investment Redemption,credit,0,1
+FD MATURITY PROCEEDS,50000,Investment Redemption,credit,0,1
+SELF TRANSFER FROM HDFC,10000,Transfers,credit,0,1
+NEFT-KUMAR TRADERS-INV 2231,3400,Other Income,credit,0,1
+UPI/512300000003/MEERA IYER/meera.i@okicici,800,Other Income,credit,0,1
+NACH/ICICI PRU MF SIP/FOLIO 998877,4000,Investments & Savings,debit,0,1
+UPI/512300000004/UPSTOX/upstox@hdfcbank ADD FUNDS,7500,Investments & Savings,debit,0,1
+ANGEL ONE FUNDS PAYIN,5000,Investments & Savings,debit,0,1
+INDMONEY US STOCKS,3000,Investments & Savings,debit,0,1
+NPS CONTRIBUTION TIER 1,5000,Investments & Savings,debit,0,1
+IMPS TO OWN ACCOUNT SBI,15000,Transfers,debit,0,1
+UPI/512300000005/RAHUL VERMA/rahul.v@okhdfcbank,600,Transfers,debit,1,1
+UPI/512300000006/9123456780@ybl,250,Transfers,debit,1,1
+IMPS/P2A/512300000007/SNEHA PATIL,3000,Transfers,debit,1,1
+NEFT-AMIT JOSHI-RENT SHARE,9000,Transfers,debit,1,1
+UPI/512300000008/KAVYA NAIR/kavya.nair@oksbi,450,Transfers,debit,1,1
+UPI/512300000009/SHARMA SWEETS/sharmasweets@ybl,380,Food & Dining,debit,0,1
+UPI/512300000010/GUPTA GENERAL STORE/guptastore@ybl,640,Groceries,debit,0,1
+UPI/512300000011/CITY MEDICALS/citymedicals@okaxis,310,Healthcare,debit,0,1
+UPI/512300000012/RAJ MESS/rajmess@okaxis,3000,Food & Dining,debit,0,1
+KRISHNA TIFFIN CENTRE,150,Food & Dining,debit,0,1
+UPI/512300000101/RAJ MESS/rajmess@okaxis,3000,Food & Dining,debit,0,2
+UPI/512300000102/MONTHLY THALI/rajmess@okaxis,3000,Food & Dining,debit,0,2
+KRISHNA TIFFIN CENTRE,180,Food & Dining,debit,0,2
+Courier charges,150,Other,debit,0,2
+Bank service charges,236,Other,debit,0,2
+UPI/512300000103/RAHUL VERMA/rahul.v@okhdfcbank,600,Transfers,debit,1,2
+UPI/512300000104/SNEHA PATIL/sneha.p@okicici,1200,Transfers,debit,1,2
+UPI/512300000105/CITY MEDICALS/citymedicals@okaxis,290,Healthcare,debit,0,2
+PHONEPE RECHARGE JIO PREPAID,299,Utilities,debit,0,2
+SB INT PD 01-07-2026 TO 30-09-2026,301.2,Interest,credit,0,2
+NEFT-GLOBEX SOLUTIONS SALARY SEP,92000,Salary,credit,0,2
+NACH/ICICI PRU MF SIP/FOLIO 998877,4000,Investments & Savings,debit,0,2
