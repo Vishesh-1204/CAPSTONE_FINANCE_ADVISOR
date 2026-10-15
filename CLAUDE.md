@@ -31,11 +31,20 @@ research value, explainability and maintainability over quick fixes.
 
 ## Current status (update this when it changes)
 - Done: Phase 1 (setup), Phase 2 (auth, tested), Phase 3A/3B (transactions, CSV upload, LLM categorizer).
-- Done: Phase 3B v2 (hybrid categorizer, batch LLM, memory, rules, CSV import, 63 tests) applied and verified.
-  memory from user corrections, better CSV import, evaluation harness, 63 unit tests.
-  The zip's top-level folder is backend/, so it must be extracted at the REPO ROOT, never inside backend/
-  (otherwise you get backend/backend/).
-- Next: Phase 4 Budget Planning Agent. Adopt Alembic migrations at the start of Phase 4.
+- Done: Phase 3B v2 (hybrid categorizer, batch LLM, memory, rules, CSV import, 63 tests).
+- Done: Phase 3B v3 (spec docs/phase3b-v3-spec.md) on branch feature/vishesh-3b-v3, 223 tests passing:
+  S1 Alembic (0001 baseline, 0002 v3; `alembic upgrade head` runs before uvicorn), S2 direction/txn_type,
+  investment dictionary, Numeric amounts, S3 payee rules, locks, agent_category, bulk, unlock, review-queue
+  filters, summary, person-payee guard, LLM fallback chain, S4/S5 CSV/XLSX/PDF parsers (password, scanned 422,
+  balance check, import batches), S6 evaluation on the real pipeline (metrics CSV in backend/evaluation/results/,
+  gitignored), S8 docs in docs/ (architecture, API, database, testing, one page per module).
+- In progress: S7 frontend Test Console (frontend/, npm run dev on the host). F0 done (scaffold, lib/api.ts,
+  shared components, home = connection check, backend GET /api/categories). F1-F6 pages not built yet:
+  /login, /upload, /transactions, /review, /summary, /rules (see docs/modules/frontend-console.md).
+- Optional, ask first: S9 Celery + Redis background import/categorize.
+- Next: finish S7 pages, then Phase 4 Budget Planning Agent (builds on GET /api/transactions/summary).
+- Known gaps: no HuggingFace/Llama provider in llm/factory.py yet (approved stack); person guard recall 0.857
+  (1 person-like string reached the LLM stage in the offline eval).
 
 ## Architecture (clean layers: each layer only calls the one below it)
 backend/app/
@@ -45,15 +54,21 @@ backend/app/
 - llm/          provider abstraction (base.py, gemini_provider.py, openai_provider.py, factory.py).
                 Never import a vendor SDK outside this folder. Provider chosen by LLM_PROVIDER in .env.
 - models/       SQLAlchemy tables.  schemas/  Pydantic request/response shapes.
-- core/         config, security, logging, shared constants (categories live in core/categories.py after v2)
-- db/           engine/session. Tables are created with create_all (no Alembic yet).
+- core/         config, security, logging, shared constants (categories.py, transaction_types.py, merchant_dictionary.py)
+- db/           engine/session. The schema is managed ONLY by Alembic (backend/migrations/versions/);
+                a model change needs a new revision (tests/test_migrations.py fails on drift).
+frontend/       Next.js Test Console (S7). All backend calls go through frontend/lib/api.ts.
+Full docs: docs/README.md.
 Security rule: user_id ALWAYS comes from the JWT (get_current_user), never from the request body.
 Every query that touches user data must filter by user_id.
 
 ## Commands (Windows PowerShell, run from the repo root)
 - Start everything:        docker compose up --build
-- Wipe the DB (test data): docker compose down -v      (needed after adding columns, until Alembic)
+- Wipe the DB (test data): docker compose down -v      (only to reset data; migrations handle schema changes)
+- New migration:           docker compose exec backend alembic revision -m "description"
 - Run unit tests:          docker compose exec backend python -m pytest tests -q
+- Evaluation (offline):    docker compose exec backend python -m evaluation.evaluate_categorizer
+- Frontend (host):         cd frontend; npm run dev   -> open http://localhost:3000 (not 127.0.0.1, CORS)
 - Manual API testing:      http://127.0.0.1:8000/docs (Swagger). Authorize with the login token.
 - In PowerShell `curl` is an alias for Invoke-WebRequest. Use Swagger, or `curl.exe` with escaped quotes.
 

@@ -1,0 +1,73 @@
+# Testing
+
+## Run the tests
+
+```powershell
+docker compose exec backend python -m pytest tests -q                                  # everything (223)
+docker compose exec backend python -m pytest tests/test_statement_parsers.py -q        # one file
+docker compose exec backend python -m pytest tests -q -k "password"                    # by name
+```
+
+Tests need **no Postgres, no network and no API key**:
+- the database is a fresh in-memory SQLite per test (`tests/conftest.py`, users 1 and 2 pre-created);
+- the LLM is a fake chain/agent that returns canned text and records what it was sent;
+- HTTP tests use FastAPI's `TestClient` and override `get_current_user`, so no login is needed.
+
+`tests/test_migrations.py` is the exception that touches Alembic: it applies all migrations to an empty
+database and compares the result with the models (drift check).
+
+Last full run: **223 passed** (S8, on `feature/vishesh-3b-v3`).
+
+## What each test file covers
+
+| Module | File | Tests | Covers |
+|---|---|---|---|
+| Migrations | `test_migrations.py` | 4 | migrations apply on an empty DB; models and migrations match |
+| Ingestion | `test_statement_parsers.py` | 27 | XLSX, HDFC-like and SBI-like PDFs, password right/wrong/missing, password never in logs/errors, scanned → 422, balance check, cross-format duplicates |
+| Ingestion | `test_statement_import.py` | 22 | CSV through the shared pipeline: header detection, amount/date formats, credits imported, duplicates, import batches |
+| Ingestion (HTTP) | `test_statements_api.py` | 6 | upload summary, import batches, deprecated `/upload-csv` alias |
+| Types | `test_txn_type_detector.py` | 36 | every investment/income/transfer case from spec §6, `to_money` |
+| Types | `test_narration_parser.py` | 16 | channel, UPI ID, payee key extraction |
+| Types | `test_text_normalizer.py` | 9 | description normalization |
+| Categorization | `test_categorization_service.py` | 19 | priority order, grouping, memory, failures leave rows uncategorized |
+| Categorization | `test_rule_based_categorizer.py` | 16 | keyword rules, precision-over-coverage |
+| Categorization | `test_expense_categorizer.py` | 14 | prompt/JSON parsing, retries, provider fallback (fake chains) |
+| Privacy | `test_person_payee_guard.py` | 14 | person detection; no name, phone, UPI ID or reference reaches the LLM |
+| Overrides | `test_category_overrides.py` | 14 | locks, `agent_category`, apply-to-similar, payee-rule priority, unlock, bulk, direction checks |
+| API | `test_transactions_api.py` | 8 | end-to-end HTTP: create, list, categorize, correct |
+| API | `test_transactions_api_v3.py` | 8 | filters + paging envelope, summary, bulk, unlock, extended PATCH, payee rules |
+| API | `test_categories_api.py` | 1 | `GET /api/categories/` returns the lists from `core/categories.py` |
+| Evaluation | `test_evaluation.py` | 9 | harness runs offline, CSV written, known values, metric formulas |
+
+Fixtures: `backend/tests/fixtures/statements/` (synthetic; regenerate with
+`docker compose exec backend python -m scripts.make_synthetic_statements`). PDF/XLSX fixtures are marked
+binary in `.gitattributes` so Git never changes their bytes.
+
+## Frontend checks
+
+```powershell
+cd frontend
+npm run lint
+npm run build        # also type-checks every page
+```
+
+## Manual end-to-end checklist (Swagger or the Test Console)
+
+1. `GET /health` → `{"status": "ok", ...}`.
+2. Register a synthetic user, log in, **Authorize**.
+3. Upload `messy.csv` → `rows_invalid: 1`; upload it again → all rows duplicates.
+4. Upload `protected.pdf` without a password (400), with a wrong one (400), with `test1234` (201).
+5. Upload `scanned.pdf` → 422 with the scanned-PDF message.
+6. Upload `sbi_like.pdf` → `balance_mismatches: 1`.
+7. `POST /api/transactions/categorize` → check the per-source counts; without an API key the remaining rows are `failed` with a message (never "Other").
+8. `GET /api/transactions/?status=needs_review` → person-guarded rows are there as Transfers.
+9. `PATCH` one row with `apply_to_similar` and `remember_payee` → `similar_updated`, `payee_rule`; the row is `user_locked`.
+10. `POST /api/transactions/categorize?reset_ai_results=true` → the locked row is unchanged.
+11. `GET /api/transactions/summary?month=<fixture month>` → investments are not in `expense_total`.
+12. `GET /api/payee-rules/`, then `DELETE` it → 204.
+
+## Common mistakes
+- Running `pytest` on the host instead of in the container (different Python, missing deps).
+- Writing a test with a real narration, name or account number. Synthetic only.
+- Letting a test call a real LLM. Inject a fake (see `test_expense_categorizer.py`).
+- Adding a model column without a migration. The drift test will (correctly) fail.

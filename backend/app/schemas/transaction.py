@@ -102,6 +102,12 @@ class BulkCategoryResponse(BaseModel):
     not_found_ids: list[int]              # not yours, or does not exist
 
 
+class CategoryOptions(BaseModel):
+    """GET /api/categories: the labels a user may pick, per direction."""
+    debit: list[str]
+    credit: list[str]
+
+
 class CategoryTotal(BaseModel):
     category: str
     total: float
