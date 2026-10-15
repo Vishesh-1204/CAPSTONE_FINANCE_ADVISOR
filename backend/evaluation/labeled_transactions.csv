@@ -1,0 +1,71 @@
+description,amount,category
+Swiggy order - dinner,450,Food & Dining
+Zomato lunch order,320,Food & Dining
+Dominos pizza,599,Food & Dining
+Starbucks coffee,380,Food & Dining
+UPI/412345678901/SWIGGY/okaxis,380,Food & Dining
+UPI-ZOMATO-ZOMATO@HDFCBANK-512345678902,450,Food & Dining
+UPI-HOTEL SAGAR RESTAURANT-412345678901,640,Food & Dining
+Big Bazaar groceries,2340,Groceries
+BigBasket order,1850,Groceries
+Blinkit vegetables and milk,420,Groceries
+D-Mart monthly provisions,4120,Groceries
+IMPS/BIGBASKET/AB123456,2100,Groceries
+Uber ride to airport,820,Transportation
+Ola cab to office,240,Transportation
+Metro card recharge,500,Transportation
+Petrol pump fuel,1500,Transportation
+Rapido bike taxi,85,Transportation
+POS 4829 UBER INDIA,310,Transportation
+Monthly house rent,25000,Housing & Rent
+Flat rent September,18000,Housing & Rent
+Society maintenance charges,2200,Housing & Rent
+Home loan EMI,32000,Housing & Rent
+Electricity bill September,1890,Utilities
+Airtel broadband bill,1179,Utilities
+Jio mobile recharge,299,Utilities
+Water bill,350,Utilities
+Piped gas bill,640,Utilities
+Apollo pharmacy medicines,780,Healthcare
+Doctor consultation fee,600,Healthcare
+Blood test at diagnostic lab,1200,Healthcare
+Dental checkup,1500,Healthcare
+Cinema tickets,600,Entertainment
+BookMyShow movie booking,750,Entertainment
+Bowling night with friends,900,Entertainment
+Concert tickets,2500,Entertainment
+Myntra clothes shopping,7800,Shopping
+Amazon shopping,5200,Shopping
+Flipkart headphones,1999,Shopping
+Nike running shoes,6499,Shopping
+Udemy Python course,499,Education
+College semester fee,45000,Education
+Books for exam preparation,850,Education
+Coursera certificate course,3500,Education
+MakeMyTrip flight tickets,8200,Travel
+IRCTC train ticket Mumbai,1240,Travel
+Hotel booking Goa,6500,Travel
+OYO room booking,2100,Travel
+LIC premium payment,12000,Insurance
+Health insurance premium,18500,Insurance
+Car insurance renewal,9800,Insurance
+NEFT-LIC OF INDIA-PREMIUM,12000,Insurance
+Zerodha mutual fund SIP,5000,Investments & Savings
+PPF deposit,10000,Investments & Savings
+Fixed deposit opening,50000,Investments & Savings
+Groww SIP,3000,Investments & Savings
+Salon haircut,500,Personal Care
+Spa and massage,1800,Personal Care
+Gym membership,2500,Personal Care
+Skincare products from Nykaa,1450,Personal Care
+Netflix monthly subscription,649,Subscriptions
+Spotify premium,119,Subscriptions
+Amazon Prime annual membership,1499,Subscriptions
+YouTube Premium,129,Subscriptions
+iCloud storage plan,75,Subscriptions
+UPI/NETFLIX COM/MUMBAI,649,Subscriptions
+Donation to temple,500,Other
+Cash withdrawal ATM,5000,Other
+Bank service charges,236,Other
+Courier charges,150,Other
+Donation to NGO,1000,Other

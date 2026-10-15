@@ -1,0 +1,9 @@
+# Keeps the Docker build fast and keeps secrets out of the image.
+# Without this, your local venv (10,000+ files) is copied into every build.
+venv/
+.venv/
+__pycache__/
+*.pyc
+.pytest_cache/
+.env
+evaluation/results/
