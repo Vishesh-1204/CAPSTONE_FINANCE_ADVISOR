@@ -4,9 +4,11 @@
 # Alembic (migrations/env.py), the tests and create_all all rely on this, so a
 # new model must be imported here or it will be invisible to them.
 
+from app.models.budget import Budget, BudgetRun
+from app.models.financial_profile import FinancialProfile
 from app.models.import_batch import ImportBatch
 from app.models.payee_rule import PayeeRule
 from app.models.transaction import Transaction
 from app.models.user import User
 
-__all__ = ["ImportBatch", "PayeeRule", "Transaction", "User"]
+__all__ = ["Budget", "BudgetRun", "FinancialProfile", "ImportBatch", "PayeeRule", "Transaction", "User"]

@@ -95,3 +95,36 @@ def test_0002_upgrades_existing_rows_without_losing_data(db_url):
     assert mess.user_locked and mess.agent_category is None                      # the user decided it
     assert unknown.agent_category is None and not unknown.user_locked
     assert all(row.txn_type is None for row in rows)          # filled by the next categorize run
+
+
+def test_0003_keeps_existing_data_and_adds_budget_tables(db_url):
+    """The real dev database is at 0002 with data; 0003 must only ADD the budget tables."""
+    config = _alembic_config(db_url)
+    command.upgrade(config, "0002")
+
+    engine = create_engine(db_url)
+    with engine.begin() as connection:
+        connection.exec_driver_sql(
+            "INSERT INTO users (id, email, full_name, hashed_password, is_active) VALUES (1, 'a@x.com', 'A', 'x', 1)"
+        )
+        connection.exec_driver_sql(
+            "INSERT INTO transactions (user_id, description, amount, direction, txn_type, category, "
+            "needs_review, user_locked, transaction_date) VALUES "
+            "(1, 'Swiggy', 450.50, 'debit', 'expense', 'Food & Dining', 0, 0, '2026-09-01')"
+        )
+
+    command.upgrade(config, "head")
+
+    tables = set(inspect(engine).get_table_names())
+    assert {"financial_profiles", "budgets", "budget_runs"} <= tables
+    with engine.begin() as connection:
+        row = connection.exec_driver_sql("SELECT description, amount, category FROM transactions").one()
+        assert row.description == "Swiggy" and float(row.amount) == 450.5 and row.category == "Food & Dining"
+        # server defaults: a profile without a savings target gets 20%, a budget gets source 'agent'
+        connection.exec_driver_sql("INSERT INTO financial_profiles (user_id, monthly_income) VALUES (1, 60000)")
+        connection.exec_driver_sql(
+            "INSERT INTO budgets (user_id, month, category, limit_amount, agent_limit_amount) "
+            "VALUES (1, '2026-10', 'Groceries', 5000, 5000)"
+        )
+        assert float(connection.exec_driver_sql("SELECT savings_target_pct FROM financial_profiles").scalar()) == 20
+        assert connection.exec_driver_sql("SELECT source FROM budgets").scalar() == "agent"
