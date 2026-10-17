@@ -47,5 +47,10 @@ def lookback_window(month: str, months: int) -> tuple[datetime, datetime]:
 
 
 def month_key(moment: datetime) -> str:
-    """The 'YYYY-MM' label of a datetime (naive datetimes from SQLite work too)."""
+    """
+    The 'YYYY-MM' label of a datetime, read in UTC (the same clock month_bounds
+    uses). Naive datetimes (SQLite in the tests) are taken as UTC already.
+    """
+    if moment.tzinfo is not None:
+        moment = moment.astimezone(timezone.utc)
     return f"{moment.year:04d}-{moment.month:02d}"

@@ -4,6 +4,7 @@
 # need no Postgres, no network and no API key.
 
 from datetime import datetime, timezone
+from decimal import Decimal
 
 import pytest
 from sqlalchemy import create_engine
@@ -38,6 +39,30 @@ def add_tx(
     tx = Transaction(
         user_id=user_id, description=description, amount=amount, direction=direction,
         transaction_date=datetime(2026, 9, day, tzinfo=timezone.utc),
+    )
+    db.add(tx)
+    db.commit()
+    return tx
+
+
+def add_expense(
+    db,
+    category: str | None,
+    amount: float | str,
+    month: str = "2026-09",
+    day: int = 5,
+    user_id: int = 1,
+    txn_type: str | None = "expense",
+    direction: str = "debit",
+    needs_review: bool = False,
+    description: str = "Synthetic merchant",
+) -> Transaction:
+    """Test helper: insert one already-categorized row in `month` ('YYYY-MM')."""
+    year, month_number = (int(part) for part in month.split("-"))
+    tx = Transaction(
+        user_id=user_id, description=description, amount=Decimal(str(amount)), direction=direction,
+        txn_type=txn_type, category=category, needs_review=needs_review,
+        transaction_date=datetime(year, month_number, day, 12, tzinfo=timezone.utc),
     )
     db.add(tx)
     db.commit()
