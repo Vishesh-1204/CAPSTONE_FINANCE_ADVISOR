@@ -9,6 +9,7 @@ PostgreSQL 16 in Docker (`docker-compose.yml`, service `db`). Tables are defined
 |---|---|---|
 | `0001` | `0001_baseline.py` | The schema as it was at the end of Phase 3B v2 (`users`, `transactions`) |
 | `0002` | `0002_statement_ingestion_and_overrides.py` | v3: new `transactions` columns, `amount` Float → `Numeric(14,2)`, new tables `import_batches` and `payee_rules`. Existing rows survive: every new column is nullable or has a server default |
+| `0003` | `0003_budget_planning.py` | Phase 4: new tables `financial_profiles`, `budgets`, `budget_runs` (no change to existing tables) |
 
 The backend container runs `alembic upgrade head` before starting uvicorn (`backend/Dockerfile`),
 so a normal `docker compose up --build` always brings the schema up to date. **You no longer need
@@ -33,6 +34,9 @@ erDiagram
     users ||--o{ import_batches : uploads
     users ||--o{ payee_rules : creates
     import_batches ||--o{ transactions : "produced (nullable)"
+    users ||--o| financial_profiles : has
+    users ||--o{ budgets : "limits per month"
+    users ||--o{ budget_runs : "generation log"
 ```
 
 ## `users`
@@ -119,6 +123,51 @@ Opt-in "remember this payee" rules.
 Constraint: `UNIQUE(user_id, match_type, match_value)`, so remembering the same payee again
 **updates** the rule instead of adding a second one.
 
+## `financial_profiles`
+
+Phase 4. The two numbers the budget planner needs from the user.
+
+| Column | Type | Notes |
+|---|---|---|
+| `id`, `user_id` | | `UNIQUE(user_id)` (`uq_financial_profiles_user_id`): one profile per user |
+| `monthly_income` | numeric(14,2) | > 0 (validated by the API) |
+| `savings_target_pct` | numeric(5,2) | server default 20 (= 20% of income) |
+| `updated_at` | timestamptz | refreshed on every update |
+
+## `budgets`
+
+Phase 4. One monthly limit per category.
+
+| Column | Type | Notes |
+|---|---|---|
+| `id`, `user_id` | | `user_id` indexed (`ix_budgets_user_id`) |
+| `month` | varchar(7) | `YYYY-MM` |
+| `category` | varchar(100) | an expense category (never `Investments & Savings`) |
+| `limit_amount` | numeric(14,2) | the limit in force (agent's or user's) |
+| `agent_limit_amount` | numeric(14,2) | the planner's original number; a user override never changes it (override metric, reset) |
+| `source` | varchar(10) | `agent` (refreshed on regeneration) or `user` (never touched by the planner); server default `agent` |
+| `reasoning` | varchar(1000) | one sentence (LLM text that passed the guard, or the template) |
+| `created_at` | timestamptz | |
+
+Constraint: `UNIQUE(user_id, month, category)` (`uq_budgets_user_month_category`), so regeneration
+**updates** a row instead of duplicating it.
+
+## `budget_runs`
+
+Phase 4 research log: one row per generation. Never shown to the user as advice.
+
+| Column | Type | Notes |
+|---|---|---|
+| `id`, `user_id` | | `user_id` indexed (`ix_budget_runs_user_id`) |
+| `month` | varchar(7) | |
+| `method` | varchar(10) | `history` or `baseline` |
+| `spendable`, `shortfall` | numeric(14,2) | |
+| `feasible` | bool | false when essentials alone exceed spendable income |
+| `months_used` | int | months of history behind the plan |
+| `llm_used` | bool | an LLM answered with usable JSON |
+| `explanation_faithful` | bool, nullable | true = all LLM text passed the guard; false = some was replaced; NULL = no LLM text |
+| `created_at` | timestamptz | |
+
 ## Inspecting the data
 
 ```powershell
@@ -127,5 +176,6 @@ docker compose exec db psql -U finance_user -d finance_db
 ```sql
 \dt
 SELECT txn_type, category_source, count(*) FROM transactions GROUP BY 1, 2 ORDER BY 1, 2;
-SELECT version_num FROM alembic_version;   -- should be 0002
+SELECT version_num FROM alembic_version;   -- should be 0003
+SELECT method, feasible, llm_used, explanation_faithful, count(*) FROM budget_runs GROUP BY 1, 2, 3, 4;
 ```

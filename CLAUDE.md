@@ -38,13 +38,21 @@ research value, explainability and maintainability over quick fixes.
   filters, summary, person-payee guard, LLM fallback chain, S4/S5 CSV/XLSX/PDF parsers (password, scanned 422,
   balance check, import batches), S6 evaluation on the real pipeline (metrics CSV in backend/evaluation/results/,
   gitignored), S8 docs in docs/ (architecture, API, database, testing, one page per module).
+- Done: Phase 4 backend P0-P7 (spec docs/phase4-spec.md) on branch feature/vishesh-budget, 363 tests passing:
+  migration 0003 (financial_profiles, budgets, budget_runs), Decimal calculator (Python computes, LLM only
+  explains, one call per plan), explanation guard + template fallback, profile/budget/status routes,
+  GET /api/profile/financial/suggestion (refunds excluded), synthetic 6-month 3-persona history (seed 42),
+  evaluation/evaluate_budget.py -> backend/evaluation/budget_metrics.csv + .md (committed, deterministic;
+  B1 MAE Rs 964 vs B0 Rs 1,621). Docs: docs/modules/budget-planning.md, budget-evaluation.md.
 - In progress: S7 frontend Test Console (frontend/, npm run dev on the host). F0 done (scaffold, lib/api.ts,
   shared components, home = connection check, backend GET /api/categories). F1-F6 pages not built yet:
   /login, /upload, /transactions, /review, /summary, /rules (see docs/modules/frontend-console.md).
 - Optional, ask first: S9 Celery + Redis background import/categorize.
-- Next: finish S7 pages, then Phase 4 Budget Planning Agent (builds on GET /api/transactions/summary).
+- Next: P8 frontend /budgets page (separate session, spec section 8), finish S7 pages, then Phase 5 Forecast
+  (B1 history-average is its baseline; reuse the evaluate_budget.py split).
 - Known gaps: no HuggingFace/Llama provider in llm/factory.py yet (approved stack); person guard recall 0.857
-  (1 person-like string reached the LLM stage in the offline eval).
+  (1 person-like string reached the LLM stage in the offline eval); budget guard only checks amounts with a
+  currency marker; B2 (--llm real) faithfulness not measured yet; synthetic personas do not react to budgets.
 
 ## Architecture (clean layers: each layer only calls the one below it)
 backend/app/

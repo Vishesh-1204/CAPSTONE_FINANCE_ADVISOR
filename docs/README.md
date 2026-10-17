@@ -1,14 +1,15 @@
 # Documentation
 
-Docs for the backend as of **Phase 3B v3** (Expense Intelligence Agent: statement ingestion,
-investment flows, manual override, evaluation) plus the start of the frontend Test Console.
+Docs for the backend as of **Phase 4** (Budget Planning Agent) on top of **Phase 3B v3** (Expense
+Intelligence Agent: statement ingestion, investment flows, manual override, evaluation), plus the start
+of the frontend Test Console.
 
 Read in this order if you are new to the project:
 
 | # | Document | What you learn |
 |---|---|---|
 | 1 | [architecture.md](architecture.md) | The layers, the folder map, and two flow diagrams (upload → categorize → review) |
-| 2 | [database.md](database.md) | Every table and column, indexes, migrations 0001/0002 |
+| 2 | [database.md](database.md) | Every table and column, indexes, migrations 0001-0003 |
 | 3 | [api.md](api.md) | Every endpoint: request, response, errors, examples |
 | 4 | [testing.md](testing.md) | How to run tests, what each test file covers, manual test checklist |
 | 5 | `modules/` | One page per module (below) |
@@ -24,9 +25,11 @@ Read in this order if you are new to the project:
 | Overrides & review queue | [modules/overrides-and-review.md](modules/overrides-and-review.md) | `services/category_override_service.py`, `services/payee_rule_service.py` |
 | Monthly summary | [modules/summary.md](modules/summary.md) | `services/summary_service.py` |
 | Evaluation (research) | [modules/evaluation.md](modules/evaluation.md) | `evaluation/`, `scripts/make_synthetic_statements.py` |
+| Budget Planning Agent | [modules/budget-planning.md](modules/budget-planning.md) | `services/budget_service.py`, `services/budget_calculator.py`, `agents/budget_planner.py` |
+| Budget evaluation (research) | [modules/budget-evaluation.md](modules/budget-evaluation.md) | `evaluation/evaluate_budget.py`, `scripts/make_synthetic_history.py` |
 | Frontend Test Console | [modules/frontend-console.md](modules/frontend-console.md) | `frontend/` |
 
-The design source for this phase is [phase3b-v3-spec.md](phase3b-v3-spec.md).
+Design sources: [phase3b-v3-spec.md](phase3b-v3-spec.md) (Phase 3B v3) and [phase4-spec.md](phase4-spec.md) (Phase 4).
 
 ## Conventions used in these docs
 

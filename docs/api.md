@@ -38,6 +38,14 @@ The Pydantic shapes live in `backend/app/schemas/`; the TypeScript mirror is `fr
 | GET | `/api/payee-rules/` | Your payee rules |
 | DELETE | `/api/payee-rules/{id}` | Delete a payee rule |
 | GET | `/api/categories/` | Allowed category labels per direction |
+| GET | `/api/profile/financial` | Your income and savings target (404 until saved) |
+| PUT | `/api/profile/financial` | Create or update income and savings target |
+| GET | `/api/profile/financial/suggestion` | Suggested monthly income from your income credits (read-only) |
+| POST | `/api/budgets/generate?month=` | Build (or rebuild) the month's budget |
+| GET | `/api/budgets/?month=` | The month's limits |
+| PUT | `/api/budgets/{id}` | Your own limit for one category |
+| POST | `/api/budgets/{id}/reset` | Back to the planner's limit |
+| GET | `/api/budgets/status?month=` | Spending vs limits for the month |
 
 ---
 
@@ -172,6 +180,65 @@ There is deliberately no POST: rules are created by `PATCH .../category` with `r
 `GET /api/categories/` → `{"debit": [16 expense labels], "credit": ["Salary", "Interest", "Dividend", "Refund & Cashback", "Other Income", "Investment Redemption", "Transfers"]}`.
 Read from `core/categories.py`, so the frontend never keeps its own copy of the list.
 
+## Profile
+
+Details and design: [modules/budget-planning.md](modules/budget-planning.md).
+
+### `GET /api/profile/financial` · `PUT /api/profile/financial`
+PUT body: `{"monthly_income": 60000, "savings_target_pct": 20}` (`monthly_income` > 0, at most 2 decimals;
+`savings_target_pct` 0 ≤ x < 100, default 20). One profile per user; PUT creates it or updates it.
+```json
+{"monthly_income": 60000.0, "savings_target_pct": 20.0, "savings_target_amount": 12000.0,
+ "spendable_income": 48000.0, "updated_at": "2026-10-17T10:00:00Z"}
+```
+GET → **404** until a profile is saved. Invalid body → 422.
+
+### `GET /api/profile/financial/suggestion?month=YYYY-MM`
+Optional `month` (default: current UTC month; bad format → 422). Averages **income credits** (salary,
+interest, dividend, other income; refunds, redemptions and self-transfers excluded) over the
+`BUDGET_LOOKBACK_MONTHS` full months before `month`, divided by the months that have any transaction.
+Read-only: nothing is saved.
+```json
+{"month": "2026-10", "lookback_months": 3, "window_start": "2026-07", "window_end": "2026-09",
+ "months_used": 3,
+ "income_by_month": [{"month": "2026-07", "total": 60000.0}, {"month": "2026-08", "total": 0.0},
+                     {"month": "2026-09", "total": 60900.0}],
+ "suggested_monthly_income": 40300.0, "message": "Average of 3 month(s) of income credits ..."}
+```
+No income in the window → `"suggested_monthly_income": null` and a message telling you to import a statement.
+
+## Budgets
+
+All take `month` as `YYYY-MM` (required; `2026-13`, `26-09` → **422**). Someone else's budget id → **404**.
+
+### `POST /api/budgets/generate?month=YYYY-MM`
+Builds the plan from your expenses in the lookback months before `month` (no history → baseline plan).
+Regenerating keeps your own limits (`source="user"`). **400** without a financial profile.
+Response: `month, method ("history"|"baseline"), monthly_income, savings_target_amount, spendable_income,
+feasible, shortfall, summary, llm_used, explanation_faithful (true|false|null), data_quality
+{months_used, uncategorized_count, needs_review_count, transfers_total}, budgets[]`.
+Full example: [modules/budget-planning.md](modules/budget-planning.md#output).
+
+### `GET /api/budgets/?month=YYYY-MM`
+`[BudgetItem]`, largest limit first. `BudgetItem`: `id, month, category, limit_amount, agent_limit_amount,
+source ("agent"|"user"), reasoning`.
+
+### `PUT /api/budgets/{id}` · `POST /api/budgets/{id}/reset`
+PUT body `{"limit_amount": 4500}` (≥ 0) → `source="user"`, `agent_limit_amount` unchanged.
+Reset → `limit_amount = agent_limit_amount`, `source="agent"`. Both return the `BudgetItem`.
+
+### `GET /api/budgets/status?month=YYYY-MM`
+```json
+{"month": "2026-10",
+ "items": [{"category": "Groceries", "limit": 6000.0, "spent": 6500.0, "remaining": -500.0,
+            "percent_used": 108.3, "status": "exceeded", "source": "agent"}],
+ "total_limit": 6000.0, "total_spent": 6500.0, "total_remaining": -500.0,
+ "invested_this_month": 5000.0, "savings_target_amount": 10000.0}
+```
+`status`: `ok` (below `BUDGET_WARNING_THRESHOLD` of the limit), `warning`, `exceeded` (above the limit),
+`unbudgeted` (spending with no limit; `limit`, `remaining`, `percent_used` are `null`). Only expenses count
+as spending; `invested_this_month` is saved money, not spent. `savings_target_amount` is `null` without a profile.
+
 ---
 
 ## Examples in PowerShell
@@ -191,4 +258,11 @@ curl.exe -s -X POST http://127.0.0.1:8000/api/statements/upload `
 # categorize, then list the review queue
 curl.exe -s -X POST http://127.0.0.1:8000/api/transactions/categorize -H "Authorization: Bearer $token"
 curl.exe -s "http://127.0.0.1:8000/api/transactions/?status=needs_review&limit=20" -H "Authorization: Bearer $token"
+
+# budget: suggestion, profile, generate, status
+curl.exe -s "http://127.0.0.1:8000/api/profile/financial/suggestion?month=2026-10" -H "Authorization: Bearer $token"
+curl.exe -s -X PUT http://127.0.0.1:8000/api/profile/financial -H "Authorization: Bearer $token" `
+  -H "Content-Type: application/json" -d '{\"monthly_income\": 60000, \"savings_target_pct\": 20}'
+curl.exe -s -X POST "http://127.0.0.1:8000/api/budgets/generate?month=2026-10" -H "Authorization: Bearer $token"
+curl.exe -s "http://127.0.0.1:8000/api/budgets/status?month=2026-10" -H "Authorization: Bearer $token"
 ```

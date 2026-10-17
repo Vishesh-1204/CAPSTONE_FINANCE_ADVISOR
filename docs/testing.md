@@ -3,7 +3,7 @@
 ## Run the tests
 
 ```powershell
-docker compose exec backend python -m pytest tests -q                                  # everything (223)
+docker compose exec backend python -m pytest tests -q                                  # everything (363)
 docker compose exec backend python -m pytest tests/test_statement_parsers.py -q        # one file
 docker compose exec backend python -m pytest tests -q -k "password"                    # by name
 ```
@@ -16,13 +16,13 @@ Tests need **no Postgres, no network and no API key**:
 `tests/test_migrations.py` is the exception that touches Alembic: it applies all migrations to an empty
 database and compares the result with the models (drift check).
 
-Last full run: **223 passed** (S8, on `feature/vishesh-3b-v3`).
+Last full run: **363 passed** (Phase 4 P7, on `feature/vishesh-budget`).
 
 ## What each test file covers
 
 | Module | File | Tests | Covers |
 |---|---|---|---|
-| Migrations | `test_migrations.py` | 4 | migrations apply on an empty DB; models and migrations match |
+| Migrations | `test_migrations.py` | 5 | migrations 0001-0003 apply on an empty DB; models and migrations match |
 | Ingestion | `test_statement_parsers.py` | 27 | XLSX, HDFC-like and SBI-like PDFs, password right/wrong/missing, password never in logs/errors, scanned → 422, balance check, cross-format duplicates |
 | Ingestion | `test_statement_import.py` | 22 | CSV through the shared pipeline: header detection, amount/date formats, credits imported, duplicates, import batches |
 | Ingestion (HTTP) | `test_statements_api.py` | 6 | upload summary, import batches, deprecated `/upload-csv` alias |
@@ -38,6 +38,14 @@ Last full run: **223 passed** (S8, on `feature/vishesh-3b-v3`).
 | API | `test_transactions_api_v3.py` | 8 | filters + paging envelope, summary, bulk, unlock, extended PATCH, payee rules |
 | API | `test_categories_api.py` | 1 | `GET /api/categories/` returns the lists from `core/categories.py` |
 | Evaluation | `test_evaluation.py` | 9 | harness runs offline, CSV written, known values, metric formulas |
+| Budgets | `test_budget_calculator.py` | 15 | baseline weights sum to 1, spendable, trim, scale-down, infeasible, never above spendable, savings never budgeted |
+| Budgets | `test_month_utils.py` | 12 | month bounds, December rollover, lookback window, bad months |
+| Budgets | `test_explanation_guard.py` | 10 | ₹ / Rs. / INR extraction, tolerance, invented amounts |
+| Budgets | `test_budget_planner.py` | 23 | templates, JSON parsing, guard replacement, provider fallback, payload has plan facts only |
+| Budgets | `test_budget_service.py` | 30 | expenses only, window, isolation, overrides survive regeneration, reset, data quality, LLM down/unfaithful, privacy, status, income suggestion |
+| Budgets (HTTP) | `test_budgets_api.py` | 30 | every profile/budget endpoint, 404 on another user's budget, 422 validation |
+| Budget evaluation | `test_synthetic_history.py` | 6 | same seed → same rows, real labels, 3 personas x 6 months, non-spending rows, no names |
+| Budget evaluation | `test_budget_evaluation.py` | 13 | harness runs offline, every config reported, B1 beats B0 on MAE, distortion > 0, guard catches a fake LLM, metric formulas |
 
 Fixtures: `backend/tests/fixtures/statements/` (synthetic; regenerate with
 `docker compose exec backend python -m scripts.make_synthetic_statements`). PDF/XLSX fixtures are marked
@@ -65,6 +73,10 @@ npm run build        # also type-checks every page
 10. `POST /api/transactions/categorize?reset_ai_results=true` → the locked row is unchanged.
 11. `GET /api/transactions/summary?month=<fixture month>` → investments are not in `expense_total`.
 12. `GET /api/payee-rules/`, then `DELETE` it → 204.
+13. `GET /api/profile/financial/suggestion?month=<month after the fixture>` → the salary average (refunds excluded).
+14. `PUT /api/profile/financial`, then `POST /api/budgets/generate?month=...` → limits sum ≤ `spendable_income`; `data_quality` filled.
+15. `PUT /api/budgets/{id}` → `source: "user"`; generate again → that limit is unchanged; `POST /{id}/reset` → back to `agent_limit_amount`.
+16. `GET /api/budgets/status?month=...` → investments appear only in `invested_this_month`.
 
 ## Common mistakes
 - Running `pytest` on the host instead of in the container (different Python, missing deps).
