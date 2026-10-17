@@ -38,6 +38,28 @@ class FinancialProfileResponse(BaseModel):
     updated_at: datetime | None
 
 
+class MonthlyIncome(BaseModel):
+    """Income received in one month of the suggestion window."""
+    month: str
+    total: float
+
+
+class IncomeSuggestion(BaseModel):
+    """
+    GET /api/profile/financial/suggestion: average monthly income from your
+    income credits (salary, interest, dividends; refunds excluded) in the
+    lookback months before `month`. Read-only: nothing is saved.
+    """
+    month: str                                 # the month the suggestion is for
+    lookback_months: int
+    window_start: str                          # first month looked at ('YYYY-MM')
+    window_end: str                            # last month looked at ('YYYY-MM')
+    months_used: int                           # months in the window that have ANY transaction
+    income_by_month: list[MonthlyIncome]       # one entry per month used (0 if no income that month)
+    suggested_monthly_income: float | None     # None when there is no income in the window
+    message: str
+
+
 # --- Budgets ---
 
 class BudgetItem(BaseModel):

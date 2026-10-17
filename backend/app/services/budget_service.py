@@ -2,6 +2,7 @@
 #
 # Purpose: business logic of the Budget Planning Agent (Phase 4).
 #   * financial profile (income + savings target)
+#   * income suggestion: average monthly income credits over the lookback (read-only)
 #   * generate a monthly plan: read history -> calculator -> planner agent ->
 #     save limits (keeping the user's overrides) -> log a budget_runs row
 #   * override / reset one limit
@@ -16,6 +17,7 @@
 # budget id is a 404 (we never reveal that it exists).
 
 import logging
+from datetime import datetime, timezone
 from decimal import Decimal
 
 from fastapi import HTTPException, status
@@ -23,11 +25,11 @@ from sqlalchemy import and_, func, or_
 from sqlalchemy.orm import Session
 
 from app.agents.budget_planner import BudgetFact, BudgetPlannerAgent, PlanContext
-from app.core.categories import CATEGORY_NAMES, TRANSFERS_CATEGORY
+from app.core.categories import CATEGORY_NAMES, REFUND_CATEGORY, TRANSFERS_CATEGORY
 from app.core.config import settings
 from app.core.money import to_money
-from app.core.month_utils import lookback_window, month_bounds, month_key
-from app.core.transaction_types import DEBIT, TXN_EXPENSE, TXN_INVESTMENT_OUT
+from app.core.month_utils import lookback_window, month_bounds, month_key, shift_month
+from app.core.transaction_types import CREDIT, DEBIT, TXN_EXPENSE, TXN_INCOME, TXN_INVESTMENT_OUT
 from app.models.budget import SOURCE_AGENT, SOURCE_USER, Budget, BudgetRun
 from app.models.financial_profile import FinancialProfile
 from app.models.transaction import Transaction
@@ -93,6 +95,70 @@ def profile_to_response(profile: FinancialProfile) -> dict:
         "savings_target_amount": float(savings_target_amount(profile.monthly_income, profile.savings_target_pct)),
         "spendable_income": float(compute_spendable(profile.monthly_income, profile.savings_target_pct)),
         "updated_at": profile.updated_at,
+    }
+
+
+# --- Income suggestion ---
+
+# "Is this row earnings?" Income credits only. A refund is money returned, not
+# earned, so it would inflate the income (and the budget). The explicit NULL
+# check is needed because SQL's `category != 'x'` is never true for NULL.
+_INCOME_FILTER = and_(
+    Transaction.txn_type == TXN_INCOME,
+    Transaction.direction == CREDIT,
+    or_(Transaction.category.is_(None), Transaction.category != REFUND_CATEGORY),
+)
+
+
+def suggest_income(db: Session, user_id: int, month: str | None = None) -> dict:
+    """
+    Suggests a monthly income from the user's income credits in the lookback
+    months before `month` (default: the current month). Read-only.
+
+    The divisor is the number of months in the window that have ANY
+    transaction: a month with statements but no salary counts as 0 (honest
+    for irregular earners), while a month that was never imported does not
+    drag the average down.
+    """
+    if month is None:
+        month = month_key(datetime.now(timezone.utc))
+    _check_month(month)
+    lookback = settings.BUDGET_LOOKBACK_MONTHS
+    start, end = lookback_window(month, lookback)
+    window = (
+        Transaction.user_id == user_id,
+        Transaction.transaction_date >= start,
+        Transaction.transaction_date < end,
+    )
+
+    months_with_data = {month_key(moment) for (moment,) in db.query(Transaction.transaction_date).filter(*window)}
+    income: dict[str, Decimal] = {m: _ZERO for m in months_with_data}
+    for amount, moment in db.query(Transaction.amount, Transaction.transaction_date).filter(*window, _INCOME_FILTER):
+        key = month_key(moment)
+        income[key] = income.get(key, _ZERO) + to_money(amount)
+
+    total = sum(income.values(), _ZERO)
+    suggested = to_money(total / len(income)) if total > 0 else None
+    if suggested is None:
+        message = (
+            "No income credits found in the months before this one. Import a statement that shows your "
+            "salary, or type your income yourself."
+        )
+    else:
+        message = (
+            f"Average of {len(income)} month(s) of income credits (salary, interest, dividends; refunds "
+            f"excluded). Check it before saving."
+        )
+    logger.info(f"Income suggestion user_id={user_id} month={month} months_used={len(income)}")
+    return {
+        "month": month,
+        "lookback_months": lookback,
+        "window_start": month_key(start),
+        "window_end": month_key(shift_month(end, -1)),
+        "months_used": len(income),
+        "income_by_month": [{"month": m, "total": float(income[m])} for m in sorted(income)],
+        "suggested_monthly_income": float(suggested) if suggested is not None else None,
+        "message": message,
     }
 
 

@@ -144,3 +144,23 @@ def test_status_endpoint(client, db):
         "percent_used": 108.3, "status": "exceeded", "source": "agent",
     }]
     assert body["invested_this_month"] == 5000.0 and body["savings_target_amount"] == 10000.0
+
+
+# --- income suggestion (P5) ---
+
+def test_income_suggestion_endpoint(client, db):
+    add_expense(db, "Salary", 55000, month="2026-09", txn_type="income", direction="credit")
+    r = client.get("/api/profile/financial/suggestion", params={"month": TARGET})
+    assert r.status_code == 200, r.text
+    body = r.json()
+    assert body["suggested_monthly_income"] == 55000.0 and body["months_used"] == 1
+
+
+def test_income_suggestion_month_is_optional(client):
+    r = client.get("/api/profile/financial/suggestion")
+    assert r.status_code == 200 and r.json()["suggested_monthly_income"] is None
+
+
+@pytest.mark.parametrize("month", ["2026-13", "26-09", "october"])
+def test_income_suggestion_bad_month_is_422(client, month):
+    assert client.get("/api/profile/financial/suggestion", params={"month": month}).status_code == 422

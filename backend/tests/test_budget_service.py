@@ -309,3 +309,73 @@ def test_status_without_budgets_or_profile(db):
     result = svc.budget_status(db, 1, TARGET)
     assert result["items"][0]["status"] == "unbudgeted"
     assert result["total_limit"] == 0.0 and result["savings_target_amount"] is None
+
+
+# --- income suggestion (P5) ---
+
+def credit(db, amount, month, category="Salary", txn_type="income", user_id=1):
+    """One money-in row (salary by default)."""
+    return add_expense(db, category, amount, month=month, txn_type=txn_type, direction="credit", user_id=user_id)
+
+
+def test_income_suggestion_averages_income_credits(db):
+    credit(db, 60000, "2026-07")
+    credit(db, 60000, "2026-08")
+    credit(db, 60000, "2026-09")
+    credit(db, 900, "2026-09", category="Interest")
+    result = svc.suggest_income(db, 1, TARGET)
+    assert result["suggested_monthly_income"] == 60300.0          # (180000 + 900) / 3
+    assert result["months_used"] == 3
+    assert (result["window_start"], result["window_end"]) == ("2026-07", "2026-09")
+    assert result["income_by_month"][-1] == {"month": "2026-09", "total": 60900.0}
+
+
+def test_month_with_data_but_no_income_counts_as_zero(db):
+    credit(db, 90000, "2026-07")
+    add_expense(db, "Groceries", 500, month="2026-08")            # statement imported, no salary
+    credit(db, 30000, "2026-09")
+    result = svc.suggest_income(db, 1, TARGET)
+    assert result["months_used"] == 3
+    assert result["suggested_monthly_income"] == 40000.0           # 120000 / 3, not / 2
+
+
+def test_month_never_imported_does_not_lower_the_average(db):
+    credit(db, 50000, "2026-09")                                   # only September was imported
+    result = svc.suggest_income(db, 1, TARGET)
+    assert result["months_used"] == 1 and result["suggested_monthly_income"] == 50000.0
+
+
+def test_refunds_redemptions_transfers_and_untyped_credits_are_not_income(db):
+    credit(db, 50000, "2026-09")
+    credit(db, 2000, "2026-09", category="Refund & Cashback")
+    credit(db, 8000, "2026-09", category="Investment Redemption", txn_type="investment_in")
+    credit(db, 15000, "2026-09", category=TRANSFERS_CATEGORY, txn_type="transfer")
+    credit(db, 7000, "2026-09", category=None, txn_type=None)      # pre-v3 row: unknown kind of credit
+    assert svc.suggest_income(db, 1, TARGET)["suggested_monthly_income"] == 50000.0
+
+
+def test_target_month_and_months_before_the_window_are_not_used(db):
+    credit(db, 99999, "2026-06")                                   # before the Jul-Sep window
+    credit(db, 99999, TARGET)                                      # the month itself
+    credit(db, 40000, "2026-08")
+    result = svc.suggest_income(db, 1, TARGET)
+    assert result["months_used"] == 1 and result["suggested_monthly_income"] == 40000.0
+
+
+def test_no_income_gives_none_and_a_message(db):
+    add_expense(db, "Groceries", 500, month="2026-09")
+    result = svc.suggest_income(db, 1, TARGET)
+    assert result["suggested_monthly_income"] is None
+    assert "No income" in result["message"]
+
+
+def test_other_users_income_is_invisible(db):
+    credit(db, 80000, "2026-09", user_id=2)
+    result = svc.suggest_income(db, 1, TARGET)
+    assert result["suggested_monthly_income"] is None and result["months_used"] == 0
+
+
+def test_suggestion_never_saves_the_profile(db):
+    credit(db, 50000, "2026-09")
+    svc.suggest_income(db, 1, TARGET)
+    assert svc.get_profile(db, 1) is None
