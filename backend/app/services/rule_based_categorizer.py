@@ -14,6 +14,7 @@
 import re
 from dataclasses import dataclass
 
+from app.core.merchant_dictionary import INVESTMENT_KEYWORDS
 from app.services.text_normalizer import normalize_description
 
 # Keywords are matched against the NORMALIZED description (lowercase, no punctuation)
@@ -59,9 +60,8 @@ KEYWORDS: dict[str, tuple[str, ...]] = {
     "Insurance": (
         "insurance", "policybazaar", "lic premium", "lic of india", "star health",
     ),
-    "Investments & Savings": (
-        "mutual fund", "sip", "zerodha", "groww", "fixed deposit", "recurring deposit", "ppf", "nps", "demat",
-    ),
+    # Shared with the txn_type detector, so both always agree on what an investment is
+    "Investments & Savings": INVESTMENT_KEYWORDS,
     "Personal Care": (
         "salon", "haircut", "spa", "barber", "grooming", "skincare", "gym", "parlour", "massage", "nykaa",
     ),
@@ -85,6 +85,12 @@ RULE_CONFIDENCE = 0.95
 class RuleMatch:
     category: str
     keyword: str
+
+
+def has_any_keyword(description: str) -> bool:
+    """True if ANY category keyword appears (even an ambiguous multi-category match)."""
+    text = normalize_description(description)
+    return any(pattern.search(text) for pattern in _PATTERNS.values())
 
 
 def rule_categorize(description: str) -> RuleMatch | None:

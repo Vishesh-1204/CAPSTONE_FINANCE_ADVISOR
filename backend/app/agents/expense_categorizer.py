@@ -9,6 +9,10 @@
 #   * SAFE FAILURE: a failed call returns NO result (so the row is retried
 #     later) instead of silently labelling it "Other".
 #   * SMART RETRIES: retries rate-limit/network errors, not a wrong API key.
+#   * FALLBACK (v3): if the primary provider still fails, the same batch is
+#     tried on LLM_FALLBACK_PROVIDER before giving up.
+#   * PRIVACY (v3): callers pass CLEANED merchant strings only (see
+#     categorization_service); this file never sees raw narrations.
 #
 # This file knows nothing about the database or HTTP.
 
@@ -20,8 +24,8 @@ from langchain_core.output_parsers import StrOutputParser
 from langchain_core.prompts import ChatPromptTemplate
 from tenacity import retry, retry_if_exception, stop_after_attempt, wait_exponential
 
-from app.core.categories import CATEGORY_GUIDE, CATEGORY_NAMES, FALLBACK_CATEGORY, canonical_category
-from app.llm.factory import get_llm_provider
+from app.core.categories import CATEGORY_GUIDE, CATEGORY_NAMES, FALLBACK_CATEGORY, canonical_expense_category
+from app.llm.factory import get_llm_provider_chain
 
 logger = logging.getLogger(__name__)
 
@@ -136,7 +140,8 @@ def parse_batch_response(raw: str, valid_ids: set[int]) -> dict[int, Categorizat
             confidence = 0.0
         reasoning = str(entry.get("reasoning", "")).strip()[:500] or "No reasoning provided."
 
-        category = canonical_category(entry.get("category"))
+        # Only EXPENSE categories are valid here: income labels are never the LLM's call
+        category = canonical_expense_category(entry.get("category"))
         if category is None:
             logger.warning(f"Model returned unknown category {entry.get('category')!r}; using '{FALLBACK_CATEGORY}'.")
             category, confidence = FALLBACK_CATEGORY, min(confidence, 0.3)
@@ -148,20 +153,26 @@ def parse_batch_response(raw: str, valid_ids: set[int]) -> dict[int, Categorizat
 
 class ExpenseCategorizerAgent:
     """
-    Classifies batches of descriptions with an LLM.
+    Classifies batches of descriptions with an LLM, trying each provider of the
+    chain in order (primary, then fallback).
 
-    `chain` can be injected for testing (a fake that returns canned text),
-    so the unit tests never call the real API.
+    `chain` (one fake) or `chains` (a list of (name, fake) pairs) can be injected
+    for testing, so the unit tests never call a real API.
     """
 
-    def __init__(self, chain=None) -> None:
-        if chain is not None:
-            self._chain = chain
-            self.provider_name = "injected"
-            return
-        provider = get_llm_provider()          # raises ValueError if the API key is missing
-        self.provider_name = provider.provider_name
-        self._chain = BATCH_PROMPT | provider.get_chat_model() | StrOutputParser()
+    def __init__(self, chain=None, chains: list[tuple[str, object]] | None = None) -> None:
+        if chains is not None:
+            self._chains = list(chains)
+        elif chain is not None:
+            self._chains = [("injected", chain)]
+        else:
+            # Raises ValueError only if NO provider can be built (e.g. no API keys at all)
+            self._chains = [
+                (provider.provider_name, BATCH_PROMPT | provider.get_chat_model() | StrOutputParser())
+                for provider in get_llm_provider_chain()
+            ]
+        self.provider_name = self._chains[0][0]
+        self.last_provider: str | None = None    # which provider answered the last batch
 
     @retry(
         stop=stop_after_attempt(4),
@@ -169,18 +180,20 @@ class ExpenseCategorizerAgent:
         retry=retry_if_exception(_is_retryable),
         reraise=True,
     )
-    def _invoke_and_parse(self, items: list[PendingItem], examples: list[tuple[str, str]]) -> dict[int, CategorizationResult]:
+    def _invoke_and_parse(
+        self, chain, items: list[PendingItem], examples: list[tuple[str, str]]
+    ) -> dict[int, CategorizationResult]:
         """One LLM request for the whole batch, with retry on transient problems."""
         items_json = json.dumps(
             [
-                {"id": i.item_id, "description": i.description, "amount": round(i.amount, 2), "occurrences": i.occurrences}
+                {"id": i.item_id, "description": i.description, "amount": round(float(i.amount), 2), "occurrences": i.occurrences}
                 for i in items
             ],
             ensure_ascii=False,
         )
         examples_text = "\n".join(f'- "{desc}" -> {cat}' for desc, cat in examples) or "(none yet)"
 
-        raw = self._chain.invoke({
+        raw = chain.invoke({
             "category_guide": _category_guide_text(),
             "examples": examples_text,
             "items_json": items_json,
@@ -190,15 +203,18 @@ class ExpenseCategorizerAgent:
     def categorize_batch(self, items: list[PendingItem], examples: list[tuple[str, str]]) -> dict[int, CategorizationResult]:
         """
         Returns {item_id: result}. Items the model failed to answer are simply
-        missing, and an empty dict means the whole request failed. Callers must
+        missing, and an empty dict means EVERY provider failed. Callers must
         treat missing ids as 'still uncategorized', never as 'Other'.
         """
         if not items:
             return {}
-        try:
-            results = self._invoke_and_parse(items, examples)
-            logger.info(f"LLM categorized {len(results)}/{len(items)} items via {self.provider_name}")
+        for name, chain in self._chains:
+            try:
+                results = self._invoke_and_parse(chain, items, examples)
+            except Exception as exc:
+                logger.error(f"LLM batch failed via {name} ({type(exc).__name__}): {exc}")
+                continue                      # try the next provider in the chain
+            self.last_provider = name
+            logger.info(f"LLM categorized {len(results)}/{len(items)} items via {name}")
             return results
-        except Exception as exc:
-            logger.error(f"LLM batch failed ({type(exc).__name__}): {exc}")
-            return {}
+        return {}

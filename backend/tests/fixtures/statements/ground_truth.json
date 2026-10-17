@@ -1,0 +1,257 @@
+{
+  "transactions": [
+    {
+      "date": "2026-09-01",
+      "narration": "UPI/412345678901/SWIGGY/swiggy@icici",
+      "direction": "debit",
+      "amount": "450.00",
+      "category": "Food & Dining",
+      "txn_type": "expense",
+      "is_person": false
+    },
+    {
+      "date": "2026-09-02",
+      "narration": "NEFT-ACME TECH PAYROLL SEP 2026",
+      "direction": "credit",
+      "amount": "85000.00",
+      "category": "Salary",
+      "txn_type": "income",
+      "is_person": false
+    },
+    {
+      "date": "2026-09-03",
+      "narration": "NACH/HDFC MF SIP/FOLIO 1234567",
+      "direction": "debit",
+      "amount": "5000.00",
+      "category": "Investments & Savings",
+      "txn_type": "investment_out",
+      "is_person": false
+    },
+    {
+      "date": "2026-09-04",
+      "narration": "UPI/412345678902/RAHUL KUMAR/9876543210@ybl",
+      "direction": "debit",
+      "amount": "1200.00",
+      "category": "Transfers",
+      "txn_type": "expense",
+      "is_person": true
+    },
+    {
+      "date": "2026-09-05",
+      "narration": "POS 4829 BIGBASKET BANGALORE",
+      "direction": "debit",
+      "amount": "2340.50",
+      "category": "Groceries",
+      "txn_type": "expense",
+      "is_person": false
+    },
+    {
+      "date": "2026-09-06",
+      "narration": "UPI/412345678903/ZERODHA BROKING/zerodha.broking@hdfcbank ADD FUNDS FOR EQUITY TRADING ACCOUNT",
+      "direction": "debit",
+      "amount": "10000.00",
+      "category": "Investments & Savings",
+      "txn_type": "investment_out",
+      "is_person": false
+    },
+    {
+      "date": "2026-09-07",
+      "narration": "SB INT PD 01-06-2026 TO 31-08-2026",
+      "direction": "credit",
+      "amount": "312.40",
+      "category": "Interest",
+      "txn_type": "income",
+      "is_person": false
+    },
+    {
+      "date": "2026-09-08",
+      "narration": "ATW-512345XXXXXX1234-MG ROAD BANGALORE",
+      "direction": "debit",
+      "amount": "3000.00",
+      "category": "Other",
+      "txn_type": "expense",
+      "is_person": false
+    },
+    {
+      "date": "2026-09-10",
+      "narration": "UPI/412345678904/NETFLIX/netflix@icici",
+      "direction": "debit",
+      "amount": "649.00",
+      "category": "Subscriptions",
+      "txn_type": "expense",
+      "is_person": false
+    },
+    {
+      "date": "2026-09-12",
+      "narration": "ACH C- ACME INDUSTRIES DIVIDEND 2026",
+      "direction": "credit",
+      "amount": "1500.00",
+      "category": "Dividend",
+      "txn_type": "income",
+      "is_person": false
+    },
+    {
+      "date": "2026-09-14",
+      "narration": "UPI/412345678905/GROWW/groww.payout@axisbank REDEMPTION",
+      "direction": "credit",
+      "amount": "4200.00",
+      "category": "Investment Redemption",
+      "txn_type": "investment_in",
+      "is_person": false
+    },
+    {
+      "date": "2026-09-15",
+      "narration": "IMPS/P2A/412345678906/OWN ACCOUNT TRANSFER SELF",
+      "direction": "debit",
+      "amount": "20000.00",
+      "category": "Transfers",
+      "txn_type": "transfer",
+      "is_person": false
+    },
+    {
+      "date": "2026-09-17",
+      "narration": "UPI/412345678907/PRIYA SHARMA/priya.s@oksbi",
+      "direction": "debit",
+      "amount": "750.00",
+      "category": "Transfers",
+      "txn_type": "expense",
+      "is_person": true
+    },
+    {
+      "date": "2026-09-18",
+      "narration": "ELECTRICITY BILL CITY POWER SEP",
+      "direction": "debit",
+      "amount": "1890.00",
+      "category": "Utilities",
+      "txn_type": "expense",
+      "is_person": false
+    },
+    {
+      "date": "2026-09-20",
+      "narration": "UPI/412345678908/SHARMA SWEETS/sharmasweets@ybl",
+      "direction": "debit",
+      "amount": "380.00",
+      "category": "Food & Dining",
+      "txn_type": "expense",
+      "is_person": false
+    },
+    {
+      "date": "2026-09-21",
+      "narration": "UPI/412345678909/UBER INDIA/uber@axisbank",
+      "direction": "debit",
+      "amount": "312.00",
+      "category": "Transportation",
+      "txn_type": "expense",
+      "is_person": false
+    },
+    {
+      "date": "2026-09-22",
+      "narration": "UPI/412345678910/ZOMATO/zomato@hdfcbank REFUND",
+      "direction": "credit",
+      "amount": "220.00",
+      "category": "Refund & Cashback",
+      "txn_type": "income",
+      "is_person": false
+    },
+    {
+      "date": "2026-09-24",
+      "narration": "APOLLO PHARMACY KORAMANGALA",
+      "direction": "debit",
+      "amount": "780.00",
+      "category": "Healthcare",
+      "txn_type": "expense",
+      "is_person": false
+    },
+    {
+      "date": "2026-09-25",
+      "narration": "MONTHLY HOUSE RENT SEP",
+      "direction": "debit",
+      "amount": "18000.00",
+      "category": "Housing & Rent",
+      "txn_type": "expense",
+      "is_person": false
+    },
+    {
+      "date": "2026-09-26",
+      "narration": "AIRTEL BROADBAND BILL",
+      "direction": "debit",
+      "amount": "1179.00",
+      "category": "Utilities",
+      "txn_type": "expense",
+      "is_person": false
+    },
+    {
+      "date": "2026-09-27",
+      "narration": "UPI/412345678911/ANIL MEHTA/anil.mehta@okaxis",
+      "direction": "debit",
+      "amount": "2500.00",
+      "category": "Transfers",
+      "txn_type": "expense",
+      "is_person": true
+    },
+    {
+      "date": "2026-09-28",
+      "narration": "BOOKMYSHOW MOVIE TICKETS",
+      "direction": "debit",
+      "amount": "600.00",
+      "category": "Entertainment",
+      "txn_type": "expense",
+      "is_person": false
+    },
+    {
+      "date": "2026-09-29",
+      "narration": "LIC PREMIUM POLICY 99887766",
+      "direction": "debit",
+      "amount": "4500.00",
+      "category": "Insurance",
+      "txn_type": "expense",
+      "is_person": false
+    },
+    {
+      "date": "2026-09-30",
+      "narration": "UDEMY COURSE PYTHON",
+      "direction": "debit",
+      "amount": "499.00",
+      "category": "Education",
+      "txn_type": "expense",
+      "is_person": false
+    }
+  ],
+  "files": {
+    "hdfc_like.pdf": {
+      "layout": "hdfc_like",
+      "rows": 24,
+      "invalid": 0,
+      "balance_mismatches": 0
+    },
+    "sbi_like.pdf": {
+      "layout": "sbi_like",
+      "rows": 24,
+      "invalid": 0,
+      "balance_mismatches": 1,
+      "mismatch_day": 18
+    },
+    "protected.pdf": {
+      "layout": "hdfc_like",
+      "rows": 24,
+      "invalid": 0,
+      "balance_mismatches": 0,
+      "password": "test1234"
+    },
+    "scanned.pdf": {
+      "expect_error": 422
+    },
+    "statement.xlsx": {
+      "layout": "generic",
+      "rows": 24,
+      "invalid": 0,
+      "balance_mismatches": 0
+    },
+    "messy.csv": {
+      "layout": "generic",
+      "rows": 24,
+      "invalid": 1,
+      "balance_mismatches": 0
+    }
+  }
+}

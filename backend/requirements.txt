@@ -34,6 +34,8 @@ langchain-openai==0.2.8
 
 tenacity==9.0.0
 
-pytest==8.3.3
+# Statement parsing (Phase 3B v3): local PDF tables + Excel files
+pdfplumber==0.11.10
 
-httpx==0.27.2
+openpyxl==3.1.5
+

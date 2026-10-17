@@ -80,3 +80,52 @@ def test_empty_batch_makes_no_call():
     chain = FakeChain("[]")
     assert ExpenseCategorizerAgent(chain=chain).categorize_batch([], []) == {}
     assert chain.calls == 0
+
+
+def test_llm_may_not_choose_an_income_label():
+    raw = '[{"id": 0, "category": "Salary", "confidence": 0.9, "reasoning": "x"}]'
+    result = parse_batch_response(raw, {0})[0]
+    assert result.category == "Other" and result.confidence <= 0.3
+
+
+# ---------------------------------------------------------------- v3: provider fallback
+
+
+def test_fallback_provider_answers_when_the_primary_fails():
+    primary = FakeChain(error=RuntimeError("API key not valid"))
+    backup = FakeChain('[{"id": 0, "category": "Groceries", "confidence": 0.9, "reasoning": "x"}]')
+    agent = ExpenseCategorizerAgent(chains=[("primary", primary), ("backup", backup)])
+
+    result = agent.categorize_batch([PendingItem(0, "dmart", 900.0)], [])
+
+    assert result[0].category == "Groceries" and agent.last_provider == "backup"
+    assert primary.calls == 1 and backup.calls == 1
+
+
+def test_all_providers_failing_returns_nothing_so_rows_stay_uncategorized():
+    agent = ExpenseCategorizerAgent(chains=[
+        ("primary", FakeChain(error=RuntimeError("API key not valid"))),
+        ("backup", FakeChain(error=RuntimeError("API key not valid"))),
+    ])
+    assert agent.categorize_batch([PendingItem(0, "x", 1.0)], []) == {}
+
+
+def test_provider_chain_skips_unbuildable_providers(monkeypatch):
+    from app.core.config import settings
+    from app.llm import factory
+
+    class Works:
+        provider_name = "works"
+
+    class NoKey:
+        def __init__(self):
+            raise ValueError("NOKEY_API_KEY is not set")
+
+    monkeypatch.setattr(factory, "PROVIDER_REGISTRY", {"nokey": NoKey, "works": Works})
+    monkeypatch.setattr(settings, "LLM_PROVIDER", "nokey")
+    monkeypatch.setattr(settings, "LLM_FALLBACK_PROVIDER", "works")
+    assert [p.provider_name for p in factory.get_llm_provider_chain()] == ["works"]
+
+    monkeypatch.setattr(settings, "LLM_FALLBACK_PROVIDER", None)
+    with pytest.raises(ValueError, match="NOKEY_API_KEY"):
+        factory.get_llm_provider_chain()

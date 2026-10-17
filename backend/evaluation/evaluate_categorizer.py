@@ -1,186 +1,397 @@
 # evaluation/evaluate_categorizer.py
 #
-# Purpose: MEASURE how good the categorizer is. Without numbers you can only
-# say "it seems to work"; with them you can say "hybrid reaches 93% accuracy
-# vs 78% for rules alone" - which is what an IEEE paper needs.
+# Purpose: MEASURE the Expense Intelligence Agent for the paper. Unlike v2
+# (which called the rule function and the LLM directly), v3 runs the REAL
+# pipeline - categorize_pending_transactions - on a throwaway in-memory SQLite
+# database, so the numbers describe exactly what the app does:
+#   lock > payee rules > memory > dictionary/keyword rules > person guard > LLM
 #
-# It compares three configurations on a hand-labeled CSV:
-#   rules   - keyword rules only (the rule-based BASELINE)
-#   llm     - the LLM alone, no rules
-#   hybrid  - rules first, LLM for whatever the rules cannot decide (what the app does)
+# Protocol (simulates two months of use):
+#   phase 1  import the phase-1 rows, categorize, then an "oracle" user corrects
+#            every wrong row (apply_user_correction). Whether it also ticks
+#            "remember this payee" is --oracle-remember: upi (default: only for
+#            UPI payees, the realistic opt-in), always, or never
+#   phase 2  import the phase-2 rows (repeats + new), categorize again
+#            -> memory / payee-rule hit rates show whether the agent LEARNS
 #
-# Run (from the backend folder, inside Docker):
+# Configurations (ablations):
+#   full, rules_off, memory_off, payee_rules_off, person_guard_off, rules_only
+# Extra measurements on `full`: budget distortion if investments were counted as
+# spending (investment-exclusion off), override rate. Plus parsing metrics on
+# the synthetic statements (parsing_eval.py).
+#
+# LLM modes:
+#   --llm none  (default) free and offline: whatever reaches the LLM stage counts
+#               as unanswered, but every string SENT is still recorded, so the
+#               privacy-leakage count is exact even without an API key.
+#   --llm real  the configured provider (Gemini free tier: SYNTHETIC data only).
+#
+# Run (inside Docker):
 #   docker compose exec backend python -m evaluation.evaluate_categorizer
-#   docker compose exec backend python -m evaluation.evaluate_categorizer --configs rules
-#   docker compose exec backend python -m evaluation.evaluate_categorizer --limit 20
+#   docker compose exec backend python -m evaluation.evaluate_categorizer --llm real --configs full,rules_only
 #
-# Fairness note for the paper: the rule keywords were written by looking at
-# typical Indian merchants, so rules look better here than they would on a
-# truly unseen dataset. Build your final benchmark from REAL (anonymised) or
-# independently written descriptions, and keep it separate from the rules.
+# Output: evaluation/results/metrics_<timestamp>.csv in LONG format
+#   (run_id, timestamp, llm_mode, provider, config, subject, metric, value)
+#   - pivot it in Excel/pandas for the paper's tables.
+#
+# Fairness note: the rule keywords and this dataset were written by the same
+# team, so rules look better here than on truly unseen data. Build the final
+# benchmark from independently written (or anonymised real) descriptions.
 
 import argparse
 import csv
 import json
 import logging
 import time
-from collections import Counter, defaultdict
-from datetime import datetime
+from collections import Counter
+from contextlib import contextmanager
+from dataclasses import dataclass, field
+from datetime import datetime, timedelta, timezone
+from decimal import Decimal
 from pathlib import Path
 
-from app.agents.expense_categorizer import ExpenseCategorizerAgent, PendingItem
-from app.core.categories import CATEGORY_NAMES
+from sqlalchemy import create_engine
+from sqlalchemy.orm import Session, sessionmaker
+from sqlalchemy.pool import StaticPool
+
+import app.models  # noqa: F401  (registers every table)
+from app.agents.expense_categorizer import CategorizationResult, ExpenseCategorizerAgent
 from app.core.config import settings
-from app.services.rule_based_categorizer import rule_categorize
+from app.core.transaction_types import DEBIT, TXN_EXPENSE
+from app.db.base_class import Base
+from app.models.transaction import Transaction
+from app.models.user import User
+from app.services import categorization_service
+from app.services.category_override_service import apply_user_correction
+from app.services.narration_parser import extract_upi_id
+from app.services.text_normalizer import normalize_description
+from evaluation.metrics import binary_precision_recall, classification_metrics, override_rate
+from evaluation.parsing_eval import evaluate_parsing
 
 DEFAULT_DATASET = Path(__file__).parent / "labeled_transactions.csv"
 RESULTS_DIR = Path(__file__).parent / "results"
 
+# config name -> settings to override (rules_only additionally forces --llm none)
+CONFIGS: dict[str, dict[str, object]] = {
+    "full": {},
+    "rules_off": {"CATEGORIZER_ENABLE_RULES": False},
+    "memory_off": {"CATEGORIZER_ENABLE_MEMORY": False},
+    "payee_rules_off": {"CATEGORIZER_ENABLE_PAYEE_RULES": False},
+    "person_guard_off": {"CATEGORIZER_ENABLE_PERSON_GUARD": False},
+    "rules_only": {},
+}
+NO_LLM_REASON = "evaluation: no LLM"
+SOURCES = ("payee_rule", "memory", "rule", "person_guard", "llm", "unanswered")
+ORACLE_POLICIES = ("upi", "always", "never")
 
-def load_dataset(path: Path, limit: int | None = None) -> list[dict]:
+
+# ------------------------------------------------------------------ data
+
+
+@dataclass(frozen=True)
+class LabeledRow:
+    description: str
+    amount: Decimal
+    category: str
+    direction: str
+    is_person: bool
+    phase: int
+
+
+def load_dataset(path: Path, limit: int | None = None) -> list[LabeledRow]:
+    from app.core.categories import ALL_CATEGORY_NAMES
     with path.open(encoding="utf-8-sig", newline="") as handle:
         rows = [
-            {"description": r["description"], "amount": float(r["amount"]), "truth": r["category"]}
+            LabeledRow(
+                description=r["description"], amount=Decimal(r["amount"]), category=r["category"],
+                direction=r.get("direction") or DEBIT, is_person=r.get("is_person", "0") == "1",
+                phase=int(r.get("phase") or 1),
+            )
             for r in csv.DictReader(handle)
         ]
-    unknown = {r["truth"] for r in rows} - set(CATEGORY_NAMES)
+    unknown = {r.category for r in rows} - set(ALL_CATEGORY_NAMES)
     if unknown:
         raise ValueError(f"Dataset has labels that are not real categories: {sorted(unknown)}")
     return rows[:limit] if limit else rows
 
 
-def run_llm(agent: ExpenseCategorizerAgent, rows: list[dict], indices: list[int]) -> tuple[dict[int, str], int]:
-    """Classifies rows[indices] in batches. Returns ({row_index: category}, llm_calls)."""
-    predictions: dict[int, str] = {}
-    calls = 0
-    batch_size = settings.CATEGORIZER_BATCH_SIZE
-    for start in range(0, len(indices), batch_size):
-        if start:
-            time.sleep(settings.CATEGORIZER_BATCH_DELAY_SECONDS)
-        chunk = indices[start:start + batch_size]
-        items = [PendingItem(item_id=n, description=rows[i]["description"], amount=rows[i]["amount"]) for n, i in enumerate(chunk)]
-        results = agent.categorize_batch(items, examples=[])
-        calls += 1
-        for n, i in enumerate(chunk):
-            if n in results:
-                predictions[i] = results[n].category
-    return predictions, calls
+# ------------------------------------------------------------------ LLM recorder
 
 
-def evaluate_config(name: str, rows: list[dict], agent: ExpenseCategorizerAgent | None) -> dict:
-    """Returns predictions plus counters for one configuration."""
+@dataclass
+class LlmStats:
+    calls: int = 0
+    sent: list[str] = field(default_factory=list)          # every description sent to the LLM
+    examples: list[str] = field(default_factory=list)      # every few-shot example text sent
+
+
+class RecordingAgent:
+    """Wraps the real agent (or nothing) and records exactly what would leave the server."""
+
+    def __init__(self, stats: LlmStats, inner: ExpenseCategorizerAgent | None) -> None:
+        self.stats, self.inner = stats, inner
+
+    def categorize_batch(self, items, examples):
+        self.stats.calls += 1
+        self.stats.sent.extend(item.description for item in items)
+        self.stats.examples.extend(text for text, _ in examples)
+        if self.inner is None:   # offline mode: answer nothing useful, but keep the pipeline going
+            return {item.item_id: CategorizationResult("Other", 0.0, NO_LLM_REASON, "llm") for item in items}
+        return self.inner.categorize_batch(items, examples)
+
+
+@contextmanager
+def overridden_settings(values: dict[str, object]):
+    """Temporarily changes settings (ablation switches) and always restores them."""
+    old = {key: getattr(settings, key) for key in values}
+    try:
+        for key, value in values.items():
+            setattr(settings, key, value)
+        yield
+    finally:
+        for key, value in old.items():
+            setattr(settings, key, value)
+
+
+# ------------------------------------------------------------------ one configuration
+
+
+def _new_session() -> Session:
+    engine = create_engine("sqlite://", poolclass=StaticPool, connect_args={"check_same_thread": False})
+    Base.metadata.create_all(engine)
+    session = sessionmaker(bind=engine)()
+    session.add(User(email="eval@example.com", full_name="Evaluation", hashed_password="x"))
+    session.commit()
+    return session
+
+
+def _insert(db: Session, rows: list[LabeledRow], start: datetime) -> list[Transaction]:
+    transactions = [
+        Transaction(
+            user_id=1, description=row.description, amount=row.amount, direction=row.direction,
+            transaction_date=start + timedelta(hours=index),
+        )
+        for index, row in enumerate(rows)
+    ]
+    db.add_all(transactions)
+    db.commit()
+    return transactions
+
+
+def _source(tx: Transaction) -> str:
+    if tx.category is None or tx.category_reasoning == NO_LLM_REASON:
+        return "unanswered"
+    if tx.category_reasoning == categorization_service.PERSON_GUARD_REASON:
+        return "person_guard"
+    return tx.category_source or "unanswered"
+
+
+def _oracle_remembers(description: str, policy: str) -> bool:
+    """Does the simulated user tick 'remember this payee' when correcting this row?"""
+    return policy == "always" or (policy == "upi" and extract_upi_id(description) is not None)
+
+
+def run_config(name: str, rows: list[LabeledRow], llm_mode: str, oracle_remember: str = "upi") -> dict:
+    """Runs the two-phase protocol for one configuration and returns its metrics."""
+    overrides = dict(CONFIGS[name])
+    use_real_llm = llm_mode == "real" and name != "rules_only"
+    if not use_real_llm:
+        overrides["CATEGORIZER_BATCH_DELAY_SECONDS"] = 0.0    # nothing to rate-limit offline
+
+    stats = LlmStats()
+    inner = ExpenseCategorizerAgent() if use_real_llm else None
+
+    def factory() -> RecordingAgent:
+        return RecordingAgent(stats, inner)
+
+    db = _new_session()
+    predictions: dict[int, tuple[str | None, str]] = {}        # dataset index -> (prediction, source)
     started = time.perf_counter()
-    predictions: dict[int, str | None] = {}
-    decided_by_rule: set[int] = set()
-    llm_calls = 0
+    with overridden_settings(overrides):
+        for phase, month in ((1, 8), (2, 9)):
+            indices = [i for i, r in enumerate(rows) if r.phase == phase]
+            inserted = _insert(db, [rows[i] for i in indices], datetime(2026, month, 1, tzinfo=timezone.utc))
+            categorization_service.categorize_pending_transactions(db, user_id=1, agent_factory=factory)
+            for index, tx in zip(indices, inserted):
+                db.refresh(tx)
+                source = _source(tx)
+                predictions[index] = (None if source == "unanswered" else tx.category, source)
+            # The oracle user fixes every wrong answer (remembering the payee per policy)
+            for index, tx in zip(indices, inserted):
+                if predictions[index][0] != rows[index].category:
+                    remember = _oracle_remembers(rows[index].description, oracle_remember)
+                    apply_user_correction(db, 1, tx.id, rows[index].category, remember_payee=remember)
+    seconds = time.perf_counter() - started
 
-    if name in ("rules", "hybrid"):
-        for i, row in enumerate(rows):
-            match = rule_categorize(row["description"])
-            if match:
-                predictions[i] = match.category
-                decided_by_rule.add(i)
+    transactions = db.query(Transaction).order_by(Transaction.id).all()
+    metrics = _config_metrics(rows, predictions, stats, transactions, seconds)
+    db.close()
+    return metrics
 
-    if name in ("llm", "hybrid"):
-        todo = [i for i in range(len(rows)) if i not in decided_by_rule]
-        llm_predictions, llm_calls = run_llm(agent, rows, todo)
-        predictions.update(llm_predictions)
 
+def _config_metrics(
+    rows: list[LabeledRow], predictions: dict[int, tuple[str | None, str]], stats: LlmStats,
+    transactions: list[Transaction], seconds: float,
+) -> dict:
+    truths = [r.category for r in rows]
+    preds = [predictions[i][0] for i in range(len(rows))]
+    sources = Counter(predictions[i][1] for i in range(len(rows)))
+    headline = classification_metrics(truths, preds)
+
+    phase2 = [i for i, r in enumerate(rows) if r.phase == 2]
+    phase2_metrics = classification_metrics([truths[i] for i in phase2], [preds[i] for i in phase2])
+    phase2_sources = Counter(predictions[i][1] for i in phase2)
+
+    debit_indices = [i for i, r in enumerate(rows) if r.direction == DEBIT]
+    guard_precision, guard_recall = binary_precision_recall(
+        [rows[i].is_person for i in debit_indices],
+        [predictions[i][1] == "person_guard" for i in debit_indices],
+    )
+    sent = set(stats.sent) | set(stats.examples)
+    leaked = sum(1 for r in rows if r.is_person and normalize_description(r.description) in sent)
+
+    overall_override, _ = override_rate([(t.agent_category, t.category) for t in transactions])
+    count = len(rows)
+    result = {
+        "rows": float(count),
+        "accuracy": headline["accuracy"],
+        "accuracy_when_answered": headline["accuracy_when_answered"],
+        "coverage": headline["coverage"],
+        "macro_f1": headline["macro_f1"],
+        "phase2_accuracy": phase2_metrics["accuracy"],
+        "llm_calls": float(stats.calls),
+        "llm_calls_per_100_rows": 100 * stats.calls / count,
+        "llm_strings_sent": float(len(stats.sent)),
+        "seconds_per_row": seconds / count,
+        "person_guard_precision": guard_precision,
+        "person_guard_recall": guard_recall,
+        "privacy_leakage_count": float(leaked),
+        "override_rate": overall_override,
+        "phase2_memory_hit_rate": phase2_sources["memory"] / len(phase2) if phase2 else 0.0,
+        "phase2_payee_rule_hit_rate": phase2_sources["payee_rule"] / len(phase2) if phase2 else 0.0,
+    }
+    for source in SOURCES:
+        result[f"share_{source}"] = sources[source] / count
+    return {"metrics": result, "per_category": headline["per_category"], "transactions": transactions}
+
+
+def budget_distortion(transactions: list[Transaction]) -> dict[str, float]:
+    """
+    'Investment-exclusion off' ablation: what the expense total would be if every
+    debit (SIPs, broker top-ups, self-transfers) counted as spending.
+    """
+    debits = [t for t in transactions if t.direction == DEBIT]
+    correct = sum((t.amount for t in debits if t.txn_type == TXN_EXPENSE), Decimal("0"))
+    naive = sum((t.amount for t in debits), Decimal("0"))
     return {
-        "name": name,
-        "predictions": [predictions.get(i) for i in range(len(rows))],   # None = no answer
-        "rule_decided": len(decided_by_rule),
-        "llm_calls": llm_calls,
-        "seconds": time.perf_counter() - started,
+        "expense_total_correct": float(correct),
+        "expense_total_if_investments_counted": float(naive),
+        "budget_distortion_pct": float((naive - correct) / correct * 100) if correct else 0.0,
     }
 
 
-def macro_f1(truths: list[str], preds: list[str | None]) -> tuple[float, dict[str, dict[str, float]]]:
-    """Macro-F1 over the categories that appear in the ground truth, plus per-category precision/recall."""
-    per_category: dict[str, dict[str, float]] = {}
-    for category in sorted(set(truths)):
-        tp = sum(1 for t, p in zip(truths, preds) if t == category and p == category)
-        fp = sum(1 for t, p in zip(truths, preds) if t != category and p == category)
-        fn = sum(1 for t, p in zip(truths, preds) if t == category and p != category)
-        precision = tp / (tp + fp) if tp + fp else 0.0
-        recall = tp / (tp + fn) if tp + fn else 0.0
-        f1 = 2 * precision * recall / (precision + recall) if precision + recall else 0.0
-        per_category[category] = {"precision": precision, "recall": recall, "f1": f1, "support": truths.count(category)}
-    return sum(c["f1"] for c in per_category.values()) / len(per_category), per_category
+# ------------------------------------------------------------------ output
 
 
-def summarize(result: dict, rows: list[dict]) -> dict:
-    truths = [r["truth"] for r in rows]
-    preds = result["predictions"]
-    answered = [(t, p) for t, p in zip(truths, preds) if p is not None]
-    correct = sum(1 for t, p in answered if t == p)
-    f1, per_category = macro_f1(truths, preds)
-    return {
-        "config": result["name"],
-        "rows": len(rows),
-        "answered": len(answered),
-        "coverage": len(answered) / len(rows),
-        "accuracy_overall": correct / len(rows),                              # unanswered counts as wrong
-        "accuracy_when_answered": correct / len(answered) if answered else 0.0,
-        "macro_f1": f1,
-        "llm_calls": result["llm_calls"],
-        "rows_decided_by_rules": result["rule_decided"],
-        "seconds": round(result["seconds"], 2),
-        "seconds_per_row": round(result["seconds"] / len(rows), 3),
-        "per_category": per_category,
-    }
+def _write_csv(path: Path, records: list[dict]) -> None:
+    path.parent.mkdir(parents=True, exist_ok=True)
+    with path.open("w", newline="", encoding="utf-8") as handle:
+        writer = csv.DictWriter(
+            handle, fieldnames=["run_id", "timestamp", "llm_mode", "provider", "config", "subject", "metric", "value"]
+        )
+        writer.writeheader()
+        writer.writerows(records)
 
 
-def print_report(summaries: list[dict], results: list[dict], rows: list[dict]) -> None:
-    print("\n=== SUMMARY ===")
-    header = f"{'config':8} {'acc(all)':>9} {'acc(ans)':>9} {'coverage':>9} {'macroF1':>8} {'LLM calls':>10} {'sec/row':>8}"
-    print(header)
-    print("-" * len(header))
-    for s in summaries:
-        print(f"{s['config']:8} {s['accuracy_overall']:>9.1%} {s['accuracy_when_answered']:>9.1%} {s['coverage']:>9.1%} "
-              f"{s['macro_f1']:>8.3f} {s['llm_calls']:>10} {s['seconds_per_row']:>8}")
+def _print_report(results: dict[str, dict], parsing: dict[str, dict], distortion: dict[str, float] | None) -> None:
+    columns = [
+        ("accuracy", "acc"), ("coverage", "cover"), ("macro_f1", "mF1"), ("phase2_accuracy", "acc(p2)"),
+        ("phase2_memory_hit_rate", "mem(p2)"), ("phase2_payee_rule_hit_rate", "rule(p2)"),
+        ("llm_calls_per_100_rows", "LLM/100"), ("person_guard_recall", "guardR"), ("privacy_leakage_count", "leaks"),
+    ]
+    print("\n=== CATEGORIZATION (real pipeline, two-phase protocol) ===")
+    print(f"{'config':17}" + "".join(f"{label:>9}" for _, label in columns))
+    for name, result in results.items():
+        m = result["metrics"]
+        print(f"{name:17}" + "".join(f"{m[key]:>9.3f}" if key != "privacy_leakage_count" else f"{int(m[key]):>9}"
+                                     for key, _ in columns))
+    if distortion:
+        print(f"\nBudget distortion if investments/transfers counted as spending: "
+              f"+{distortion['budget_distortion_pct']:.1f}% "
+              f"({distortion['expense_total_correct']:,.0f} -> {distortion['expense_total_if_investments_counted']:,.0f})")
+    print("\n=== PARSING (synthetic statements) ===")
+    for name, m in parsing.items():
+        print(f"{name:16} layout={m['layout']:10} success={m['parse_success']:.0f}"
+              + (f" recall={m['row_recall']:.2f} narration={m['narration_fidelity']:.2f} "
+                 f"balance_pass={m['balance_pass_rate']:.2f} mismatches={int(m['balance_mismatches_found'])}"
+                 if "row_recall" in m else ""))
 
-    best = max(summaries, key=lambda s: s["macro_f1"])
-    print(f"\n=== PER-CATEGORY ({best['config']}) ===")
-    for category, m in best["per_category"].items():
-        print(f"{category:24} P={m['precision']:.2f} R={m['recall']:.2f} F1={m['f1']:.2f} (n={int(m['support'])})")
 
-    for result in results:
-        wrong = [(rows[i], p) for i, p in enumerate(result["predictions"]) if p != rows[i]["truth"]]
-        if not wrong:
-            continue
-        print(f"\n=== MISTAKES ({result['name']}) ===")
-        for row, pred in wrong:
-            print(f"  {row['description'][:44]:44} truth={row['truth']:22} predicted={pred or '(no answer)'}")
-        confusions = Counter((r["truth"], p) for r, p in wrong)
-        print("  Most common confusions:", confusions.most_common(3))
+def run_evaluation(
+    dataset: Path = DEFAULT_DATASET, configs: list[str] | None = None, llm_mode: str = "none",
+    limit: int | None = None, out_dir: Path = RESULTS_DIR, include_parsing: bool = True, quiet: bool = False,
+    oracle_remember: str = "upi",
+) -> Path:
+    """Runs everything and writes the metrics CSV (+ JSON). Returns the CSV path."""
+    rows = load_dataset(dataset, limit)
+    configs = configs or list(CONFIGS)
+    provider = ExpenseCategorizerAgent().provider_name if llm_mode == "real" else "none"
+    run_id = datetime.now().strftime("%Y%m%d_%H%M%S")
+    stamp = datetime.now(timezone.utc).isoformat(timespec="seconds")
+
+    results = {name: run_config(name, rows, llm_mode, oracle_remember) for name in configs}
+    distortion = budget_distortion(results["full"]["transactions"]) if "full" in results else None
+    parsing = evaluate_parsing() if include_parsing else {}
+
+    def record(config: str, subject: str, metric: str, value: float) -> dict:
+        return {"run_id": run_id, "timestamp": stamp, "llm_mode": llm_mode, "provider": provider,
+                "config": config, "subject": subject, "metric": metric, "value": round(float(value), 6)}
+
+    records: list[dict] = []
+    for name, result in results.items():
+        records += [record(name, "", metric, value) for metric, value in result["metrics"].items()]
+        for category, scores in result["per_category"].items():
+            records += [record(name, category, metric, scores[metric]) for metric in ("precision", "recall", "f1", "support")]
+    if distortion:
+        records += [record("investment_exclusion_off", "", metric, value) for metric, value in distortion.items()]
+    for file_name, metrics in parsing.items():
+        records += [record("parsing", file_name, metric, value) for metric, value in metrics.items() if metric != "layout"]
+
+    out_path = out_dir / f"metrics_{run_id}.csv"
+    _write_csv(out_path, records)
+    summary = {name: r["metrics"] for name, r in results.items()}
+    out_path.with_suffix(".json").write_text(
+        json.dumps({"run_id": run_id, "llm_mode": llm_mode, "provider": provider, "dataset_rows": len(rows),
+                    "oracle_remember": oracle_remember,
+                    "configs": summary, "budget_distortion": distortion, "parsing": parsing}, indent=2),
+        encoding="utf-8",
+    )
+    if not quiet:
+        print(f"Dataset: {dataset.name} ({len(rows)} rows) | LLM: {llm_mode} ({provider}) | "
+              f"oracle remembers: {oracle_remember} | configs: {configs}")
+        _print_report(results, parsing, distortion)
+        print(f"\nSaved: {out_path}")
+    return out_path
 
 
 def main() -> None:
-    parser = argparse.ArgumentParser(description="Evaluate the expense categorizer on a labeled CSV.")
+    parser = argparse.ArgumentParser(description="Evaluate the expense categorizer and the statement parsers.")
     parser.add_argument("--dataset", type=Path, default=DEFAULT_DATASET)
-    parser.add_argument("--configs", default="rules,llm,hybrid", help="comma-separated: rules,llm,hybrid")
+    parser.add_argument("--configs", default=",".join(CONFIGS), help=f"comma-separated subset of: {', '.join(CONFIGS)}")
+    parser.add_argument("--llm", choices=("none", "real"), default="none")
     parser.add_argument("--limit", type=int, default=None, help="only use the first N rows (quick test)")
+    parser.add_argument("--skip-parsing", action="store_true")
+    parser.add_argument("--oracle-remember", choices=ORACLE_POLICIES, default="upi",
+                        help="when the simulated user ticks 'remember this payee'")
     args = parser.parse_args()
 
-    logging.basicConfig(level=logging.WARNING)
-    rows = load_dataset(args.dataset, args.limit)
     configs = [c.strip() for c in args.configs.split(",") if c.strip()]
-    print(f"Dataset: {args.dataset.name} ({len(rows)} rows)  |  configs: {configs}")
-
-    agent = None
-    if any(c in ("llm", "hybrid") for c in configs):
-        agent = ExpenseCategorizerAgent()
-        print(f"LLM provider: {agent.provider_name}")
-
-    results = [evaluate_config(c, rows, agent) for c in configs]
-    summaries = [summarize(r, rows) for r in results]
-    print_report(summaries, results, rows)
-
-    RESULTS_DIR.mkdir(exist_ok=True)
-    out = RESULTS_DIR / f"eval_{datetime.now():%Y%m%d_%H%M%S}.json"
-    out.write_text(json.dumps({"provider": getattr(agent, "provider_name", None), "summaries": summaries}, indent=2))
-    print(f"\nSaved: {out}")
+    unknown = set(configs) - set(CONFIGS)
+    if unknown:
+        parser.error(f"unknown configs: {sorted(unknown)}")
+    logging.basicConfig(level=logging.WARNING)
+    run_evaluation(args.dataset, configs, args.llm, args.limit, include_parsing=not args.skip_parsing,
+                   oracle_remember=args.oracle_remember)
 
 
 if __name__ == "__main__":

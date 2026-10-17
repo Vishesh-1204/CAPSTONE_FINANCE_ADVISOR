@@ -1,0 +1,10 @@
+# .gitattributes
+#
+# Purpose: tell Git which files are BINARY so it never rewrites their line endings.
+# PDFs and XLSX files store byte offsets internally; converting LF<->CRLF on a
+# Windows checkout would corrupt the test fixtures.
+
+*.pdf  binary
+*.xlsx binary
+*.png  binary
+*.jpg  binary
