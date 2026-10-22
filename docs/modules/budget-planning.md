@@ -159,6 +159,9 @@ but no salary counts as ₹0, and a month never imported does not lower the aver
 | `test_budget_service.py` | expenses only, window, user isolation, overrides survive regeneration, reset, data quality, LLM down/unfaithful, privacy, status, income suggestion |
 | `test_budgets_api.py` | every endpoint over HTTP, 404 on another user's budget, month and body validation (422) |
 
+Live end-to-end check (running stack, synthetic data): `docker compose exec backend python -m scripts.smoke_test`
+runs upload → categorize → profile → generate → status → override → regenerate. See [testing.md](../testing.md#automated-smoke-test-live-api).
+
 Manual check in Swagger: PUT a profile → `GET /financial/suggestion` → `POST /generate` → `PUT` one
 limit → regenerate (your limit is unchanged) → `POST /{id}/reset` → `GET /status`.
 

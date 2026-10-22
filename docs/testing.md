@@ -16,7 +16,8 @@ Tests need **no Postgres, no network and no API key**:
 `tests/test_migrations.py` is the exception that touches Alembic: it applies all migrations to an empty
 database and compares the result with the models (drift check).
 
-Last full run: **363 passed** (Phase 4 P7, on `feature/vishesh-budget`).
+Last full run: **363 passed** (Phase 4 complete, on `feature/vishesh-budget`), plus the live smoke
+test below: 12/12 steps passed.
 
 ## What each test file covers
 
@@ -58,6 +59,38 @@ cd frontend
 npm run lint
 npm run build        # also type-checks every page
 ```
+
+## Automated smoke test (live API)
+
+`backend/scripts/smoke_test.py` checks the **running** stack end to end over real HTTP, with the real
+Postgres database, migrations and router wiring (the pytest suite cannot see those). Run it after
+`docker compose up`:
+
+```powershell
+docker compose exec backend python -m scripts.smoke_test
+docker compose exec backend python -m scripts.smoke_test --base-url http://127.0.0.1:8000   # explicit URL
+```
+
+It runs 12 steps and prints one `PASS`/`FAIL` line per step. It stops at the first failure (later
+steps depend on earlier ones) and exits `1`. Exit `0` means every step passed:
+
+| # | Step | What it checks |
+|---|---|---|
+| 1 | health | `GET /health` answers |
+| 2-3 | register, login | a NEW user each run (`smoke-<random>@example.com`), bearer token |
+| 4 | upload CSV | 27 synthetic rows (2 full past months + day 1 of this month), 0 invalid |
+| 5 | categorize | every row categorized (all match keyword rules, so no LLM call), 0 failed |
+| 6 | save profile | income 60,000, 20% target → spendable 48,000 |
+| 7 | income suggestion | the salary average, 60,000 |
+| 8 | generate (next month) | `method=history`, limits ≤ spendable, the SIP is NOT budgeted |
+| 9 | status | every budgeted category `ok` (nothing spent next month yet) |
+| 10 | override | `Food & Dining` set to half the agent limit → `source=user` |
+| 11-12 | regenerate | the override keeps its id, value and `source=user` |
+
+Notes: it uses the standard library only (`urllib`), so it needs no extra dependency. Each run leaves one
+synthetic user in the dev DB, which is harmless. With an LLM key in `.env`, the budget explanation makes
+one real LLM call per generation (`llm_used=True`). Only category names and totals are sent. Without a key
+the template is used and the test still passes.
 
 ## Manual end-to-end checklist (Swagger or the Test Console)
 
