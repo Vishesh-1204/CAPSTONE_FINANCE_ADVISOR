@@ -11,12 +11,17 @@
 
 import { clearToken, getToken } from "./auth";
 import type {
+  BudgetItem,
+  BudgetPlan,
+  BudgetStatus,
   BulkCategoryResponse,
   CategorizationSummary,
   CategoryCorrection,
   CategoryOptions,
   CorrectionResponse,
+  FinancialProfile,
   ImportBatch,
+  IncomeSuggestion,
   MonthlySummary,
   PayeeRule,
   StatementImportSummary,
@@ -58,7 +63,7 @@ export class ApiError extends Error {
 type QueryValue = string | number | boolean | null | undefined;
 
 interface RequestOptions {
-  method?: "GET" | "POST" | "PATCH" | "DELETE";
+  method?: "GET" | "POST" | "PUT" | "PATCH" | "DELETE";
   query?: Record<string, QueryValue>;
   json?: unknown; // sent as application/json
   form?: FormData; // multipart (file uploads)
@@ -214,4 +219,22 @@ export const api = {
 
   // categories
   getCategories: () => apiFetch<CategoryOptions>("/api/categories/"),
+
+  // financial profile (Phase 4). GET returns 404 until a profile is saved.
+  getFinancialProfile: () => apiFetch<FinancialProfile>("/api/profile/financial"),
+  saveFinancialProfile: (monthlyIncome: number, savingsTargetPct: number) =>
+    apiFetch<FinancialProfile>("/api/profile/financial", {
+      method: "PUT",
+      json: { monthly_income: monthlyIncome, savings_target_pct: savingsTargetPct },
+    }),
+  getIncomeSuggestion: (month: string) =>
+    apiFetch<IncomeSuggestion>("/api/profile/financial/suggestion", { query: { month } }),
+
+  // budgets (Phase 4). `month` is "YYYY-MM".
+  generateBudget: (month: string) => apiFetch<BudgetPlan>("/api/budgets/generate", { method: "POST", query: { month } }),
+  listBudgets: (month: string) => apiFetch<BudgetItem[]>("/api/budgets/", { query: { month } }),
+  updateBudget: (id: number, limitAmount: number) =>
+    apiFetch<BudgetItem>(`/api/budgets/${id}`, { method: "PUT", json: { limit_amount: limitAmount } }),
+  resetBudget: (id: number) => apiFetch<BudgetItem>(`/api/budgets/${id}/reset`, { method: "POST" }),
+  getBudgetStatus: (month: string) => apiFetch<BudgetStatus>("/api/budgets/status", { query: { month } }),
 };
