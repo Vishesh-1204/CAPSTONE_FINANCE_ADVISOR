@@ -29,7 +29,10 @@
 #   net_cashflow /   S (generate_forecast) vs A (monthly income and outflow forecast flat and
 #   end_balance /    spread evenly over the days; no salary or rent dates)
 #   cash_crunch
-#   ablations        selection window 6/12 months, fixed-width vs residual interval,
+#   ablations        selection window 6/12 months; interval method (student_t default,
+#                    empirical = the pre-F6.1 percentiles, conformal, fixed width);
+#                    recurrence detector without the F6.1 frequency check (scored on targets
+#                    that do not depend on detection: total expenses, net cash flow, crunch);
 #                    history length 3/6/12 months (origins with >= 12 months only)
 #   selection        regret vs the best fixed model, which model was chosen, low_confidence
 #   recurrence       detected recurring items vs the generator's ground truth
@@ -88,6 +91,7 @@ from app.services.forecasting.metrics import rmse as series_rmse
 from app.services.forecasting.metrics import smape as series_smape
 from app.services.forecasting.variable_forecast import MIN_TRAIN_MONTHS, forecast_variable
 from app.services.narration_parser import parse_narration
+from evaluation.evaluate_categorizer import overridden_settings
 from evaluation.metrics import confusion, interval_coverage, mean_interval_width, selection_regret
 from scripts.make_synthetic_panel import (
     DEFAULT_SEED, PanelRow, generate_panel, panel_months, panel_sha256, read_csv,
@@ -103,6 +107,8 @@ MIN_HISTORY_MONTHS = 6                # an origin needs this many complete month
 LONG_HISTORY_MONTHS = 12              # origins used by the history-length ablation
 HISTORY_LENGTHS: tuple[int, ...] = (3, 6, 12)
 SELECT_WINDOWS: tuple[int, ...] = (6, 12)
+INTERVAL_ABLATIONS: tuple[str, ...] = ("empirical", "conformal")      # the default is settings.FORECAST_INTERVAL_METHOD
+OLD_DETECTOR = "detector=no_frequency_check"                          # config label of the pre-F6.1 detector
 PROFILE_SAVINGS_PCT = Decimal("20")   # the profile needs one; the forecast does not use it
 ALL = "all"                           # persona label for the pooled rows
 
@@ -355,7 +361,7 @@ def fixed_model_forecast(series: list[float], weights: list[float], spec: ModelS
     lower, upper, _ = prediction_interval(
         point, errors, coverage=settings.FORECAST_INTERVAL_COVERAGE,
         min_residuals=settings.FORECAST_MIN_INTERVAL_ERRORS,
-        fallback_relative_width=settings.FORECAST_FALLBACK_INTERVAL_WIDTH,
+        fallback_relative_width=settings.FORECAST_FALLBACK_INTERVAL_WIDTH, method=settings.FORECAST_INTERVAL_METHOD,
     )
     return Interval(point, lower, upper)
 
@@ -374,7 +380,7 @@ def agent_variable(series: list[float], weights: list[float]) -> Interval:
     forecast = forecast_variable(
         series, weights, coverage=settings.FORECAST_INTERVAL_COVERAGE, min_folds=settings.FORECAST_MIN_BACKTEST_FOLDS,
         min_interval_errors=settings.FORECAST_MIN_INTERVAL_ERRORS,
-        fallback_width=settings.FORECAST_FALLBACK_INTERVAL_WIDTH,
+        fallback_width=settings.FORECAST_FALLBACK_INTERVAL_WIDTH, interval_method=settings.FORECAST_INTERVAL_METHOD,
     )
     return Interval(forecast.point, forecast.lower, forecast.upper)
 
@@ -401,7 +407,7 @@ def flat_projection(
     settings_kwargs = dict(
         coverage=settings.FORECAST_INTERVAL_COVERAGE, min_folds=settings.FORECAST_MIN_BACKTEST_FOLDS,
         min_interval_errors=settings.FORECAST_MIN_INTERVAL_ERRORS,
-        fallback_width=settings.FORECAST_FALLBACK_INTERVAL_WIDTH,
+        fallback_width=settings.FORECAST_FALLBACK_INTERVAL_WIDTH, interval_method=settings.FORECAST_INTERVAL_METHOD,
     )
     income = forecast_variable(income_series, weights, **settings_kwargs)
     outflow = forecast_variable(outflow_series, weights, **settings_kwargs)
@@ -448,6 +454,11 @@ def evaluate_origin(
     truth = truth_recurring_keys(ledger, as_of)
     for key in sorted(detected | truth):
         out.flags.append(Flag("recurrence", "detector", "default", "", persona, user, as_of, key in truth, key in detected))
+    with overridden_settings({"FORECAST_RECURRING_FREQUENCY_CHECK": False}):
+        old_detected = {r.item.payee_key for r in prepare_history(db, user_id, as_of).recurring}
+    for key in sorted(old_detected | truth):
+        out.flags.append(Flag("recurrence", "detector", OLD_DETECTOR, "", persona, user, as_of, key in truth,
+                              key in old_detected))
 
     income_series, investment_series = monthly_flows(ledger, history.months)
     outflow_series = [e + i for e, i in zip(history.total_expense_series, investment_series)]
@@ -482,6 +493,10 @@ def evaluate_origin(
         for window in SELECT_WINDOWS:
             add("variable_spend", "S", f"select_window={window}", actual.variable,
                 selected_on_window(history.variable_series, weights, window))
+        for method in INTERVAL_ABLATIONS:
+            with overridden_settings({"FORECAST_INTERVAL_METHOD": method}):
+                add("variable_spend", "S", f"interval={method}", actual.variable,
+                    agent_variable(history.variable_series, weights))
         spread = s_var.point * settings.FORECAST_FALLBACK_INTERVAL_WIDTH
         add("variable_spend", "S", "interval=fixed_width", actual.variable,
             Interval(s_var.point, max(0.0, s_var.point - spread), s_var.point + spread))
@@ -507,6 +522,18 @@ def evaluate_origin(
             ("A", "lower_band", flat.crunch_lower), ("A", "point", flat.crunch_point),
         ):
             out.flags.append(Flag("cash_crunch", method, config, horizon, persona, user, as_of, actual.crunch, predicted))
+
+        # --- detector ablation: the whole service with the pre-F6.1 recurrence rule ---
+        with overridden_settings({"FORECAST_RECURRING_FREQUENCY_CHECK": False}),                 explainer(lambda: ForecastExplainer(chains=[])):
+            old = forecast_service.generate_forecast(db, user_id, horizon, as_of)
+        old_var = old["expected_variable_expenses"]
+        old_fixed, old_net = old["expected_fixed_expenses"], old["net_cashflow"]
+        add("total_expenses", "S", OLD_DETECTOR, actual.total_expenses,
+            Interval(old_fixed + old_var["point"], old_fixed + old_var["lower"], old_fixed + old_var["upper"]))
+        add("net_cashflow", "S", OLD_DETECTOR, actual.net_cashflow,
+            Interval(old_net, old_net - (old_var["upper"] - old_var["point"]), old_net + (old_var["point"] - old_var["lower"])))
+        out.flags.append(Flag("cash_crunch", "S", OLD_DETECTOR, horizon, persona, user, as_of, actual.crunch,
+                              old["cash_crunch_date"] is not None))
 
         # --- history length ablation (only where >= 12 months exist, same origins for every length) ---
         if long_history:
@@ -840,10 +867,12 @@ def markdown_report(result: EvaluationResult) -> str:
         k = ("cash_crunch", "S", "lower_band", horizons[0], persona)
         lines.append(f"| {persona} | {_pct(get(*k, 'actual_rate'))} | {_pct(get(*k, 'recall'))} | {_pct(get(*k, 'precision'))} |")
 
-    lines += ["", "## 6. Ablations on S (variable spending, all users)", "",
+    lines += ["", f"## 6. Ablations on S (variable spending, all users; default interval = "
+              f"{settings.FORECAST_INTERVAL_METHOD})", "",
               "| Horizon | Configuration | MAE | 80% coverage | Mean width |", "|---|---|---|---|---|"]
     for h in horizons:
-        for config in ("default", *(f"select_window={w}" for w in SELECT_WINDOWS), "interval=fixed_width"):
+        for config in ("default", *(f"select_window={w}" for w in SELECT_WINDOWS),
+                       *(f"interval={m}" for m in INTERVAL_ABLATIONS), "interval=fixed_width"):
             k = ("variable_spend", "S", config, h, ALL)
             lines.append(f"| {h} | {config} | {_rupees(get(*k, 'mae'))} | {_pct(get(*k, 'coverage'))} | "
                          f"{_rupees(get(*k, 'width'))} |")
@@ -867,7 +896,22 @@ def markdown_report(result: EvaluationResult) -> str:
         lines.append(f"| {persona} | {_pct(get(*k, 'precision'))} | {_pct(get(*k, 'recall'))} | {_pct(get(*k, 'f1'))} | "
                      f"{get(*k, 'tp'):.0f} | {get(*k, 'fp'):.0f} | {get(*k, 'fn'):.0f} |")
 
-    lines += ["", "## 9. LLM explanation", "",
+    lines += ["", "## 9. Recurrence detector: with vs without the frequency check (F6.1)", "",
+              "Scored on targets that do not depend on what was detected.", "",
+              "| Detector | Recurrence precision | Recall | Horizon | Total-expense MAE | Total-expense coverage "
+              "| Net cash-flow MAE | Crunch F1 (lower band) |", "|---|---|---|---|---|---|---|---|"]
+    for label, config, crunch_config in (("frequency check (default)", "decomposed", "lower_band"),
+                                         ("no frequency check (pre-F6.1)", OLD_DETECTOR, OLD_DETECTOR)):
+        rec_config = "default" if config == "decomposed" else OLD_DETECTOR
+        rec = ("recurrence", "detector", rec_config, "", ALL)
+        for h in horizons:
+            lines.append(f"| {label} | {_pct(get(*rec, 'precision'))} | {_pct(get(*rec, 'recall'))} | {h} | "
+                         f"{_rupees(get('total_expenses', 'S', config, h, ALL, 'mae'))} | "
+                         f"{_pct(get('total_expenses', 'S', config, h, ALL, 'coverage'))} | "
+                         f"{_rupees(get('net_cashflow', 'S', config, h, ALL, 'mae'))} | "
+                         f"{_pct(get('cash_crunch', 'S', crunch_config, h, ALL, 'f1'))} |")
+
+    lines += ["", "## 10. LLM explanation", "",
               f"Main runs: template only, {_num(get('llm', 'S', 'template', horizons[0], ALL, 'llm_calls_per_forecast'), 0)} "
               "LLM calls per forecast."]
     if any(r["experiment"] == "llm" and r["config"] == "explainer" for r in records):

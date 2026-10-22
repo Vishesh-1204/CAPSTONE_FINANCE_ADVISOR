@@ -208,7 +208,7 @@ def generate_forecast(
         history.variable_series, [s.weight for s in slices],
         coverage=settings.FORECAST_INTERVAL_COVERAGE, min_folds=settings.FORECAST_MIN_BACKTEST_FOLDS,
         min_interval_errors=settings.FORECAST_MIN_INTERVAL_ERRORS,
-        fallback_width=settings.FORECAST_FALLBACK_INTERVAL_WIDTH,
+        fallback_width=settings.FORECAST_FALLBACK_INTERVAL_WIDTH, interval_method=settings.FORECAST_INTERVAL_METHOD,
     )
 
     # 5-6. Scheduled flows and the daily trajectory

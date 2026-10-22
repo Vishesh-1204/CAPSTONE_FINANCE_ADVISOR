@@ -24,7 +24,8 @@ from app.services.forecasting.data_preparation import prepare_history
 from app.services.forecasting.horizon import horizon_slices
 from app.services.forecasting.variable_forecast import forecast_variable
 from evaluation.evaluate_forecast import (
-    ALL, FIXED_LABELS, HISTORY_LENGTHS, HORIZONS, Ledger, default_origins, explainer, load_db, run_evaluation,
+    ALL, FIXED_LABELS, HISTORY_LENGTHS, HORIZONS, OLD_DETECTOR, Ledger, default_origins, explainer, load_db,
+    run_evaluation,
 )
 from evaluation.metrics import confusion, interval_coverage, mean_interval_width, selection_regret
 from scripts.make_synthetic_panel import generate_panel
@@ -100,7 +101,8 @@ def test_every_method_and_horizon_is_reported(result):
     for horizon in HORIZONS:
         for label in FIXED_LABELS.values():
             assert value(records, "variable_spend", label, "fixed", horizon, ALL, "n") > 0
-        for config in ("default", "select_window=6", "select_window=12", "interval=fixed_width"):
+        for config in ("default", "select_window=6", "select_window=12", "interval=empirical", "interval=conformal",
+                       "interval=fixed_width"):
             assert value(records, "variable_spend", "S", config, horizon, ALL, "n") == 2 * len(USERS)
         for experiment, method, config in (("total_expenses", "S", "decomposed"), ("total_expenses", "A", "no_decomposition"),
                                            ("net_cashflow", "A", "no_decomposition"), ("end_balance", "S", "decomposed")):
@@ -108,6 +110,9 @@ def test_every_method_and_horizon_is_reported(result):
         for length in HISTORY_LENGTHS:                    # only the LONG origin has >= 12 months
             assert value(records, "history_length", "S", f"months={length}", horizon, ALL, "n") == len(USERS)
         assert value(records, "cash_crunch", "S", "lower_band", horizon, ALL, "n") == 2 * len(USERS)
+        # the pre-F6.1 detector ablation runs the whole service again
+        assert value(records, "total_expenses", "S", OLD_DETECTOR, horizon, ALL, "n") == 2 * len(USERS)
+        assert value(records, "cash_crunch", "S", OLD_DETECTOR, horizon, ALL, "n") == 2 * len(USERS)
     # seasonal naive only exists where 12 months of history do
     assert value(records, "variable_spend", "B2", "fixed", 30, ALL, "n") == len(USERS)
     assert res.info["forecasts"] == 2 * len(USERS) * len(HORIZONS)
@@ -193,3 +198,17 @@ def test_template_runs_make_no_llm_call_and_the_guard_catches_the_fake(result):
 def test_recurrence_detection_finds_every_scheduled_item(result):
     res, _ = result
     assert value(res.records, "recurrence", "detector", "default", "", ALL, "recall") == 1.0
+
+
+def test_frequency_check_raises_detection_precision(result):
+    res, _ = result
+    new = value(res.records, "recurrence", "detector", "default", "", ALL, "precision")
+    old = value(res.records, "recurrence", "detector", OLD_DETECTOR, "", ALL, "precision")
+    assert new > old
+
+
+def test_student_t_intervals_cover_more_than_plain_percentiles(result):
+    res, _ = result
+    for horizon in HORIZONS:
+        default = value(res.records, "variable_spend", "S", "default", horizon, ALL, "width")
+        assert default > value(res.records, "variable_spend", "S", "interval=empirical", horizon, ALL, "width")

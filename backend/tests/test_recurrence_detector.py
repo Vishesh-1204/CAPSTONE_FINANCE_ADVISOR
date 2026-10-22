@@ -2,7 +2,7 @@
 #
 # Detecting salary/rent/SIPs and projecting them onto future dates.
 
-from datetime import date
+from datetime import date, timedelta
 
 from app.services.forecasting.recurrence_detector import (
     Event, RecurringItem, detect_recurring, is_active, is_occurrence_of, project_occurrences,
@@ -109,3 +109,30 @@ def test_projection_crosses_the_year_boundary():
 def test_an_early_payment_is_not_projected_again():
     salary = RecurringItem("acme payroll", "credit", 60000, 1, 6, last_seen=date(2026, 9, 30))   # paid early
     assert list(project_occurrences(salary, date(2026, 10, 1), date(2026, 11, 30))) == [date(2026, 11, 1)]
+
+
+def _busy_shop() -> list[Event]:
+    """
+    A shop paid every 5 days (21 payments). By chance its ~1,000 payments fall 30 days
+    apart and the latest three are all ~1,000: the pattern the F6 evaluation found.
+    """
+    other = {1: 300, 2: 500, 3: 1500, 4: 1800, 5: 2200}
+    amounts = {k: 1000 if k % 6 == 0 else other[k % 6] for k in range(21)}
+    amounts.update({19: 1020, 20: 980})
+    return [Event("kirana", date(2026, 5, 1) + timedelta(days=5 * k), amounts[k], "debit") for k in range(21)]
+
+
+def test_a_shop_paid_every_few_days_is_not_a_fixed_bill():
+    assert detect_recurring(_busy_shop(), recent_occurrences=3) == []
+
+
+def test_without_the_frequency_check_the_busy_shop_looked_like_a_bill():
+    # documents the pre-F6.1 behaviour (the evaluation's "no_frequency_check" ablation)
+    items = detect_recurring(_busy_shop(), recent_occurrences=3, check_frequency=False)
+    assert len(items) == 1 and items[0].typical_amount == 1000
+
+
+def test_the_frequency_check_keeps_rent_with_a_one_off_deposit():
+    rent = _monthly("landlord@upi", [18000] * 5, first_month=5)
+    deposit = Event("landlord@upi", date(2026, 8, 25), 50000, "debit")
+    assert detect_recurring(rent + [deposit], recent_occurrences=3, check_frequency=True)[0].typical_amount == 18000

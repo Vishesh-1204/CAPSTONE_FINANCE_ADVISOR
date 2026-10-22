@@ -1,5 +1,7 @@
 # app/core/config.py
 
+from typing import Literal
+
 from pydantic_settings import BaseSettings, SettingsConfigDict
 
 
@@ -93,6 +95,12 @@ class Settings(BaseSettings):
     FORECAST_MIN_BACKTEST_FOLDS: int = 2
     # Horizon-sum backtest errors needed for a residual-based interval; fewer -> fallback width.
     FORECAST_MIN_INTERVAL_ERRORS: int = 3
+    # How the interval is built from those errors: student_t (default since F6.1), empirical
+    # (plain percentiles; too narrow with few errors) or conformal. See forecasting/backtest.py.
+    FORECAST_INTERVAL_METHOD: Literal["student_t", "empirical", "conformal"] = "student_t"
+    # A recurring bill must also be paid about once a month across ALL payments to that payee,
+    # so a grocery store paid 6 times a month is not a "fixed bill" (F6.1). False = the old rule.
+    FORECAST_RECURRING_FREQUENCY_CHECK: bool = True
     # Ablation switch: False = template explanations only, no LLM call.
     FORECAST_USE_LLM_EXPLANATIONS: bool = True
 

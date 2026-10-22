@@ -12,6 +12,11 @@
 #   * is_active / is_occurrence_of: staleness and row matching, used by the service.
 #   * project_occurrences skips a date too close to the last payment (an early
 #     salary on the 30th must not be counted again on the 1st).
+#   * `check_frequency` (F6.1): the payee must ALSO be paid about monthly across all
+#     its payments. Without it, a grocery store paid 6 times a month looked like a
+#     fixed bill: the few payments within 15% of the median happened to be ~30 days
+#     apart (the evaluation measured 56% precision). Missing a real bill is the safer
+#     error: it simply stays in the statistically forecast variable spending.
 
 from dataclasses import dataclass
 from datetime import date
@@ -43,6 +48,7 @@ class RecurringItem:
 def detect_recurring(
     events: Iterable[Event], min_occurrences: int = 3, amount_tolerance: float = 0.15,
     min_gap_days: int = 25, max_gap_days: int = 35, recent_occurrences: int | None = None,
+    check_frequency: bool = True,
 ) -> list[RecurringItem]:
     """
     A payee counts as monthly-recurring when it appears at least `min_occurrences` times,
@@ -55,8 +61,11 @@ def detect_recurring(
       2. at most ONE of those latest N may be off that level (a one-off deposit to the
          landlord is tolerated; a grocery bill that swings every month is not);
       3. only the "regular" payments within the tolerance are kept, and the count and
-         timing tests run on them (the one-off payment stays variable spending).
-    Without it, the original rule applies (every payment must pass the amount test).
+         timing tests run on them (the one-off payment stays variable spending);
+      4. with `check_frequency`, the median gap between ALL payments to the payee must
+         be at least `min_gap_days` too (one extra deposit barely moves that median;
+         a merchant paid every few days fails it).
+    Without `recent_occurrences`, the original rule applies (every payment must pass the amount test).
     """
     groups: dict[tuple[str, str], list[Event]] = {}
     for event in events:
@@ -78,6 +87,8 @@ def detect_recurring(
 
             if sum(regular(e) for e in latest) < len(latest) - 1:
                 continue                  # more than one recent outlier: the amount really varies
+            if check_frequency and median((b.on - a.on).days for a, b in zip(group, group[1:])) < min_gap_days:
+                continue                  # paid far more often than monthly: a shop, not a bill
             group = [e for e in group if regular(e)]
             if len(group) < min_occurrences:
                 continue

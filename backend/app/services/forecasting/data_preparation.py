@@ -161,6 +161,7 @@ def _detect(rows: list[HistoryRow], kind: str, direction: str, data_end: date) -
         min_occurrences=minimum,
         amount_tolerance=settings.FORECAST_RECURRING_AMOUNT_TOLERANCE,
         recent_occurrences=minimum,
+        check_frequency=settings.FORECAST_RECURRING_FREQUENCY_CHECK,
     )
     detected: list[DetectedRecurring] = []
     for item in items:

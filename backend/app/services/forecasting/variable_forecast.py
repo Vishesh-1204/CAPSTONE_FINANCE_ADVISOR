@@ -12,8 +12,9 @@
 #   2. Point: the chosen model forecasts one value per month slice; the window
 #      total is sum(month forecast x month weight).
 #   3. Interval: from that model's backtest errors of the SAME weighted total
-#      (horizon_sum_errors). Fewer than `min_interval_errors` -> the fixed
-#      fallback width, and low_confidence.
+#      (horizon_sum_errors), by `interval_method` (student_t by default; see
+#      backtest.py). Fewer than `min_interval_errors` -> the fixed fallback
+#      width, and low_confidence.
 
 from dataclasses import dataclass, field
 from typing import Mapping, Sequence
@@ -46,6 +47,7 @@ def forecast_variable(
     min_interval_errors: int = 3,
     fallback_width: float = 0.25,
     registry: Mapping[str, ModelSpec] | None = None,
+    interval_method: str = "student_t",
 ) -> VariableForecast:
     """`series` = monthly variable spending (oldest first); `weights` = one per month slice."""
     if not series:
@@ -65,6 +67,7 @@ def forecast_variable(
     errors = horizon_sum_errors(series, spec.forecaster, weights, max(MIN_TRAIN_MONTHS, spec.min_history))
     lower, upper, interval_is_fallback = prediction_interval(
         point, errors, coverage=coverage, min_residuals=min_interval_errors, fallback_relative_width=fallback_width,
+        method=interval_method,
     )
     return VariableForecast(
         model_name=spec.name,

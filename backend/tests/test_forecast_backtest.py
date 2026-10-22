@@ -6,7 +6,8 @@
 import pytest
 
 from app.services.forecasting.backtest import (
-    horizon_sum_errors, prediction_interval, rolling_origin_backtest, select_best_model, weighted_sum,
+    horizon_sum_errors, prediction_interval, rolling_origin_backtest, select_best_model, student_t_quantile,
+    weighted_sum,
 )
 from app.services.forecasting.forecast_models import default_model_registry, naive_last
 
@@ -72,6 +73,43 @@ def test_interval_is_flagged_low_confidence_with_few_residuals():
 def test_interval_lower_bound_never_goes_negative():
     lower, _, _ = prediction_interval(100, [-500, -400, -300, 10, 20], coverage=0.9)
     assert lower == 0.0
+
+
+# --- interval methods (F6.1) ---
+
+@pytest.mark.parametrize("df, exact", [(2, 1.886), (5, 1.476), (10, 1.372), (30, 1.310)])
+def test_student_t_quantile_matches_the_table(df, exact):
+    assert student_t_quantile(0.9, df) == pytest.approx(exact, rel=0.005)
+
+
+def test_empirical_method_is_the_plain_percentiles():
+    residuals = [-100, -50, 0, 50, 100, 150]
+    assert prediction_interval(1000, residuals, method="empirical") == (925.0, 1125.0, False)
+
+
+def test_student_t_is_wider_than_percentiles_when_errors_are_few():
+    residuals = [-100, 0, 100]
+    low_t, high_t, _ = prediction_interval(1000, residuals, method="student_t")
+    low_e, high_e, _ = prediction_interval(1000, residuals, method="empirical")
+    assert high_t - low_t > 2 * (high_e - low_e)
+
+
+def test_student_t_band_narrows_as_errors_accumulate():
+    few, many = [-100, 100] * 2, [-100, 100] * 10
+    width = lambda r: (lambda lo, hi, _: hi - lo)(*prediction_interval(1000, r, min_residuals=3))  # noqa: E731
+    assert width(few) > width(many)
+
+
+def test_conformal_needs_enough_errors_for_its_ranks():
+    lower, upper, low_conf = prediction_interval(1000, [-100, -50, 0, 50, 100, 150], method="conformal")
+    assert low_conf and (lower, upper) == (750.0, 1250.0)          # 6 errors: ranks out of range -> fallback
+    nine = [-40, -30, -20, -10, 0, 10, 20, 30, 40]
+    assert prediction_interval(1000, nine, method="conformal") == (960.0, 1040.0, False)   # min and max
+
+
+def test_unknown_interval_method_is_rejected():
+    with pytest.raises(ValueError):
+        prediction_interval(1000, [-1, 0, 1], method="magic")
 
 
 # --- horizon-sum interval ---
