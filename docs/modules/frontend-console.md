@@ -19,6 +19,7 @@ but its client and components are written to be reused there.
 | F5 | `/summary` (Recharts: expense by category; income vs expense vs investment) | not started |
 | F6 | `/rules` (list / delete payee rules) | not started |
 | P8 | `/budgets` (Phase 4: financial profile + income suggestion, generate plan, limits table with inline override / reset, status bars, Recharts spent vs limit) | **done** |
+| F10 | `/forecast` (Phase 5: 30/60/90 toggle, opening balance prefilled from the latest statement balance, cards, Recharts balance line with 80% band, cash-crunch banner, low-confidence notice, template / AI badge, budget warnings, recurring payments) | **done** |
 
 ## Run it (on the host, not in Docker)
 ```powershell
@@ -49,6 +50,10 @@ Restart `npm run dev` after changing `.env.local` (`NEXT_PUBLIC_` values are bak
 | `components/budget-plan-card.tsx` | Result of `POST /api/budgets/generate`: method, summary, feasibility, LLM used / guard result, data quality. Only shown right after generating (the summary is not stored) |
 | `components/budget-table.tsx` | Limits with source badge and reasoning tooltip; inline edit (`PUT /api/budgets/{id}`) and reset (`POST .../reset`) |
 | `components/budget-status-card.tsx` | `GET /api/budgets/status`: totals, progress bars by status, unbudgeted spending, Recharts spent vs limit |
+| `app/(console)/forecast/page.tsx` | `/forecast`: owns the horizon, the opening-balance input and three loads (latest run of the horizon, recurring items, recent rows for the balance prefill) |
+| `components/forecast-result.tsx` | One `ForecastRun`: model badge (hover = backtest error per model), template / AI badge, crunch banner, low-confidence notice, cards, explanation, budget warnings |
+| `components/forecast-balance-chart.tsx` | Recharts `ComposedChart`: range `Area` for the 80% band (`[lower, upper]` per day), `Line` for the balance, ₹0 and crunch-date reference lines |
+| `components/recurring-items-table.tsx` | `GET /api/forecast/recurring`: kind, payee key, category, typical amount, usual day, last seen, next dates; stopped items greyed |
 
 ## Common mistakes
 - Calling `fetch` directly from a page (use `lib/api.ts`).
@@ -76,3 +81,30 @@ and a readable "Network error" with it stopped.
 4. Edit a limit (e.g. 4500, Enter) → badge `user` and "planner: ₹…"; Generate again → your limit stays; Reset → `agent`.
 5. Limit `-5` or `12.345` is rejected in the form before any call.
 6. Status: ≥ 80 % amber, > 100 % red (bar and chart); investments appear only under "Invested this month".
+
+## Forecast page notes (F10)
+- **Opening balance prefill:** the page reads `GET /api/transactions/?limit=500` (newest first, the same order the
+  backend uses) and shows the first row's `balance`. If you do **not** edit it, the request omits `opening_balance`,
+  so the backend reads the statement itself and the result says "statement of <date>". Typing a value sends it
+  ("typed by you"); "Use statement balance" undoes the edit. No balance anywhere → the backend's 400 is shown.
+- `GET /api/forecast/latest?horizon_days=` answers **404 until the first run of that horizon**. The page shows
+  "No 30-day forecast yet", not an error (the 404 still appears in the raw panel, which is expected).
+- `useApiData` keeps the previous data when a new request fails, so the page only shows a run whose
+  `horizon_days` matches the selected tab (otherwise the 30-day run would stay visible under "60 days").
+- The band is the 80% range of the balance; the cash-crunch date is read from its **lower** edge
+  (`cash_crunch_basis="lower"`), so it is the cautious estimate.
+- Dates from the API (`YYYY-MM-DD`) are formatted with `formatDay()`, which parses them as local dates.
+
+## How to test (/forecast)
+`npm run lint` and `npm run build` must pass. Manual, as a fresh synthetic user at http://localhost:3000/forecast:
+1. Before any upload: the hint says "No statement balance found", recurring shows its empty state, and the
+   result card says "No 30-day forecast yet" with no red error.
+2. Upload `backend/tests/fixtures/statements/messy.csv` on /upload, come back: the input shows ₹42,202.90
+   "From your statement of 30 Sep 2026".
+3. Generate 30 days: 30-day chart with a band, "statement of 30 Sep 2026" on the opening-balance card,
+   end balance = opening + net cash flow, the low-confidence notice (1 month of history).
+4. Switch to 60: "No 60-day forecast yet". Type 100 → Generate: "typed by you", 60 days, a cash-crunch banner and
+   a red vertical line on the chart. Switch back to 30: the earlier 30-day run is shown again.
+5. Type `12.345` → a readable error before any call (nothing new in the raw panel).
+6. With an LLM key: badge "explanation: AI · guard passed"; without one: "explanation: template".
+7. The recurring table fills only after 3+ similar monthly payments (the fixtures are too short, by design).

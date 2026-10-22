@@ -64,7 +64,9 @@ research value, explainability and maintainability over quick fixes.
   Docs: docs/modules/forecasting.md, forecast-evaluation.md; api/database/testing/architecture updated.
 - Optional, ask first: S9 Celery + Redis background import/categorize; Phase 5 F8 GET /api/forecast/accuracy;
   F9 global LightGBM model (adds scikit-learn + lightgbm).
-- Next: Phase 5 F10 frontend /forecast page (separate session), finish S7 pages (F3-F6), then Phase 6.
+- Done: Phase 5 F10 frontend /forecast page (horizon toggle, statement-balance prefill, Recharts balance + 80% band,
+  cash-crunch banner, low-confidence notice, template/AI badge, budget warnings, recurring table, raw panel).
+- Next: finish S7 pages (F3-F6), then Phase 6.
 - Known gaps: no HuggingFace/Llama provider in llm/factory.py yet (approved stack); person guard recall 0.857
   (1 person-like string reached the LLM stage in the offline eval); budget guard only checks amounts with a
   currency marker; B2 (--llm real) faithfulness not measured yet; synthetic personas do not react to budgets.

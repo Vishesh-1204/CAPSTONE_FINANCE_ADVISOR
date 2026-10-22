@@ -239,3 +239,98 @@ export interface BudgetStatus {
   invested_this_month: number; // investment_out total (saved, not spent)
   savings_target_amount: number | null; // null when no financial profile exists
 }
+
+// --- forecast (schemas/forecast.py, Phase 5) ---
+export type ForecastHorizon = 30 | 60 | 90;
+export type OpeningBalanceSource = "request" | "statement";
+export type IncomeSource = "recurring" | "profile" | "none";
+// money in, a fixed bill (rent, EMI, subscription), or an investment (SIP)
+export type RecurringKind = "income" | "fixed_expense" | "investment";
+
+/** A point forecast with its 80% range. */
+export interface Band {
+  point: number;
+  lower: number;
+  upper: number;
+}
+
+/** Projected end-of-day balance; the band comes from everyday-spending uncertainty. */
+export interface TrajectoryPoint {
+  date: string; // YYYY-MM-DD
+  balance: number;
+  lower: number;
+  upper: number;
+}
+
+export interface RecurringItem {
+  key: string; // the payee, as the forecast grouped it
+  kind: RecurringKind;
+  category: string | null;
+  typical_amount: number;
+  typical_day: number; // day of month it usually lands on
+  occurrences: number;
+  last_seen: string; // YYYY-MM-DD
+  active: boolean; // false = not seen recently, so NOT projected
+  projected_dates: string[];
+}
+
+export interface ForecastBudgetWarning {
+  month: string; // YYYY-MM
+  category: string;
+  projected: number; // month-to-date actual + projected rest of the month
+  limit: number;
+  over_by: number;
+}
+
+export interface ModelScore {
+  model_name: string;
+  mae: number; // backtest mean absolute error (lower = better)
+  folds: number;
+}
+
+export interface ForecastRun {
+  id: number;
+  as_of: string; // YYYY-MM-DD
+  horizon_days: number;
+  created_at: string | null;
+  model_name: string;
+  history_months: number;
+  low_confidence: boolean;
+  opening_balance: number;
+  opening_balance_source: OpeningBalanceSource;
+  opening_balance_date: string | null;
+  income_source: IncomeSource;
+  expected_income: number;
+  expected_fixed_expenses: number;
+  expected_variable_expenses: Band;
+  expected_investments: number;
+  net_cashflow: number; // income - fixed - variable - investments (point values)
+  projected_end_balance: Band;
+  cash_crunch_date: string | null; // null = no crunch expected
+  cash_crunch_basis: "lower"; // the crunch is read from the LOWER balance band
+  summary: string;
+  llm_used: boolean;
+  explanation_faithful: boolean | null;
+  model_scores: ModelScore[];
+  recurring_items: RecurringItem[];
+  budget_warnings: ForecastBudgetWarning[];
+  trajectory: TrajectoryPoint[];
+}
+
+export interface ForecastHistoryItem {
+  id: number;
+  as_of: string;
+  horizon_days: number;
+  model_name: string;
+  low_confidence: boolean;
+  net_cashflow: number;
+  projected_end_balance: number;
+  cash_crunch_date: string | null;
+  llm_used: boolean;
+  created_at: string | null;
+}
+
+export interface RecurringList {
+  as_of: string;
+  items: RecurringItem[];
+}

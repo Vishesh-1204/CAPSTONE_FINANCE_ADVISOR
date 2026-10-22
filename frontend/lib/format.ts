@@ -13,6 +13,20 @@ export function formatDate(iso: string): string {
   return new Date(iso).toLocaleDateString("en-IN", { day: "2-digit", month: "short", year: "numeric" });
 }
 
+/**
+ * A date-only API value ("2026-02-16") as "16 Feb" (or "16 Feb 2026" with withYear).
+ * Parsed as a LOCAL date: new Date("2026-02-16") would be UTC midnight, which is
+ * still the previous day for anyone west of UTC.
+ */
+export function formatDay(isoDate: string, withYear = false): string {
+  const [year, month, day] = isoDate.split("-").map(Number);
+  return new Date(year, month - 1, day).toLocaleDateString("en-IN", {
+    day: "numeric",
+    month: "short",
+    ...(withYear ? { year: "numeric" } : {}),
+  });
+}
+
 export function formatDateTime(iso: string): string {
   return new Date(iso).toLocaleString("en-IN", { dateStyle: "medium", timeStyle: "short" });
 }
