@@ -10,5 +10,9 @@
 #   horizon.py              "30 days from 22 Oct" -> calendar months with day weights
 #   cashflow_projector.py   daily balance trajectory with a band, and the cash-crunch date
 #
+# Database module (the only one that reads transactions):
+#   data_preparation.py     history span, recurring items per kind, variable series,
+#                           opening balance and income source
+#
 # Money is float inside these modules (statistics), and is converted to exact
 # Decimal (core/money.py) by the service before it is saved or returned.

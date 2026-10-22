@@ -47,7 +47,26 @@ def test_salary_hike_uses_the_new_level_only_with_recent_occurrences():
     salary = _monthly("acme payroll", [60000] * 4 + [72000] * 3, day=1, direction="credit", first_month=2)
     assert detect_recurring(salary) == []
     items = detect_recurring(salary, recent_occurrences=3)
-    assert items[0].typical_amount == 72000 and items[0].occurrences == 7   # the NEW level
+    assert items[0].typical_amount == 72000 and items[0].occurrences == 3   # the NEW level's payments
+
+
+def test_a_one_off_payment_to_the_same_payee_does_not_hide_the_rent():
+    rent = _monthly("landlord@upi", [18000] * 5, first_month=5)
+    deposit = Event("landlord@upi", date(2026, 8, 25), 50000, "debit")       # lands among the last 3
+    assert detect_recurring(rent + [deposit]) == []                           # original rule: vetoed
+    items = detect_recurring(rent + [deposit], recent_occurrences=3)
+    assert items[0].typical_amount == 18000 and items[0].occurrences == 5
+
+
+def test_a_swinging_bill_is_not_made_regular_by_picking_its_similar_months():
+    # 5,000 / 6,000 / 5,500 are within 15% of each other, but the latest months swing
+    groceries = _monthly("kirana", [5000, 6000, 5500, 6500, 2000], first_month=5)
+    assert detect_recurring(groceries, recent_occurrences=3) == []
+
+
+def test_irregular_timing_still_fails_with_recent_occurrences():
+    events = [Event("shop", date(2026, 5, d), 500, "debit") for d in (1, 9, 20, 28)]
+    assert detect_recurring(events, recent_occurrences=3) == []
 
 
 def test_salary_hike_on_all_occurrences_gives_a_level_never_paid():

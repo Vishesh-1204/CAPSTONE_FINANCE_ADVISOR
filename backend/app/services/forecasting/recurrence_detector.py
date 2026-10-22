@@ -49,8 +49,14 @@ def detect_recurring(
     consecutive payments are 25-35 days apart (median), and each amount is within
     `amount_tolerance` of the median amount. Variable bills (e.g. a changing electricity
     bill) fail the amount test on purpose, and stay in the statistical variable bucket.
-    With `recent_occurrences=N`, the amount test and the typical amount/day look only at
-    the latest N payments (the CURRENT level of a salary that was raised).
+
+    With `recent_occurrences=N` (what the service uses) the CURRENT level decides:
+      1. typical amount = median of the latest N payments (a raised salary's new level);
+      2. at most ONE of those latest N may be off that level (a one-off deposit to the
+         landlord is tolerated; a grocery bill that swings every month is not);
+      3. only the "regular" payments within the tolerance are kept, and the count and
+         timing tests run on them (the one-off payment stays variable spending).
+    Without it, the original rule applies (every payment must pass the amount test).
     """
     groups: dict[tuple[str, str], list[Event]] = {}
     for event in events:
@@ -61,12 +67,28 @@ def detect_recurring(
         if len(group) < min_occurrences:
             continue
         group = sorted(group, key=lambda e: e.on)
+        if recent_occurrences:
+            latest = group[-recent_occurrences:]
+            typical = median(e.amount for e in latest)
+            if typical <= 0:
+                continue
+
+            def regular(event: Event) -> bool:
+                return abs(event.amount - typical) / typical <= amount_tolerance
+
+            if sum(regular(e) for e in latest) < len(latest) - 1:
+                continue                  # more than one recent outlier: the amount really varies
+            group = [e for e in group if regular(e)]
+            if len(group) < min_occurrences:
+                continue
+            recent = group[-recent_occurrences:]
+        else:
+            recent = group
+            typical = median(e.amount for e in group)
+            if typical <= 0 or any(abs(e.amount - typical) / typical > amount_tolerance for e in group):
+                continue
         gaps = [(b.on - a.on).days for a, b in zip(group, group[1:])]
         if not min_gap_days <= median(gaps) <= max_gap_days:
-            continue
-        recent = group[-recent_occurrences:] if recent_occurrences else group
-        typical = median(e.amount for e in recent)
-        if typical <= 0 or any(abs(e.amount - typical) / typical > amount_tolerance for e in recent):
             continue
         items.append(RecurringItem(
             payee_key=payee_key, direction=direction, typical_amount=round(typical, 2),
