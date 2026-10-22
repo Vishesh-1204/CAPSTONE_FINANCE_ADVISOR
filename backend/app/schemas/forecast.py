@@ -3,15 +3,15 @@
 # Purpose: response shapes for the Phase 5 endpoints (/api/forecast/...).
 # Responses use float, like the budget schemas, because JSON has no Decimal
 # type; the database keeps the exact Numeric(14,2) values.
-# horizon_days is validated in the routes with the HorizonDays Literal, so 45
-# or 365 is rejected with a 422 before any code runs.
+# horizon_days must be one of HORIZON_CHOICES; forecast_service rejects any
+# other value with a 422 (the routes read it as a plain int, see routes/forecast.py).
 
 from datetime import date, datetime
 from typing import Literal
 
 from pydantic import BaseModel, ConfigDict
 
-HorizonDays = Literal[30, 60, 90]
+HORIZON_CHOICES: tuple[int, ...] = (30, 60, 90)
 OpeningBalanceSource = Literal["request", "statement"]
 IncomeSource = Literal["recurring", "profile", "none"]
 # What a recurring item is: money in, a fixed bill (rent, EMI, subscription), or an investment (SIP)

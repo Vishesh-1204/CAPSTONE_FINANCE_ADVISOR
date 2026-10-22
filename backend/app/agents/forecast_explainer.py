@@ -197,6 +197,7 @@ EXPLAIN_PROMPT = ChatPromptTemplate.from_messages([
         "- Never change, recompute, add up or invent an amount. Mention only amounts that appear in the "
         "facts, written in whole rupees like ₹4,170.\n"
         "- Say that ranges are estimates. If cash_crunch_date is set, warn about it clearly.\n"
+        "- If low_confidence is true, say the forecast is rough because the history is short.\n"
         "- Do not give investment, tax or legal advice.\n"
         "- summary: 3-5 short, plain sentences.\n"
         "- Respond with ONLY a JSON object. No markdown fences, no preamble.\n\n"

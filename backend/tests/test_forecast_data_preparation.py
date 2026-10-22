@@ -4,61 +4,22 @@
 # the variable series (rent not counted twice), opening balance precedence and
 # the income source. SQLite in memory (conftest `db`), synthetic rows only.
 
-from datetime import date, datetime, timezone
+from datetime import date
 from decimal import Decimal
 
 import pytest
 from fastapi import HTTPException
 
 from app.models.financial_profile import FinancialProfile
-from app.models.transaction import Transaction
 from app.services.forecasting.data_preparation import (
     KIND_FIXED_EXPENSE, KIND_INCOME, KIND_INVESTMENT, history_span, prepare_history, recurrence_key,
     resolve_income, resolve_opening_balance,
 )
+from tests.conftest import (
+    HISTORY_MONTHS as HISTORY, add_txn as _tx, month_day as _day, seed_forecast_persona as _seed_persona,
+)
 
 AS_OF = date(2026, 10, 22)
-HISTORY = ("2026-06", "2026-07", "2026-08", "2026-09")
-MONTH_NAMES = {"2026-06": "JUN", "2026-07": "JUL", "2026-08": "AUG", "2026-09": "SEP", "2026-10": "OCT"}
-
-
-def _tx(db, on: date, amount, *, direction="debit", txn_type="expense", category=None,
-        description="POS SYNTH SHOP", balance=None, user_id=1, payee_key=None) -> Transaction:
-    tx = Transaction(
-        user_id=user_id, description=description, amount=Decimal(str(amount)), direction=direction,
-        txn_type=txn_type, category=category, payee_key=payee_key,
-        balance=Decimal(str(balance)) if balance is not None else None,
-        transaction_date=datetime(on.year, on.month, on.day, 12, tzinfo=timezone.utc),
-    )
-    db.add(tx)
-    db.commit()
-    return tx
-
-
-def _day(month: str, day: int) -> date:
-    year, mon = (int(part) for part in month.split("-"))
-    return date(year, mon, day)
-
-
-def _seed_persona(db, user_id: int = 1, groceries=(5000, 6000, 5500, 6500)) -> None:
-    """June-September history plus the first days of October (the current, partial month)."""
-    for index, month in enumerate(HISTORY + ("2026-10",)):
-        _tx(db, _day(month, 1), 60000, direction="credit", txn_type="income", category="Salary",
-            description=f"NEFT-ACME CORP SALARY {MONTH_NAMES[month]} 2026", user_id=user_id)
-        _tx(db, _day(month, 5), 18000, category="Housing & Rent", user_id=user_id,
-            description=f"UPI/41234567{index}/LANDLORD/landlord.r@okaxis")
-        _tx(db, _day(month, 10), 3000, txn_type="investment_out", category="Investments & Savings",
-            description="NACH/SYNTH MF SIP/FOLIO 0000001", user_id=user_id)
-        grocery = groceries[index] if index < len(groceries) else 2000
-        _tx(db, _day(month, 12), grocery, category="Groceries", description="POS SYNTH KIRANA STORE",
-            user_id=user_id, balance=100000 + index)
-    # Money movements that are neither income nor spending
-    _tx(db, date(2026, 7, 18), 1200, direction="credit", txn_type="income", category="Refund & Cashback",
-        description="REFUND SYNTH ONLINE MARKETPLACE", user_id=user_id)
-    _tx(db, date(2026, 8, 20), 10000, txn_type="transfer", category="Transfers",
-        description="IMPS/OWN ACCOUNT TRANSFER SELF", user_id=user_id)
-    _tx(db, date(2026, 7, 22), 6000, direction="credit", txn_type="investment_in",
-        category="Investment Redemption", description="SYNTH MF REDEMPTION PAYOUT", user_id=user_id)
 
 
 @pytest.fixture()

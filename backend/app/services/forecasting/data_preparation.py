@@ -198,29 +198,64 @@ def _not_enough_history() -> HTTPException:
     )
 
 
+@dataclass(frozen=True)
+class _UserRows:
+    """The user's rows up to as_of, split by kind, plus the date of the latest data."""
+    data_end: date
+    first_day: date                # first expense (or data_end when there is none)
+    expenses: list[HistoryRow]
+    investments: list[HistoryRow]
+    income: list[HistoryRow]
+
+
+def _load_user_rows(db: Session, user_id: int, as_of: date) -> _UserRows | None:
+    """
+    None when the user has no transaction on or before as_of. The history starts
+    at the first EXPENSE (a month holding only a refund is not a 0-spending month);
+    data_end is the latest transaction of any kind.
+    """
+    last_moment = (
+        db.query(func.max(Transaction.transaction_date))
+        .filter(Transaction.user_id == user_id, Transaction.transaction_date < end_of_day(as_of))
+        .scalar()
+    )
+    if last_moment is None:
+        return None
+    expenses = _load_rows(db, user_id, as_of, EXPENSE_FILTER)
+    data_end = to_utc_date(last_moment)
+    return _UserRows(
+        data_end=data_end,
+        first_day=min((row.on for row in expenses), default=data_end),
+        expenses=expenses,
+        investments=_load_rows(db, user_id, as_of, INVESTMENT_OUT_FILTER),
+        income=_load_rows(db, user_id, as_of, INCOME_FILTER),
+    )
+
+
+def _detect_all(rows: _UserRows) -> list[DetectedRecurring]:
+    return (
+        _detect(rows.income, KIND_INCOME, CREDIT, rows.data_end)
+        + _detect(rows.expenses, KIND_FIXED_EXPENSE, DEBIT, rows.data_end)
+        + _detect(rows.investments, KIND_INVESTMENT, DEBIT, rows.data_end)
+    )
+
+
+def detect_user_recurring(db: Session, user_id: int, as_of: date) -> list[DetectedRecurring]:
+    """Recurring items only (GET /api/forecast/recurring). Needs no complete month, never raises."""
+    rows = _load_user_rows(db, user_id, as_of)
+    return _detect_all(rows) if rows is not None else []
+
+
 def prepare_history(db: Session, user_id: int, as_of: date) -> PreparedHistory:
     """
     Reads the user's transactions up to as_of and builds the forecast inputs.
     Raises HTTP 422 when there is not enough complete-month expense history.
     """
-    first_moment, last_moment = (
-        db.query(func.min(Transaction.transaction_date), func.max(Transaction.transaction_date))
-        .filter(Transaction.user_id == user_id, Transaction.transaction_date < end_of_day(as_of))
-        .one()
-    )
-    if first_moment is None:
+    rows = _load_user_rows(db, user_id, as_of)
+    if rows is None:
         raise _not_enough_history()
-    data_end = to_utc_date(last_moment)
-    span = history_span(to_utc_date(first_moment), data_end, as_of)
-
-    expenses = _load_rows(db, user_id, as_of, EXPENSE_FILTER)
-    investments = _load_rows(db, user_id, as_of, INVESTMENT_OUT_FILTER)
-    income = _load_rows(db, user_id, as_of, INCOME_FILTER)
-    recurring = (
-        _detect(income, KIND_INCOME, CREDIT, data_end)
-        + _detect(expenses, KIND_FIXED_EXPENSE, DEBIT, data_end)
-        + _detect(investments, KIND_INVESTMENT, DEBIT, data_end)
-    )
+    span = history_span(rows.first_day, rows.data_end, as_of)
+    recurring = _detect_all(rows)
     fixed = [r for r in recurring if r.kind == KIND_FIXED_EXPENSE]
 
     # Monthly totals; months with no expense inside the span stay at 0
@@ -228,7 +263,7 @@ def prepare_history(db: Session, user_id: int, as_of: date) -> PreparedHistory:
     totals = dict.fromkeys(keys, 0.0)
     variable = dict.fromkeys(keys, 0.0)
     expense_rows_in_span = 0
-    for row in expenses:
+    for row in rows.expenses:
         key = _month_key(month_start(row.on))
         if key not in totals:
             continue                      # outside the history (e.g. the current partial month)
@@ -241,18 +276,56 @@ def prepare_history(db: Session, user_id: int, as_of: date) -> PreparedHistory:
         raise _not_enough_history()
 
     logger.info(
-        f"Forecast history user_id={user_id} as_of={as_of} months={len(span)} data_end={data_end} "
+        f"Forecast history user_id={user_id} as_of={as_of} months={len(span)} data_end={rows.data_end} "
         f"recurring={len(recurring)} (fixed={len(fixed)})"
     )
     return PreparedHistory(
         as_of=as_of,
-        data_end=data_end,
+        data_end=rows.data_end,
         months=keys,
         variable_series=[round(variable[k], 2) for k in keys],
         total_expense_series=[round(totals[k], 2) for k in keys],
         first_forecast_month=next_month(span[-1]),
         recurring=recurring,
     )
+
+
+# --- Inputs for the budget link ---
+
+def variable_category_shares(db: Session, user_id: int, history: PreparedHistory, months: int) -> dict[str | None, float]:
+    """
+    Each category's share of VARIABLE spending over the last `months` history
+    months (regular recurring payments excluded: they are projected on their own
+    dates). Uncategorized spending keeps its share under None, so the shares of
+    real categories are not inflated. Empty dict when there was no variable spending.
+    """
+    window = set(history.months[-months:])
+    fixed = [r for r in history.recurring if r.kind == KIND_FIXED_EXPENSE]
+    totals: dict[str | None, float] = {}
+    for row in _load_rows(db, user_id, history.as_of, EXPENSE_FILTER):
+        if _month_key(month_start(row.on)) in window and not any(item.matches(row) for item in fixed):
+            totals[row.category] = totals.get(row.category, 0.0) + row.amount
+    total = sum(totals.values())
+    return {category: amount / total for category, amount in totals.items()} if total > 0 else {}
+
+
+def month_to_date_spending(db: Session, user_id: int, as_of: date) -> dict[str | None, float]:
+    """Expenses per category from the 1st of as_of's month up to and including as_of."""
+    start = datetime.combine(month_start(as_of), time.min, tzinfo=timezone.utc)
+    spent: dict[str | None, float] = {}
+    rows = (
+        db.query(Transaction.category, Transaction.amount)
+        .filter(
+            Transaction.user_id == user_id,
+            Transaction.transaction_date >= start,
+            Transaction.transaction_date < end_of_day(as_of),
+            EXPENSE_FILTER,
+        )
+        .all()
+    )
+    for category, amount in rows:
+        spent[category] = spent.get(category, 0.0) + float(amount)
+    return spent
 
 
 # --- Opening balance ---

@@ -7,7 +7,7 @@ import logging
 
 from app.core.config import settings
 from app.core.logging_config import configure_logging
-from app.api.routes import auth, budgets, categories, payee_rules, profile, statements, transactions
+from app.api.routes import auth, budgets, categories, forecast, payee_rules, profile, statements, transactions
 
 configure_logging()
 logger = logging.getLogger(__name__)
@@ -29,6 +29,7 @@ app.include_router(statements.router)
 app.include_router(categories.router)
 app.include_router(profile.router)
 app.include_router(budgets.router)
+app.include_router(forecast.router)
 
 
 @app.on_event("startup")
