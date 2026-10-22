@@ -134,5 +134,5 @@ for B0, B1 default and B2.
 ## Next research steps
 
 - Run `--llm real` and report B2 faithfulness (the fake-LLM test already shows the guard catches 3/3 invented amounts).
-- Phase 5: replace the average with a forecast; B1 becomes its baseline (same harness, same split).
+- Phase 5 (done): the forecast evaluation uses the 3-month average as baseline B1 on a 24-month panel; see [forecast-evaluation.md](forecast-evaluation.md).
 - Optional survey: teammates rate B1 template vs B2 LLM explanations (1–5 helpfulness).

@@ -3,7 +3,7 @@
 ## Run the tests
 
 ```powershell
-docker compose exec backend python -m pytest tests -q                                  # everything (363)
+docker compose exec backend python -m pytest tests -q                                  # everything (541)
 docker compose exec backend python -m pytest tests/test_statement_parsers.py -q        # one file
 docker compose exec backend python -m pytest tests -q -k "password"                    # by name
 ```
@@ -16,14 +16,14 @@ Tests need **no Postgres, no network and no API key**:
 `tests/test_migrations.py` is the exception that touches Alembic: it applies all migrations to an empty
 database and compares the result with the models (drift check).
 
-Last full run: **363 passed** (Phase 4 complete, on `feature/vishesh-budget`), plus the live smoke
-test below: 12/12 steps passed.
+Last full run: **541 passed** (Phase 5 F0-F7, on `feature/vishesh-forecast`), plus the live smoke
+test below: 15/15 steps passed.
 
 ## What each test file covers
 
 | Module | File | Tests | Covers |
 |---|---|---|---|
-| Migrations | `test_migrations.py` | 5 | migrations 0001-0003 apply on an empty DB; models and migrations match |
+| Migrations | `test_migrations.py` | 6 | migrations 0001-0004 apply on an empty DB, 0004 keeps existing data; models and migrations match |
 | Ingestion | `test_statement_parsers.py` | 27 | XLSX, HDFC-like and SBI-like PDFs, password right/wrong/missing, password never in logs/errors, scanned → 422, balance check, cross-format duplicates |
 | Ingestion | `test_statement_import.py` | 22 | CSV through the shared pipeline: header detection, amount/date formats, credits imported, duplicates, import batches |
 | Ingestion (HTTP) | `test_statements_api.py` | 6 | upload summary, import batches, deprecated `/upload-csv` alias |
@@ -47,6 +47,18 @@ test below: 12/12 steps passed.
 | Budgets (HTTP) | `test_budgets_api.py` | 30 | every profile/budget endpoint, 404 on another user's budget, 422 validation |
 | Budget evaluation | `test_synthetic_history.py` | 6 | same seed → same rows, real labels, 3 personas x 6 months, non-spending rows, no names |
 | Budget evaluation | `test_budget_evaluation.py` | 13 | harness runs offline, every config reported, B1 beats B0 on MAE, distortion > 0, guard catches a fake LLM, metric formulas |
+| Forecast (pure) | `test_forecast_models.py` | 8 | naive, moving average, seasonal naive, exponential smoothing, the model registry |
+| Forecast (pure) | `test_forecast_metrics.py` | 5 | MAE, RMSE, MAPE (zeros skipped), sMAPE |
+| Forecast (pure) | `test_forecast_backtest.py` | 24 | no peeking at the future, selection, min folds, horizon-sum errors, Student-t / empirical / conformal intervals |
+| Forecast (pure) | `test_recurrence_detector.py` | 20 | rent/salary/SIP detection, changing bills rejected, salary hike, one-off deposit, busy shop rejected (frequency check), projection dates |
+| Forecast (pure) | `test_forecast_horizon.py` | 9 | days to weighted calendar months, year rollover, zero-weight months |
+| Forecast (pure) | `test_forecast_variable.py` | 5 | fallback model + low confidence, backtest selection, trend following |
+| Forecast (pure) | `test_cashflow_projector.py` | 9 | scheduled flows on their dates, band growth, cash-crunch date, prorated first month |
+| Forecast | `test_forecast_data_preparation.py` | 24 | complete months only, rent not counted twice, SIP/refund/transfer not spending, opening balance order, income source, isolation |
+| Forecast | `test_forecast_explainer.py` | 15 | template, one LLM call, guard replacement, provider fallback, payload privacy |
+| Forecast (HTTP) | `test_forecast_api.py` | 32 | every endpoint, 404 on another user's run, 400/422 cases, LLM down/unfaithful, same `as_of` gives the same forecast |
+| Forecast evaluation | `test_synthetic_panel.py` | 12 | same seed gives same rows, 30 users x 24 months, running balance, recurring ground truth, salary hike, festival, medical bill, crunch events, no names |
+| Forecast evaluation | `test_forecast_evaluation.py` | 14 | harness runs offline, every method x horizon, no leakage (future changed, no forecast changes), service = pure numbers, statement opening balance, guard catches a fake LLM, F6.1 ablations, metric formulas |
 
 Fixtures: `backend/tests/fixtures/statements/` (synthetic; regenerate with
 `docker compose exec backend python -m scripts.make_synthetic_statements`). PDF/XLSX fixtures are marked
@@ -71,7 +83,7 @@ docker compose exec backend python -m scripts.smoke_test
 docker compose exec backend python -m scripts.smoke_test --base-url http://127.0.0.1:8000   # explicit URL
 ```
 
-It runs 12 steps and prints one `PASS`/`FAIL` line per step. It stops at the first failure (later
+It runs 15 steps and prints one `PASS`/`FAIL` line per step. It stops at the first failure (later
 steps depend on earlier ones) and exits `1`. Exit `0` means every step passed:
 
 | # | Step | What it checks |
@@ -86,6 +98,9 @@ steps depend on earlier ones) and exits `1`. Exit `0` means every step passed:
 | 9 | status | every budgeted category `ok` (nothing spent next month yet) |
 | 10 | override | `Food & Dining` set to half the agent limit → `source=user` |
 | 11-12 | regenerate | the override keeps its id, value and `source=user` |
+| 13 | forecast without a balance | **400** (the smoke CSV has no balance column) |
+| 14 | 30-day forecast | typed `opening_balance` used, 30 trajectory days, end = opening + net cash flow, end inside its band, the SIP is not a fixed expense |
+| 15 | forecast reads | `latest` is that run, `history` lists it, `recurring` answers |
 
 Notes: it uses the standard library only (`urllib`), so it needs no extra dependency. Each run leaves one
 synthetic user in the dev DB, which is harmless. With an LLM key in `.env`, the budget explanation makes
@@ -110,6 +125,9 @@ the template is used and the test still passes.
 14. `PUT /api/profile/financial`, then `POST /api/budgets/generate?month=...` → limits sum ≤ `spendable_income`; `data_quality` filled.
 15. `PUT /api/budgets/{id}` → `source: "user"`; generate again → that limit is unchanged; `POST /{id}/reset` → back to `agent_limit_amount`.
 16. `GET /api/budgets/status?month=...` → investments appear only in `invested_this_month`.
+17. `POST /api/forecast/generate?horizon_days=60` without a balance → 400 for a CSV without balances; with
+    `opening_balance=45000` → 200, `trajectory` has 60 days, `low_confidence` true for a short history.
+18. `GET /api/forecast/recurring` → your salary and rent with their next dates; `GET /api/forecast/latest` → the same run.
 
 ## Common mistakes
 - Running `pytest` on the host instead of in the container (different Python, missing deps).

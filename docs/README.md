@@ -1,15 +1,15 @@
 # Documentation
 
-Docs for the backend as of **Phase 4** (Budget Planning Agent) on top of **Phase 3B v3** (Expense
-Intelligence Agent: statement ingestion, investment flows, manual override, evaluation), plus the start
-of the frontend Test Console.
+Docs for the backend as of **Phase 5** (Financial Forecast Agent) on top of **Phase 4** (Budget Planning
+Agent) and **Phase 3B v3** (Expense Intelligence Agent: statement ingestion, investment flows, manual
+override, evaluation), plus the start of the frontend Test Console.
 
 Read in this order if you are new to the project:
 
 | # | Document | What you learn |
 |---|---|---|
 | 1 | [architecture.md](architecture.md) | The layers, the folder map, and two flow diagrams (upload → categorize → review) |
-| 2 | [database.md](database.md) | Every table and column, indexes, migrations 0001-0003 |
+| 2 | [database.md](database.md) | Every table and column, indexes, migrations 0001-0004 |
 | 3 | [api.md](api.md) | Every endpoint: request, response, errors, examples |
 | 4 | [testing.md](testing.md) | How to run tests, what each test file covers, manual test checklist |
 | 5 | `modules/` | One page per module (below) |
@@ -27,9 +27,12 @@ Read in this order if you are new to the project:
 | Evaluation (research) | [modules/evaluation.md](modules/evaluation.md) | `evaluation/`, `scripts/make_synthetic_statements.py` |
 | Budget Planning Agent | [modules/budget-planning.md](modules/budget-planning.md) | `services/budget_service.py`, `services/budget_calculator.py`, `agents/budget_planner.py` |
 | Budget evaluation (research) | [modules/budget-evaluation.md](modules/budget-evaluation.md) | `evaluation/evaluate_budget.py`, `scripts/make_synthetic_history.py` |
+| Financial Forecast Agent | [modules/forecasting.md](modules/forecasting.md) | `services/forecast_service.py`, `services/forecasting/`, `agents/forecast_explainer.py` |
+| Forecast evaluation (research) | [modules/forecast-evaluation.md](modules/forecast-evaluation.md) | `evaluation/evaluate_forecast.py`, `scripts/make_synthetic_panel.py` |
 | Frontend Test Console | [modules/frontend-console.md](modules/frontend-console.md) | `frontend/` |
 
-Design sources: [phase3b-v3-spec.md](phase3b-v3-spec.md) (Phase 3B v3) and [phase4-spec.md](phase4-spec.md) (Phase 4).
+Design sources: [phase3b-v3-spec.md](phase3b-v3-spec.md) (Phase 3B v3), [phase4-spec.md](phase4-spec.md) (Phase 4)
+and [phase5-spec.md](phase5-spec.md) (Phase 5).
 
 ## Conventions used in these docs
 

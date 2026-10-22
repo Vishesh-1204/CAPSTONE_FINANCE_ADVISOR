@@ -10,6 +10,7 @@ PostgreSQL 16 in Docker (`docker-compose.yml`, service `db`). Tables are defined
 | `0001` | `0001_baseline.py` | The schema as it was at the end of Phase 3B v2 (`users`, `transactions`) |
 | `0002` | `0002_statement_ingestion_and_overrides.py` | v3: new `transactions` columns, `amount` Float → `Numeric(14,2)`, new tables `import_batches` and `payee_rules`. Existing rows survive: every new column is nullable or has a server default |
 | `0003` | `0003_budget_planning.py` | Phase 4: new tables `financial_profiles`, `budgets`, `budget_runs` (no change to existing tables) |
+| `0004` | `0004_forecast_runs.py` | Phase 5: new table `forecast_runs` (no change to existing tables) |
 
 The backend container runs `alembic upgrade head` before starting uvicorn (`backend/Dockerfile`),
 so a normal `docker compose up --build` always brings the schema up to date. **You no longer need
@@ -37,6 +38,7 @@ erDiagram
     users ||--o| financial_profiles : has
     users ||--o{ budgets : "limits per month"
     users ||--o{ budget_runs : "generation log"
+    users ||--o{ forecast_runs : "saved forecasts"
 ```
 
 ## `users`
@@ -168,6 +170,34 @@ Phase 4 research log: one row per generation. Never shown to the user as advice.
 | `explanation_faithful` | bool, nullable | true = all LLM text passed the guard; false = some was replaced; NULL = no LLM text |
 | `created_at` | timestamptz | |
 
+## `forecast_runs`
+
+Phase 5: one row per generated forecast (shown again by `/api/forecast/latest`, `/history`, `/runs/{id}`).
+Every money column is `numeric(14,2)`.
+
+| Column | Type | Notes |
+|---|---|---|
+| `id`, `user_id` | | `user_id` indexed (`ix_forecast_runs_user_id`) |
+| `as_of` | date | the "today" of the forecast (injected, so runs are reproducible) |
+| `horizon_days` | int | 30, 60 or 90 |
+| `model_name` | varchar(40) | model of the variable spending (`naive_last`, `moving_average_3`, `exp_smoothing`, `seasonal_naive_12`) |
+| `history_months` | int | complete months of history used |
+| `low_confidence` | bool | too little history for a backtest choice or a residual interval |
+| `opening_balance` | numeric | |
+| `opening_balance_source` | varchar(10) | `request` or `statement` |
+| `opening_balance_date` | date, nullable | date of the statement row the balance came from |
+| `income_source` | varchar(10) | `recurring`, `profile` or `none` |
+| `expected_income`, `expected_fixed_expenses`, `expected_investments`, `net_cashflow` | numeric | totals over the horizon |
+| `expected_variable_expenses` (+ `_lower`, `_upper`) | numeric | point and 80% interval |
+| `projected_end_balance` (+ `_lower`, `_upper`) | numeric | balance on the last day, with its band |
+| `cash_crunch_date` | date, nullable | first day the LOWER balance band is below 0 |
+| `summary` | text | the explanation shown (LLM text that passed the guard, or the template) |
+| `llm_used` | bool | |
+| `explanation_faithful` | bool, nullable | true = passed the guard; false = invented a number (template shown); NULL = no LLM text |
+| `trajectory` | json | `[{date, balance, lower, upper}]`, one per day |
+| `recurring_items`, `budget_warnings`, `model_scores` | json | what the forecast used and found (see the API) |
+| `created_at` | timestamptz | |
+
 ## Inspecting the data
 
 ```powershell
@@ -176,6 +206,7 @@ docker compose exec db psql -U finance_user -d finance_db
 ```sql
 \dt
 SELECT txn_type, category_source, count(*) FROM transactions GROUP BY 1, 2 ORDER BY 1, 2;
-SELECT version_num FROM alembic_version;   -- should be 0003
+SELECT version_num FROM alembic_version;   -- should be 0004
 SELECT method, feasible, llm_used, explanation_faithful, count(*) FROM budget_runs GROUP BY 1, 2, 3, 4;
+SELECT horizon_days, model_name, low_confidence, count(*) FROM forecast_runs GROUP BY 1, 2, 3;
 ```
