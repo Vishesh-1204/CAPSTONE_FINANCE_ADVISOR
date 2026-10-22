@@ -128,3 +128,43 @@ def test_0003_keeps_existing_data_and_adds_budget_tables(db_url):
         )
         assert float(connection.exec_driver_sql("SELECT savings_target_pct FROM financial_profiles").scalar()) == 20
         assert connection.exec_driver_sql("SELECT source FROM budgets").scalar() == "agent"
+
+
+def test_0004_keeps_existing_data_and_adds_forecast_runs(db_url):
+    """The real dev database is at 0003 with data; 0004 must only ADD forecast_runs."""
+    config = _alembic_config(db_url)
+    command.upgrade(config, "0003")
+
+    engine = create_engine(db_url)
+    with engine.begin() as connection:
+        connection.exec_driver_sql(
+            "INSERT INTO users (id, email, full_name, hashed_password, is_active) VALUES (1, 'a@x.com', 'A', 'x', 1)"
+        )
+        connection.exec_driver_sql(
+            "INSERT INTO transactions (user_id, description, amount, direction, txn_type, category, "
+            "needs_review, user_locked, balance, transaction_date) VALUES "
+            "(1, 'Swiggy', 450.50, 'debit', 'expense', 'Food & Dining', 0, 0, 10000.25, '2026-09-01')"
+        )
+        connection.exec_driver_sql(
+            "INSERT INTO budgets (user_id, month, category, limit_amount, agent_limit_amount) "
+            "VALUES (1, '2026-10', 'Groceries', 5000, 5000)"
+        )
+
+    command.upgrade(config, "head")
+
+    assert "forecast_runs" in set(inspect(engine).get_table_names())
+    with engine.begin() as connection:
+        row = connection.exec_driver_sql("SELECT amount, balance FROM transactions").one()
+        assert float(row.amount) == 450.5 and float(row.balance) == 10000.25
+        assert float(connection.exec_driver_sql("SELECT limit_amount FROM budgets").scalar()) == 5000
+        # The new table accepts a run and gives it a created_at
+        connection.exec_driver_sql(
+            "INSERT INTO forecast_runs (user_id, as_of, horizon_days, model_name, history_months, low_confidence, "
+            "opening_balance, opening_balance_source, income_source, expected_income, expected_fixed_expenses, "
+            "expected_variable_expenses, expected_variable_expenses_lower, expected_variable_expenses_upper, "
+            "expected_investments, net_cashflow, projected_end_balance, projected_end_balance_lower, "
+            "projected_end_balance_upper, summary, llm_used, trajectory, recurring_items, budget_warnings, "
+            "model_scores) VALUES (1, '2026-10-22', 30, 'moving_average_3', 3, 1, 10000, 'statement', 'profile', "
+            "50000, 18000, 20000, 15000, 25000, 3000, 9000, 19000, 14000, 24000, 'text', 0, '[]', '[]', '[]', '[]')"
+        )
+        assert connection.exec_driver_sql("SELECT created_at FROM forecast_runs").scalar() is not None
