@@ -18,6 +18,7 @@ const LINKS = [
   { href: "/review", label: "Review" },
   { href: "/summary", label: "Summary" },
   { href: "/rules", label: "Rules" },
+  { href: "/budgets", label: "Budgets" },
 ];
 
 export function NavBar() {

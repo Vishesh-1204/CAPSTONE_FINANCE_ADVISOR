@@ -21,6 +21,7 @@ from sqlalchemy import func
 from sqlalchemy.orm import Session
 
 from app.core.money import to_money
+from app.core.month_utils import month_bounds
 from app.core.transaction_types import (
     CREDIT, TXN_EXPENSE, TXN_INCOME, TXN_INVESTMENT_IN, TXN_INVESTMENT_OUT, TXN_TRANSFER,
 )
@@ -40,9 +41,9 @@ def _month_bounds(month: str | None) -> tuple[str, datetime, datetime]:
         except ValueError:
             raise HTTPException(status.HTTP_422_UNPROCESSABLE_ENTITY, "month must look like YYYY-MM, e.g. 2026-09.") from None
         year, month_number = parsed.year, parsed.month
-    start = datetime(year, month_number, 1, tzinfo=timezone.utc)
-    end = datetime(year + (month_number == 12), month_number % 12 + 1, 1, tzinfo=timezone.utc)
-    return f"{year:04d}-{month_number:02d}", start, end
+    label = f"{year:04d}-{month_number:02d}"
+    start, end = month_bounds(label)       # shared with the budget planner
+    return label, start, end
 
 
 def _effective_type(direction: str, txn_type: str | None) -> str:

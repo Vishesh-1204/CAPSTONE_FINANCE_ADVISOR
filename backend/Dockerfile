@@ -8,6 +8,9 @@ WORKDIR /app
 # false so none of that ships.
 ARG INSTALL_DEV=false
 COPY requirements.txt requirements-dev.txt ./
+# Be patient on slow or flaky networks: retry failed downloads and wait longer
+ENV PIP_DEFAULT_TIMEOUT=100 \
+    PIP_RETRIES=10
 RUN pip install --no-cache-dir -r requirements.txt \
     && if [ "$INSTALL_DEV" = "true" ]; then pip install --no-cache-dir -r requirements-dev.txt; fi
 

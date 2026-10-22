@@ -5,7 +5,9 @@
 The system is a FastAPI backend with a PostgreSQL database, running in Docker, plus a Next.js
 frontend run on the host. Phase 3B delivers the **Expense Intelligence Agent**: it reads bank
 statements, works out what kind of money movement each line is (expense, income, investment,
-transfer), assigns a category, and learns from the user's corrections.
+transfer), assigns a category, and learns from the user's corrections. Phase 4 adds the **Budget
+Planning Agent**: a rules engine turns the categorized expenses into monthly limits, and one LLM call
+explains them (see [modules/budget-planning.md](modules/budget-planning.md)).
 
 ```mermaid
 flowchart LR
@@ -14,7 +16,7 @@ flowchart LR
     subgraph Docker
         API["FastAPI backend :8000"] --> DB[("PostgreSQL 16")]
     end
-    API -- "cleaned merchant strings only" --> LLM["LLM provider<br/>(Gemini dev / OpenAI)"]
+    API -- "cleaned merchant strings only;<br/>budgets: category names + aggregates only" --> LLM["LLM provider<br/>(Gemini dev / OpenAI)"]
 ```
 
 ## 2. Layers (each layer only calls the one below it)
@@ -44,17 +46,19 @@ id therefore looks exactly like a missing id (404), which reveals nothing.
 |---|---|
 | `app/main.py` | Creates the app, CORS middleware, registers routers, `/health` |
 | `app/api/deps.py` | `get_current_user` (JWT → `User`) |
-| `app/api/routes/` | `auth`, `statements`, `transactions`, `payee_rules`, `categories` |
+| `app/api/routes/` | `auth`, `statements`, `transactions`, `payee_rules`, `categories`, `profile`, `budgets` |
 | `app/services/` | All business logic (see the module pages) |
 | `app/services/statement_parsers/` | `base.py` (interface), `csv_parser`, `xlsx_parser`, `pdf_parser`, `tabular.py` (shared) |
-| `app/agents/expense_categorizer.py` | The LLM layer of the agent |
+| `app/agents/expense_categorizer.py` | The LLM layer of the categorizer |
+| `app/agents/budget_planner.py`, `explanation_guard.py` | Budget explanations (one LLM call, template fallback) and the faithfulness guard |
 | `app/llm/` | `base.py`, `factory.py`, `gemini_provider.py`, `openai_provider.py` |
-| `app/core/` | `config.py`, `security.py`, `categories.py`, `transaction_types.py`, `merchant_dictionary.py`, `money.py`, `logging_config.py` |
+| `app/core/` | `config.py`, `security.py`, `categories.py`, `transaction_types.py`, `merchant_dictionary.py`, `money.py`, `month_utils.py`, `logging_config.py` |
 | `app/models/`, `app/schemas/` | Tables and API shapes |
-| `migrations/` | Alembic: `0001_baseline`, `0002_statement_ingestion_and_overrides` |
-| `evaluation/` | Research harness, labeled dataset, `results/` (gitignored) |
+| `migrations/` | Alembic: `0001_baseline`, `0002_statement_ingestion_and_overrides`, `0003_budget_planning` |
+| `evaluation/` | Research harnesses (`evaluate_categorizer.py`, `evaluate_budget.py`), datasets, `budget_metrics.csv`, `results/` (gitignored) |
 | `scripts/make_synthetic_statements.py` | Generates the synthetic PDF/XLSX/CSV fixtures (dev only) |
-| `tests/` | 223 unit and HTTP tests (in-memory SQLite, fake LLM) |
+| `scripts/make_synthetic_history.py` | Generates the seeded 6-month, 3-persona history for the budget evaluation |
+| `tests/` | 363 unit and HTTP tests (in-memory SQLite, fake LLM) |
 
 ## 4. Flow 1: upload a statement
 
@@ -121,6 +125,8 @@ Everything left of the LLM arrow in section 1 is local. Specifically:
 - Few-shot examples sent to the LLM are the user's past corrections, cleaned the same way, with
   person-like payees removed.
 - Logs contain counts and ids, never narrations.
+- The budget planner sends only category names and aggregate numbers (limits, averages, income,
+  savings, spendable). Never a description, payee or UPI ID (tested).
 - **Measured limitation:** the person guard is a heuristic. In the latest offline evaluation it had
   recall 0.857, and 1 person-like string out of the labeled set still reached the LLM stage (see
   [modules/evaluation.md](modules/evaluation.md)). Use synthetic data with the free Gemini tier.
@@ -136,6 +142,8 @@ Everything left of the LLM arrow in section 1 is local. Specifically:
 | Alembic migrations; app no longer calls `create_all` | Schema changes without wiping the DB; the drift test catches a forgotten migration |
 | `agent_category` kept when the user overrides | Measures override rate (feedback metric for the paper) |
 | No `status` column; status is a computed filter | One less column to keep consistent |
+| Budgets: Python computes, the LLM only explains (one call per plan) | Limits are guaranteed to fit the income and are unit-testable; the guard rejects any invented amount; it works with no API key |
+| `agent_limit_amount` kept when the user overrides a limit | Reset, and the override-rate metric |
 | Provider abstraction + fallback chain | Swap Gemini/OpenAI by config; a quota error on one provider does not stop the run |
 
 ## 8. Known gaps (carry into later phases)
@@ -145,4 +153,6 @@ Everything left of the LLM arrow in section 1 is local. Specifically:
 - Categorization is synchronous (a large batch with many LLM calls blocks the request). Phase 9 / optional S9 moves it to Celery.
 - Investment **returns** cannot be computed from a bank statement; only net cash flow (Phase 6).
 - Scanned PDFs are rejected (no OCR).
+- The budget guard only checks amounts with a currency marker (₹ / Rs. / INR); a bare "5000" is not checked.
+- The budget evaluation uses synthetic people who do not react to their budget (see [modules/budget-evaluation.md](modules/budget-evaluation.md)).
 - The frontend Test Console is only partly built (see [modules/frontend-console.md](modules/frontend-console.md)).

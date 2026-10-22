@@ -64,6 +64,18 @@ class Settings(BaseSettings):
     # Max past user corrections included in the prompt as few-shot examples.
     CATEGORIZER_FEW_SHOT_LIMIT: int = 10
 
+    # --- Budget Planning Agent (Phase 4) ---
+    # Full months of history (before the target month) the planner averages over.
+    BUDGET_LOOKBACK_MONTHS: int = 3
+    # Fraction cut from each discretionary category's average (0.10 = 10%). Essentials are never cut.
+    BUDGET_DISCRETIONARY_TRIM: float = 0.10
+    # Status turns 'warning' once spending reaches this share of the limit (0.80 = 80%).
+    BUDGET_WARNING_THRESHOLD: float = 0.80
+    # The explanation guard lets the LLM round a plan number by up to this many rupees.
+    BUDGET_GUARD_TOLERANCE: float = 1.0
+    # Ablation switch (B1 vs B2): False = template explanations only, no LLM call.
+    BUDGET_USE_LLM_EXPLANATIONS: bool = True
+
     model_config = SettingsConfigDict(env_file=".env", extra="ignore")
 
     @property

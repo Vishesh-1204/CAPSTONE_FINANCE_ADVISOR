@@ -1,5 +1,8 @@
 # Module: Evaluation harness (research)
 
+> This page covers the **categorizer** evaluation (Phase 3B). The Budget Planning Agent has its own
+> harness: [budget-evaluation.md](budget-evaluation.md).
+
 **Files:** `backend/evaluation/evaluate_categorizer.py`, `evaluation/metrics.py`, `evaluation/parsing_eval.py`,
 `evaluation/labeled_transactions.csv`, `evaluation/results/` (gitignored), `backend/scripts/make_synthetic_statements.py`,
 `backend/tests/fixtures/statements/`

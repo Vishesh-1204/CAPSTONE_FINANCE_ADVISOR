@@ -38,13 +38,25 @@ research value, explainability and maintainability over quick fixes.
   filters, summary, person-payee guard, LLM fallback chain, S4/S5 CSV/XLSX/PDF parsers (password, scanned 422,
   balance check, import batches), S6 evaluation on the real pipeline (metrics CSV in backend/evaluation/results/,
   gitignored), S8 docs in docs/ (architecture, API, database, testing, one page per module).
+- Done: Phase 4 COMPLETE (P0-P8, spec docs/phase4-spec.md) on branch feature/vishesh-budget, 363 tests passing,
+  live smoke test 12/12 (backend/scripts/smoke_test.py, see docs/testing.md). Backend P0-P7:
+  migration 0003 (financial_profiles, budgets, budget_runs), Decimal calculator (Python computes, LLM only
+  explains, one call per plan), explanation guard + template fallback, profile/budget/status routes,
+  GET /api/profile/financial/suggestion (refunds excluded), synthetic 6-month 3-persona history (seed 42),
+  evaluation/evaluate_budget.py -> backend/evaluation/budget_metrics.csv + .md (committed, deterministic;
+  B1 MAE Rs 964 vs B0 Rs 1,621). Docs: docs/modules/budget-planning.md, budget-evaluation.md.
+  P8 frontend /budgets page (profile + income suggestion, generate, limits table with inline
+  override/reset, status bars, Recharts spent vs limit, raw panel). Lookback ablation is 1/2/3 (6 would read
+  the test months; see docs/modules/budget-evaluation.md).
 - In progress: S7 frontend Test Console (frontend/, npm run dev on the host). F0 done (scaffold, lib/api.ts,
-  shared components, home = connection check, backend GET /api/categories). F1-F6 pages not built yet:
-  /login, /upload, /transactions, /review, /summary, /rules (see docs/modules/frontend-console.md).
+  shared components, home = connection check, backend GET /api/categories), F1 /login, F2 /upload.
+  Not built yet: F3-F6 /transactions, /review, /summary, /rules (see docs/modules/frontend-console.md).
 - Optional, ask first: S9 Celery + Redis background import/categorize.
-- Next: finish S7 pages, then Phase 4 Budget Planning Agent (builds on GET /api/transactions/summary).
+- Next: finish S7 pages (F3-F6), then Phase 5 Forecast
+  (B1 history-average is its baseline; reuse the evaluate_budget.py split).
 - Known gaps: no HuggingFace/Llama provider in llm/factory.py yet (approved stack); person guard recall 0.857
-  (1 person-like string reached the LLM stage in the offline eval).
+  (1 person-like string reached the LLM stage in the offline eval); budget guard only checks amounts with a
+  currency marker; B2 (--llm real) faithfulness not measured yet; synthetic personas do not react to budgets.
 
 ## Architecture (clean layers: each layer only calls the one below it)
 backend/app/
@@ -67,6 +79,7 @@ Every query that touches user data must filter by user_id.
 - Wipe the DB (test data): docker compose down -v      (only to reset data; migrations handle schema changes)
 - New migration:           docker compose exec backend alembic revision -m "description"
 - Run unit tests:          docker compose exec backend python -m pytest tests -q
+- Smoke test (live API):   docker compose exec backend python -m scripts.smoke_test   (needs compose up)
 - Evaluation (offline):    docker compose exec backend python -m evaluation.evaluate_categorizer
 - Frontend (host):         cd frontend; npm run dev   -> open http://localhost:3000 (not 127.0.0.1, CORS)
 - Manual API testing:      http://127.0.0.1:8000/docs (Swagger). Authorize with the login token.

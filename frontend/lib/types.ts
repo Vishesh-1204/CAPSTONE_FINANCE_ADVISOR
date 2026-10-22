@@ -157,3 +157,85 @@ export interface ImportBatch {
   balance_mismatches: number;
   created_at: string;
 }
+
+// --- budgets (schemas/budget.py, Phase 4) ---
+// Money arrives as plain numbers (the backend converts Decimal -> float).
+export type BudgetSource = "agent" | "user";
+export type PlanMethod = "history" | "baseline";
+export type BudgetStatusValue = "ok" | "warning" | "exceeded" | "unbudgeted";
+
+export interface FinancialProfile {
+  monthly_income: number;
+  savings_target_pct: number; // percent, e.g. 20 = 20 %
+  savings_target_amount: number;
+  spendable_income: number; // income minus the savings target
+  updated_at: string | null;
+}
+
+export interface MonthlyIncome {
+  month: string;
+  total: number;
+}
+
+export interface IncomeSuggestion {
+  month: string;
+  lookback_months: number;
+  window_start: string;
+  window_end: string;
+  months_used: number;
+  income_by_month: MonthlyIncome[];
+  suggested_monthly_income: number | null; // null when there is no income in the window
+  message: string;
+}
+
+export interface BudgetItem {
+  id: number;
+  month: string;
+  category: string;
+  limit_amount: number; // the limit in force (agent's or user's)
+  agent_limit_amount: number; // the planner's original number
+  source: BudgetSource;
+  reasoning: string | null;
+}
+
+export interface DataQuality {
+  months_used: number;
+  uncategorized_count: number;
+  needs_review_count: number;
+  transfers_total: number;
+}
+
+export interface BudgetPlan {
+  month: string;
+  method: PlanMethod;
+  monthly_income: number;
+  savings_target_amount: number;
+  spendable_income: number;
+  feasible: boolean;
+  shortfall: number;
+  summary: string;
+  llm_used: boolean;
+  explanation_faithful: boolean | null;
+  data_quality: DataQuality;
+  budgets: BudgetItem[];
+}
+
+export interface BudgetStatusItem {
+  category: string;
+  limit: number | null; // null = unbudgeted category
+  spent: number;
+  remaining: number | null;
+  percent_used: number | null; // 0-100 (NOT a fraction); null when no limit or limit 0
+  status: BudgetStatusValue;
+  source: BudgetSource | null;
+}
+
+export interface BudgetStatus {
+  month: string;
+  items: BudgetStatusItem[];
+  total_limit: number;
+  total_spent: number;
+  total_remaining: number;
+  invested_this_month: number; // investment_out total (saved, not spent)
+  savings_target_amount: number | null; // null when no financial profile exists
+}

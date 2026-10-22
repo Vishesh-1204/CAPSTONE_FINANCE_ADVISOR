@@ -1,0 +1,694 @@
+persona,date,description,amount,direction,txn_type,category
+frugal,2026-04-01,NEFT-SYNTH EMPLOYER PAYROLL,55000.00,credit,income,Salary
+frugal,2026-04-01,NEFT-SYNTH HOUSING SOCIETY RENT,12000.00,debit,expense,Housing & Rent
+frugal,2026-04-03,POS SYNTH KIRANA STORE,665.00,debit,expense,Groceries
+frugal,2026-04-05,NACH/SYNTH MF SIP/FOLIO 0000001,8000.00,debit,investment_out,Investments & Savings
+frugal,2026-04-06,SYNTH STREAMING MONTHLY,199.00,debit,expense,Subscriptions
+frugal,2026-04-06,UPI/P2P/PAYEE-0003,817.00,debit,expense,Transfers
+frugal,2026-04-08,POS FRESH VEG SYNTH,627.00,debit,expense,Groceries
+frugal,2026-04-10,UPI/SYNTH FOOD DELIVERY/synthfood@okhdfc,700.00,debit,expense,Food & Dining
+frugal,2026-04-11,SYNTH FIBER BROADBAND,966.00,debit,expense,Utilities
+frugal,2026-04-13,POS SYNTH CAFE,280.00,debit,expense,Food & Dining
+frugal,2026-04-13,UPI/SYNTH CABS/synthcabs@okicici,174.00,debit,expense,Transportation
+frugal,2026-04-15,POS SYNTH RESTAURANT,377.00,debit,expense,Food & Dining
+frugal,2026-04-18,POS SYNTH KIRANA STORE,1087.00,debit,expense,Groceries
+frugal,2026-04-18,SYNTH METRO CARD TOPUP,394.00,debit,expense,Transportation
+frugal,2026-04-18,UPI/SYNTH CABS/synthcabs@okicici,173.00,debit,expense,Transportation
+frugal,2026-04-20,POS SYNTH KIRANA STORE,1291.00,debit,expense,Groceries
+frugal,2026-04-22,POS SYNTH PHARMACY,416.00,debit,expense,Healthcare
+frugal,2026-04-22,SYNTH GYM MEMBERSHIP,591.00,debit,expense,Personal Care
+frugal,2026-04-23,POS FRESH VEG SYNTH,556.00,debit,expense,Groceries
+frugal,2026-04-23,POS FRESH VEG SYNTH,1134.00,debit,expense,Groceries
+frugal,2026-04-23,SYNTH FIBER BROADBAND,548.00,debit,expense,Utilities
+frugal,2026-04-24,SYNTH METRO CARD TOPUP,245.00,debit,expense,Transportation
+frugal,2026-04-25,SYNTH POWER ELECTRICITY BILL,668.00,debit,expense,Utilities
+frugal,2026-04-26,UPI/SYNTH CABS/synthcabs@okicici,426.00,debit,expense,Transportation
+frugal,2026-04-27,POS SYNTH FUEL STATION,326.00,debit,expense,Transportation
+frugal,2026-04-28,UPI/SYNTH FOOD DELIVERY/synthfood@okhdfc,554.00,debit,expense,Food & Dining
+frugal,2026-04-28,UPI/SYNTH FOOD DELIVERY/synthfood@okhdfc,619.00,debit,expense,Food & Dining
+frugal,2026-05-01,NEFT-SYNTH EMPLOYER PAYROLL,55000.00,credit,income,Salary
+frugal,2026-05-02,NEFT-SYNTH HOUSING SOCIETY RENT,12000.00,debit,expense,Housing & Rent
+frugal,2026-05-03,POS SYNTH KIRANA STORE,859.00,debit,expense,Groceries
+frugal,2026-05-03,SYNTH METRO CARD TOPUP,270.00,debit,expense,Transportation
+frugal,2026-05-03,UPI/SYNTH CABS/synthcabs@okicici,288.00,debit,expense,Transportation
+frugal,2026-05-04,UPI/P2P/PAYEE-0003,801.00,debit,expense,Transfers
+frugal,2026-05-05,NACH/SYNTH MF SIP/FOLIO 0000001,8000.00,debit,investment_out,Investments & Savings
+frugal,2026-05-05,POS SYNTH FUEL STATION,239.00,debit,expense,Transportation
+frugal,2026-05-06,POS SYNTH FUEL STATION,191.00,debit,expense,Transportation
+frugal,2026-05-06,SYNTH STREAMING MONTHLY,199.00,debit,expense,Subscriptions
+frugal,2026-05-08,POS SYNTH KIRANA STORE,1080.00,debit,expense,Groceries
+frugal,2026-05-08,SYNTH MOBILE RECHARGE,966.00,debit,expense,Utilities
+frugal,2026-05-09,SYNTH POWER ELECTRICITY BILL,612.00,debit,expense,Utilities
+frugal,2026-05-11,POS SYNTH KIRANA STORE,928.00,debit,expense,Groceries
+frugal,2026-05-11,UPI/SYNTH FOOD DELIVERY/synthfood@okhdfc,217.00,debit,expense,Food & Dining
+frugal,2026-05-13,UPI/SYNTHMART GROCERY/synthmart@okaxis,766.00,debit,expense,Groceries
+frugal,2026-05-14,POS SYNTH FUEL STATION,398.00,debit,expense,Transportation
+frugal,2026-05-18,SYNTH MOBILE RECHARGE,656.00,debit,expense,Utilities
+frugal,2026-05-19,POS FRESH VEG SYNTH,974.00,debit,expense,Groceries
+frugal,2026-05-22,POS SYNTH RESTAURANT,433.00,debit,expense,Food & Dining
+frugal,2026-05-24,SYNTH GYM MEMBERSHIP,570.00,debit,expense,Personal Care
+frugal,2026-05-24,UPI/SYNTH FOOD DELIVERY/synthfood@okhdfc,629.00,debit,expense,Food & Dining
+frugal,2026-05-25,POS SYNTH CAFE,619.00,debit,expense,Food & Dining
+frugal,2026-05-25,POS SYNTH PHARMACY,438.00,debit,expense,Healthcare
+frugal,2026-05-25,POS SYNTH RESTAURANT,572.00,debit,expense,Food & Dining
+frugal,2026-05-26,UPI/SYNTHMART GROCERY/synthmart@okaxis,827.00,debit,expense,Groceries
+frugal,2026-05-28,UPI/SYNTH CABS/synthcabs@okicici,371.00,debit,expense,Transportation
+frugal,2026-06-01,NEFT-SYNTH EMPLOYER PAYROLL,55000.00,credit,income,Salary
+frugal,2026-06-01,POS SYNTH KIRANA STORE,1129.00,debit,expense,Groceries
+frugal,2026-06-02,POS SYNTH CAFE,474.00,debit,expense,Food & Dining
+frugal,2026-06-03,POS SYNTH KIRANA STORE,447.00,debit,expense,Groceries
+frugal,2026-06-03,POS SYNTH RESTAURANT,467.00,debit,expense,Food & Dining
+frugal,2026-06-04,SYNTH CLINIC CONSULTATION,375.00,debit,expense,Healthcare
+frugal,2026-06-04,UPI/SYNTH CABS/synthcabs@okicici,423.00,debit,expense,Transportation
+frugal,2026-06-05,NACH/SYNTH MF SIP/FOLIO 0000001,8000.00,debit,investment_out,Investments & Savings
+frugal,2026-06-05,NEFT-SYNTH HOUSING SOCIETY RENT,12000.00,debit,expense,Housing & Rent
+frugal,2026-06-07,POS SYNTH RESTAURANT,476.00,debit,expense,Food & Dining
+frugal,2026-06-08,POS FRESH VEG SYNTH,921.00,debit,expense,Groceries
+frugal,2026-06-08,POS SYNTH CAFE,371.00,debit,expense,Food & Dining
+frugal,2026-06-08,POS SYNTH KIRANA STORE,1143.00,debit,expense,Groceries
+frugal,2026-06-08,UPI/SYNTH CABS/synthcabs@okicici,241.00,debit,expense,Transportation
+frugal,2026-06-09,SYNTH MOBILE RECHARGE,454.00,debit,expense,Utilities
+frugal,2026-06-11,UPI/SYNTH CABS/synthcabs@okicici,282.00,debit,expense,Transportation
+frugal,2026-06-12,SYNTH METRO CARD TOPUP,245.00,debit,expense,Transportation
+frugal,2026-06-12,UPI/SYNTHMART GROCERY/synthmart@okaxis,929.00,debit,expense,Groceries
+frugal,2026-06-14,UPI/P2P/PAYEE-0002,777.00,debit,expense,Transfers
+frugal,2026-06-16,SYNTH GYM MEMBERSHIP,585.00,debit,expense,Personal Care
+frugal,2026-06-17,SYNTH METRO CARD TOPUP,358.00,debit,expense,Transportation
+frugal,2026-06-18,REFUND SYNTH ONLINE MARKETPLACE,1200.00,credit,income,Refund & Cashback
+frugal,2026-06-18,SYNTH POWER ELECTRICITY BILL,747.00,debit,expense,Utilities
+frugal,2026-06-19,SYNTH STREAMING MONTHLY,199.00,debit,expense,Subscriptions
+frugal,2026-06-22,POS SYNTH CAFE,734.00,debit,expense,Food & Dining
+frugal,2026-06-22,POS SYNTH FUEL STATION,318.00,debit,expense,Transportation
+frugal,2026-06-22,SYNTH FIBER BROADBAND,1069.00,debit,expense,Utilities
+frugal,2026-06-24,UPI/SYNTHMART GROCERY/synthmart@okaxis,740.00,debit,expense,Groceries
+frugal,2026-06-30,SB INT PD SYNTH BANK,450.00,credit,income,Interest
+frugal,2026-07-01,NEFT-SYNTH EMPLOYER PAYROLL,55000.00,credit,income,Salary
+frugal,2026-07-01,NEFT-SYNTH HOUSING SOCIETY RENT,12000.00,debit,expense,Housing & Rent
+frugal,2026-07-02,POS SYNTH PHARMACY,406.00,debit,expense,Healthcare
+frugal,2026-07-03,POS SYNTH RESTAURANT,514.00,debit,expense,Food & Dining
+frugal,2026-07-04,POS SYNTH KIRANA STORE,989.00,debit,expense,Groceries
+frugal,2026-07-05,NACH/SYNTH MF SIP/FOLIO 0000001,8000.00,debit,investment_out,Investments & Savings
+frugal,2026-07-06,SYNTH FIBER BROADBAND,787.00,debit,expense,Utilities
+frugal,2026-07-06,UPI/SYNTH FOOD DELIVERY/synthfood@okhdfc,637.00,debit,expense,Food & Dining
+frugal,2026-07-06,UPI/SYNTHMART GROCERY/synthmart@okaxis,1172.00,debit,expense,Groceries
+frugal,2026-07-07,SYNTH FIBER BROADBAND,723.00,debit,expense,Utilities
+frugal,2026-07-07,SYNTH METRO CARD TOPUP,433.00,debit,expense,Transportation
+frugal,2026-07-07,UPI/SYNTH CABS/synthcabs@okicici,266.00,debit,expense,Transportation
+frugal,2026-07-15,POS FRESH VEG SYNTH,660.00,debit,expense,Groceries
+frugal,2026-07-15,POS SYNTH KIRANA STORE,1241.00,debit,expense,Groceries
+frugal,2026-07-16,SYNTH FIBER BROADBAND,764.00,debit,expense,Utilities
+frugal,2026-07-16,UPI/SYNTH CABS/synthcabs@okicici,480.00,debit,expense,Transportation
+frugal,2026-07-17,UPI/SYNTH FOOD DELIVERY/synthfood@okhdfc,284.00,debit,expense,Food & Dining
+frugal,2026-07-19,POS SYNTH SALON,594.00,debit,expense,Personal Care
+frugal,2026-07-19,UPI/P2P/PAYEE-0003,787.00,debit,expense,Transfers
+frugal,2026-07-20,IMPS/OWN ACCOUNT TRANSFER SELF,10000.00,debit,transfer,Transfers
+frugal,2026-07-21,POS FRESH VEG SYNTH,615.00,debit,expense,Groceries
+frugal,2026-07-22,SYNTH MF REDEMPTION PAYOUT,6000.00,credit,investment_in,Investment Redemption
+frugal,2026-07-22,POS SYNTH FUEL STATION,300.00,debit,expense,Transportation
+frugal,2026-07-23,POS SYNTH FUEL STATION,224.00,debit,expense,Transportation
+frugal,2026-07-26,POS SYNTH FUEL STATION,169.00,debit,expense,Transportation
+frugal,2026-07-28,POS SYNTH KIRANA STORE,581.00,debit,expense,Groceries
+frugal,2026-07-28,POS SYNTH RESTAURANT,532.00,debit,expense,Food & Dining
+frugal,2026-07-28,SYNTH STREAMING MONTHLY,199.00,debit,expense,Subscriptions
+frugal,2026-07-28,UPI/SYNTH FOOD DELIVERY/synthfood@okhdfc,553.00,debit,expense,Food & Dining
+frugal,2026-08-01,NEFT-SYNTH EMPLOYER PAYROLL,55000.00,credit,income,Salary
+frugal,2026-08-02,UPI/SYNTH FOOD DELIVERY/synthfood@okhdfc,324.00,debit,expense,Food & Dining
+frugal,2026-08-02,UPI/SYNTH FOOD DELIVERY/synthfood@okhdfc,512.00,debit,expense,Food & Dining
+frugal,2026-08-03,NEFT-SYNTH HOUSING SOCIETY RENT,12000.00,debit,expense,Housing & Rent
+frugal,2026-08-03,POS FRESH VEG SYNTH,1115.00,debit,expense,Groceries
+frugal,2026-08-03,POS SYNTH KIRANA STORE,792.00,debit,expense,Groceries
+frugal,2026-08-04,POS SYNTH PHARMACY,405.00,debit,expense,Healthcare
+frugal,2026-08-04,UPI/SYNTH CABS/synthcabs@okicici,326.00,debit,expense,Transportation
+frugal,2026-08-05,NACH/SYNTH MF SIP/FOLIO 0000001,8000.00,debit,investment_out,Investments & Savings
+frugal,2026-08-05,SYNTH METRO CARD TOPUP,372.00,debit,expense,Transportation
+frugal,2026-08-05,SYNTH METRO CARD TOPUP,421.00,debit,expense,Transportation
+frugal,2026-08-06,SYNTH FIBER BROADBAND,873.00,debit,expense,Utilities
+frugal,2026-08-07,POS FRESH VEG SYNTH,932.00,debit,expense,Groceries
+frugal,2026-08-07,POS SYNTH FUEL STATION,332.00,debit,expense,Transportation
+frugal,2026-08-09,POS SYNTH KIRANA STORE,1395.00,debit,expense,Groceries
+frugal,2026-08-09,SYNTH STREAMING MONTHLY,199.00,debit,expense,Subscriptions
+frugal,2026-08-10,POS SYNTH FUEL STATION,226.00,debit,expense,Transportation
+frugal,2026-08-11,UPI/SYNTH FOOD DELIVERY/synthfood@okhdfc,609.00,debit,expense,Food & Dining
+frugal,2026-08-15,POS FRESH VEG SYNTH,745.00,debit,expense,Groceries
+frugal,2026-08-18,SYNTH GYM MEMBERSHIP,614.00,debit,expense,Personal Care
+frugal,2026-08-19,POS SYNTH KIRANA STORE,614.00,debit,expense,Groceries
+frugal,2026-08-21,POS SYNTH CAFE,583.00,debit,expense,Food & Dining
+frugal,2026-08-23,SYNTH FIBER BROADBAND,550.00,debit,expense,Utilities
+frugal,2026-08-23,UPI/P2P/PAYEE-0001,871.00,debit,expense,Transfers
+frugal,2026-08-24,POS SYNTH FUEL STATION,143.00,debit,expense,Transportation
+frugal,2026-08-27,POS SYNTH CAFE,433.00,debit,expense,Food & Dining
+frugal,2026-08-27,SYNTH MOBILE RECHARGE,872.00,debit,expense,Utilities
+frugal,2026-09-01,NEFT-SYNTH EMPLOYER PAYROLL,55000.00,credit,income,Salary
+frugal,2026-09-01,SYNTH POWER ELECTRICITY BILL,807.00,debit,expense,Utilities
+frugal,2026-09-03,NEFT-SYNTH HOUSING SOCIETY RENT,12000.00,debit,expense,Housing & Rent
+frugal,2026-09-04,POS SYNTH CAFE,739.00,debit,expense,Food & Dining
+frugal,2026-09-05,NACH/SYNTH MF SIP/FOLIO 0000001,8000.00,debit,investment_out,Investments & Savings
+frugal,2026-09-05,POS SYNTH KIRANA STORE,822.00,debit,expense,Groceries
+frugal,2026-09-06,POS SYNTH RESTAURANT,497.00,debit,expense,Food & Dining
+frugal,2026-09-08,UPI/SYNTH CABS/synthcabs@okicici,362.00,debit,expense,Transportation
+frugal,2026-09-08,UPI/SYNTH CABS/synthcabs@okicici,382.00,debit,expense,Transportation
+frugal,2026-09-09,SYNTH STREAMING MONTHLY,199.00,debit,expense,Subscriptions
+frugal,2026-09-11,SYNTH CLINIC CONSULTATION,418.00,debit,expense,Healthcare
+frugal,2026-09-11,UPI/SYNTH FOOD DELIVERY/synthfood@okhdfc,330.00,debit,expense,Food & Dining
+frugal,2026-09-12,POS FRESH VEG SYNTH,1370.00,debit,expense,Groceries
+frugal,2026-09-12,SYNTH METRO CARD TOPUP,355.00,debit,expense,Transportation
+frugal,2026-09-14,SYNTH GYM MEMBERSHIP,577.00,debit,expense,Personal Care
+frugal,2026-09-17,POS SYNTH CAFE,522.00,debit,expense,Food & Dining
+frugal,2026-09-17,UPI/P2P/PAYEE-0001,817.00,debit,expense,Transfers
+frugal,2026-09-20,POS FRESH VEG SYNTH,516.00,debit,expense,Groceries
+frugal,2026-09-22,POS SYNTH KIRANA STORE,518.00,debit,expense,Groceries
+frugal,2026-09-22,POS SYNTH KIRANA STORE,827.00,debit,expense,Groceries
+frugal,2026-09-22,POS SYNTH RESTAURANT,452.00,debit,expense,Food & Dining
+frugal,2026-09-24,SYNTH FIBER BROADBAND,716.00,debit,expense,Utilities
+frugal,2026-09-26,SYNTH FIBER BROADBAND,757.00,debit,expense,Utilities
+frugal,2026-09-27,SYNTH METRO CARD TOPUP,211.00,debit,expense,Transportation
+frugal,2026-09-27,UPI/SYNTH CABS/synthcabs@okicici,168.00,debit,expense,Transportation
+frugal,2026-09-28,SYNTH METRO CARD TOPUP,376.00,debit,expense,Transportation
+frugal,2026-09-28,UPI/SYNTHMART GROCERY/synthmart@okaxis,1408.00,debit,expense,Groceries
+frugal,2026-09-30,SB INT PD SYNTH BANK,600.00,credit,income,Interest
+irregular,2026-04-01,NEFT-SYNTH HOUSING SOCIETY RENT,15000.00,debit,expense,Housing & Rent
+irregular,2026-04-01,UPI/SYNTH CABS/synthcabs@okicici,720.00,debit,expense,Transportation
+irregular,2026-04-02,POS SYNTH RESTAURANT,401.00,debit,expense,Food & Dining
+irregular,2026-04-02,UPI/SYNTH FOOD DELIVERY/synthfood@okhdfc,270.00,debit,expense,Food & Dining
+irregular,2026-04-03,POS SYNTH CAFE,436.00,debit,expense,Food & Dining
+irregular,2026-04-04,POS SYNTH FASHION STORE,899.00,debit,expense,Shopping
+irregular,2026-04-05,NACH/SYNTH MF SIP/FOLIO 0000001,2000.00,debit,investment_out,Investments & Savings
+irregular,2026-04-05,UPI/P2P/PAYEE-0002,481.00,debit,expense,Transfers
+irregular,2026-04-06,POS SYNTH RESTAURANT,471.00,debit,expense,Food & Dining
+irregular,2026-04-06,SYNTH METRO CARD TOPUP,559.00,debit,expense,Transportation
+irregular,2026-04-07,POS SYNTH KIRANA STORE,1082.00,debit,expense,Groceries
+irregular,2026-04-08,SYNTH GAMING STORE,1223.00,debit,expense,Entertainment
+irregular,2026-04-09,UPI/SYNTH CABS/synthcabs@okicici,662.00,debit,expense,Transportation
+irregular,2026-04-10,UPI/P2P/PAYEE-0002,428.00,debit,expense,Transfers
+irregular,2026-04-11,POS SYNTH RESTAURANT,567.00,debit,expense,Food & Dining
+irregular,2026-04-11,SYNTH METRO CARD TOPUP,264.00,debit,expense,Transportation
+irregular,2026-04-12,POS SYNTH FASHION STORE,1149.00,debit,expense,Shopping
+irregular,2026-04-12,POS SYNTH KIRANA STORE,1107.00,debit,expense,Groceries
+irregular,2026-04-14,POS SYNTH CAFE,376.00,debit,expense,Food & Dining
+irregular,2026-04-15,POS SYNTH RESTAURANT,300.00,debit,expense,Food & Dining
+irregular,2026-04-18,NEFT-SYNTH CLIENT INVOICE PAYMENT,18733.00,credit,income,Other Income
+irregular,2026-04-18,NEFT-SYNTH CLIENT INVOICE PAYMENT,19267.00,credit,income,Other Income
+irregular,2026-04-19,POS FRESH VEG SYNTH,1212.00,debit,expense,Groceries
+irregular,2026-04-19,SYNTH ONLINE COURSE FEE,1000.00,debit,expense,Education
+irregular,2026-04-19,SYNTH POWER ELECTRICITY BILL,1126.00,debit,expense,Utilities
+irregular,2026-04-20,SYNTH CINEMAS TICKETS,963.00,debit,expense,Entertainment
+irregular,2026-04-20,UPI/SYNTH FOOD DELIVERY/synthfood@okhdfc,673.00,debit,expense,Food & Dining
+irregular,2026-04-20,UPI/SYNTHMART GROCERY/synthmart@okaxis,1032.00,debit,expense,Groceries
+irregular,2026-04-22,SYNTH ELECTRONICS ORDER,1273.00,debit,expense,Shopping
+irregular,2026-04-22,UPI/SYNTHMART GROCERY/synthmart@okaxis,1303.00,debit,expense,Groceries
+irregular,2026-04-23,SYNTH METRO CARD TOPUP,573.00,debit,expense,Transportation
+irregular,2026-04-25,SYNTH FIBER BROADBAND,509.00,debit,expense,Utilities
+irregular,2026-04-26,SYNTH FIBER BROADBAND,727.00,debit,expense,Utilities
+irregular,2026-04-27,POS SYNTH FUEL STATION,740.00,debit,expense,Transportation
+irregular,2026-05-01,UPI/SYNTHMART GROCERY/synthmart@okaxis,1563.00,debit,expense,Groceries
+irregular,2026-05-02,UPI/P2P/PAYEE-0002,653.00,debit,expense,Transfers
+irregular,2026-05-03,POS SYNTH FASHION STORE,1070.00,debit,expense,Shopping
+irregular,2026-05-03,POS SYNTH FUEL STATION,464.00,debit,expense,Transportation
+irregular,2026-05-03,UPI/SYNTHMART GROCERY/synthmart@okaxis,1531.00,debit,expense,Groceries
+irregular,2026-05-05,NACH/SYNTH MF SIP/FOLIO 0000001,2000.00,debit,investment_out,Investments & Savings
+irregular,2026-05-05,NEFT-SYNTH HOUSING SOCIETY RENT,15000.00,debit,expense,Housing & Rent
+irregular,2026-05-06,NEFT-SYNTH CLIENT INVOICE PAYMENT,56734.00,credit,income,Other Income
+irregular,2026-05-07,SYNTH METRO CARD TOPUP,643.00,debit,expense,Transportation
+irregular,2026-05-08,SYNTH METRO CARD TOPUP,312.00,debit,expense,Transportation
+irregular,2026-05-11,POS SYNTH RESTAURANT,353.00,debit,expense,Food & Dining
+irregular,2026-05-11,UPI/SYNTH FOOD DELIVERY/synthfood@okhdfc,664.00,debit,expense,Food & Dining
+irregular,2026-05-12,SYNTH ELECTRONICS ORDER,934.00,debit,expense,Shopping
+irregular,2026-05-12,SYNTH POWER ELECTRICITY BILL,1035.00,debit,expense,Utilities
+irregular,2026-05-14,NEFT-SYNTH CLIENT INVOICE PAYMENT,35266.00,credit,income,Other Income
+irregular,2026-05-15,POS SYNTH FASHION STORE,903.00,debit,expense,Shopping
+irregular,2026-05-15,POS SYNTH RESTAURANT,575.00,debit,expense,Food & Dining
+irregular,2026-05-15,SYNTH MOBILE RECHARGE,653.00,debit,expense,Utilities
+irregular,2026-05-15,UPI/SYNTH BROKING/synthbroker@okaxis ADD FUNDS,5000.00,debit,investment_out,Investments & Savings
+irregular,2026-05-15,UPI/SYNTH FOOD DELIVERY/synthfood@okhdfc,523.00,debit,expense,Food & Dining
+irregular,2026-05-17,POS SYNTH FUEL STATION,706.00,debit,expense,Transportation
+irregular,2026-05-19,POS SYNTH RESTAURANT,658.00,debit,expense,Food & Dining
+irregular,2026-05-19,UPI/SYNTHMART GROCERY/synthmart@okaxis,670.00,debit,expense,Groceries
+irregular,2026-05-19,UPI/SYNTHMART GROCERY/synthmart@okaxis,1597.00,debit,expense,Groceries
+irregular,2026-05-20,SYNTH GAMING STORE,511.00,debit,expense,Entertainment
+irregular,2026-05-21,POS SYNTH RESTAURANT,603.00,debit,expense,Food & Dining
+irregular,2026-05-21,SYNTH CINEMAS TICKETS,564.00,debit,expense,Entertainment
+irregular,2026-05-21,SYNTH RAIL BOOKING,18000.00,debit,expense,Travel
+irregular,2026-05-21,UPI/SYNTH CABS/synthcabs@okicici,298.00,debit,expense,Transportation
+irregular,2026-05-23,POS FRESH VEG SYNTH,639.00,debit,expense,Groceries
+irregular,2026-05-25,POS SYNTH RESTAURANT,337.00,debit,expense,Food & Dining
+irregular,2026-05-25,POS SYNTH RESTAURANT,364.00,debit,expense,Food & Dining
+irregular,2026-05-25,UPI/SYNTH CABS/synthcabs@okicici,482.00,debit,expense,Transportation
+irregular,2026-05-26,SYNTH MOBILE RECHARGE,771.00,debit,expense,Utilities
+irregular,2026-05-26,UPI/P2P/PAYEE-0003,802.00,debit,expense,Transfers
+irregular,2026-05-27,SYNTH ONLINE COURSE FEE,1000.00,debit,expense,Education
+irregular,2026-06-02,NEFT-SYNTH CLIENT INVOICE PAYMENT,24430.00,credit,income,Other Income
+irregular,2026-06-02,SYNTH GAMING STORE,1352.00,debit,expense,Entertainment
+irregular,2026-06-03,NEFT-SYNTH HOUSING SOCIETY RENT,15000.00,debit,expense,Housing & Rent
+irregular,2026-06-03,POS SYNTH CAFE,747.00,debit,expense,Food & Dining
+irregular,2026-06-03,SYNTH METRO CARD TOPUP,643.00,debit,expense,Transportation
+irregular,2026-06-05,NEFT-SYNTH CLIENT INVOICE PAYMENT,20570.00,credit,income,Other Income
+irregular,2026-06-05,NACH/SYNTH MF SIP/FOLIO 0000001,2000.00,debit,investment_out,Investments & Savings
+irregular,2026-06-05,SYNTH ELECTRONICS ORDER,845.00,debit,expense,Shopping
+irregular,2026-06-05,UPI/SYNTH FOOD DELIVERY/synthfood@okhdfc,669.00,debit,expense,Food & Dining
+irregular,2026-06-06,SYNTH GAMING STORE,1311.00,debit,expense,Entertainment
+irregular,2026-06-06,SYNTH ONLINE MARKETPLACE ORDER,1991.00,debit,expense,Shopping
+irregular,2026-06-06,UPI/SYNTH FOOD DELIVERY/synthfood@okhdfc,867.00,debit,expense,Food & Dining
+irregular,2026-06-06,UPI/SYNTHMART GROCERY/synthmart@okaxis,935.00,debit,expense,Groceries
+irregular,2026-06-07,UPI/SYNTH FOOD DELIVERY/synthfood@okhdfc,773.00,debit,expense,Food & Dining
+irregular,2026-06-09,SYNTH MOBILE RECHARGE,677.00,debit,expense,Utilities
+irregular,2026-06-10,POS SYNTH FUEL STATION,809.00,debit,expense,Transportation
+irregular,2026-06-11,POS SYNTH CAFE,808.00,debit,expense,Food & Dining
+irregular,2026-06-11,SYNTH ONLINE COURSE FEE,1000.00,debit,expense,Education
+irregular,2026-06-12,UPI/SYNTHMART GROCERY/synthmart@okaxis,1039.00,debit,expense,Groceries
+irregular,2026-06-13,SYNTH FIBER BROADBAND,679.00,debit,expense,Utilities
+irregular,2026-06-13,SYNTH ONLINE MARKETPLACE ORDER,1315.00,debit,expense,Shopping
+irregular,2026-06-13,UPI/SYNTH CABS/synthcabs@okicici,359.00,debit,expense,Transportation
+irregular,2026-06-13,UPI/SYNTHMART GROCERY/synthmart@okaxis,1304.00,debit,expense,Groceries
+irregular,2026-06-17,POS SYNTH RESTAURANT,562.00,debit,expense,Food & Dining
+irregular,2026-06-18,REFUND SYNTH ONLINE MARKETPLACE,1200.00,credit,income,Refund & Cashback
+irregular,2026-06-18,SYNTH METRO CARD TOPUP,786.00,debit,expense,Transportation
+irregular,2026-06-18,SYNTH MOBILE RECHARGE,920.00,debit,expense,Utilities
+irregular,2026-06-20,POS SYNTH FUEL STATION,321.00,debit,expense,Transportation
+irregular,2026-06-20,UPI/P2P/PAYEE-0002,606.00,debit,expense,Transfers
+irregular,2026-06-22,POS FRESH VEG SYNTH,1424.00,debit,expense,Groceries
+irregular,2026-06-23,POS SYNTH FUEL STATION,609.00,debit,expense,Transportation
+irregular,2026-06-25,UPI/P2P/PAYEE-0003,731.00,debit,expense,Transfers
+irregular,2026-06-25,UPI/SYNTHMART GROCERY/synthmart@okaxis,1306.00,debit,expense,Groceries
+irregular,2026-06-26,SYNTH CLINIC CONSULTATION,9500.00,debit,expense,Healthcare
+irregular,2026-06-27,POS SYNTH RESTAURANT,567.00,debit,expense,Food & Dining
+irregular,2026-06-28,UPI/SYNTH FOOD DELIVERY/synthfood@okhdfc,602.00,debit,expense,Food & Dining
+irregular,2026-06-30,SB INT PD SYNTH BANK,450.00,credit,income,Interest
+irregular,2026-07-02,NEFT-SYNTH HOUSING SOCIETY RENT,15000.00,debit,expense,Housing & Rent
+irregular,2026-07-02,POS FRESH VEG SYNTH,1142.00,debit,expense,Groceries
+irregular,2026-07-03,SYNTH ONLINE MARKETPLACE ORDER,459.00,debit,expense,Shopping
+irregular,2026-07-03,UPI/P2P/PAYEE-0003,906.00,debit,expense,Transfers
+irregular,2026-07-03,UPI/SYNTH FOOD DELIVERY/synthfood@okhdfc,529.00,debit,expense,Food & Dining
+irregular,2026-07-04,SYNTH ONLINE COURSE FEE,1000.00,debit,expense,Education
+irregular,2026-07-05,NACH/SYNTH MF SIP/FOLIO 0000001,2000.00,debit,investment_out,Investments & Savings
+irregular,2026-07-05,SYNTH GAMING STORE,596.00,debit,expense,Entertainment
+irregular,2026-07-05,UPI/SYNTHMART GROCERY/synthmart@okaxis,1452.00,debit,expense,Groceries
+irregular,2026-07-08,POS SYNTH CAFE,423.00,debit,expense,Food & Dining
+irregular,2026-07-09,UPI/SYNTH FOOD DELIVERY/synthfood@okhdfc,653.00,debit,expense,Food & Dining
+irregular,2026-07-10,SYNTH POWER ELECTRICITY BILL,1015.00,debit,expense,Utilities
+irregular,2026-07-12,UPI/SYNTH CABS/synthcabs@okicici,417.00,debit,expense,Transportation
+irregular,2026-07-12,UPI/SYNTH CABS/synthcabs@okicici,611.00,debit,expense,Transportation
+irregular,2026-07-12,UPI/SYNTH CABS/synthcabs@okicici,629.00,debit,expense,Transportation
+irregular,2026-07-13,POS SYNTH FUEL STATION,407.00,debit,expense,Transportation
+irregular,2026-07-13,UPI/SYNTH CABS/synthcabs@okicici,314.00,debit,expense,Transportation
+irregular,2026-07-14,POS SYNTH KIRANA STORE,1216.00,debit,expense,Groceries
+irregular,2026-07-14,SYNTH CINEMAS TICKETS,437.00,debit,expense,Entertainment
+irregular,2026-07-14,UPI/SYNTH CABS/synthcabs@okicici,281.00,debit,expense,Transportation
+irregular,2026-07-14,UPI/SYNTH FOOD DELIVERY/synthfood@okhdfc,1001.00,debit,expense,Food & Dining
+irregular,2026-07-17,SYNTH POWER ELECTRICITY BILL,616.00,debit,expense,Utilities
+irregular,2026-07-18,POS SYNTH RESTAURANT,993.00,debit,expense,Food & Dining
+irregular,2026-07-20,POS SYNTH RESTAURANT,530.00,debit,expense,Food & Dining
+irregular,2026-07-20,SYNTH ELECTRONICS ORDER,699.00,debit,expense,Shopping
+irregular,2026-07-22,SYNTH MF REDEMPTION PAYOUT,6000.00,credit,investment_in,Investment Redemption
+irregular,2026-07-22,UPI/P2P/PAYEE-0003,732.00,debit,expense,Transfers
+irregular,2026-07-25,POS SYNTH CAFE,787.00,debit,expense,Food & Dining
+irregular,2026-07-25,SYNTH POWER ELECTRICITY BILL,859.00,debit,expense,Utilities
+irregular,2026-07-26,NEFT-SYNTH CLIENT INVOICE PAYMENT,34877.00,credit,income,Other Income
+irregular,2026-07-26,NEFT-SYNTH CLIENT INVOICE PAYMENT,35123.00,credit,income,Other Income
+irregular,2026-07-26,POS FRESH VEG SYNTH,1442.00,debit,expense,Groceries
+irregular,2026-07-27,POS SYNTH FASHION STORE,708.00,debit,expense,Shopping
+irregular,2026-07-27,POS SYNTH KIRANA STORE,1069.00,debit,expense,Groceries
+irregular,2026-07-27,UPI/SYNTH FOOD DELIVERY/synthfood@okhdfc,1104.00,debit,expense,Food & Dining
+irregular,2026-08-01,SYNTH ONLINE MARKETPLACE ORDER,14000.00,debit,expense,Shopping
+irregular,2026-08-02,POS SYNTH FUEL STATION,401.00,debit,expense,Transportation
+irregular,2026-08-02,SYNTH METRO CARD TOPUP,361.00,debit,expense,Transportation
+irregular,2026-08-03,POS SYNTH CAFE,1005.00,debit,expense,Food & Dining
+irregular,2026-08-05,NACH/SYNTH MF SIP/FOLIO 0000001,2000.00,debit,investment_out,Investments & Savings
+irregular,2026-08-05,NEFT-SYNTH HOUSING SOCIETY RENT,15000.00,debit,expense,Housing & Rent
+irregular,2026-08-06,SYNTH MOBILE RECHARGE,588.00,debit,expense,Utilities
+irregular,2026-08-09,SYNTH CINEMAS TICKETS,1221.00,debit,expense,Entertainment
+irregular,2026-08-09,UPI/SYNTH FOOD DELIVERY/synthfood@okhdfc,1001.00,debit,expense,Food & Dining
+irregular,2026-08-10,POS SYNTH FUEL STATION,692.00,debit,expense,Transportation
+irregular,2026-08-12,POS SYNTH KIRANA STORE,1356.00,debit,expense,Groceries
+irregular,2026-08-12,SYNTH GAMING STORE,482.00,debit,expense,Entertainment
+irregular,2026-08-12,SYNTH ONLINE COURSE FEE,1000.00,debit,expense,Education
+irregular,2026-08-13,POS SYNTH FUEL STATION,821.00,debit,expense,Transportation
+irregular,2026-08-14,SYNTH ONLINE MARKETPLACE ORDER,1122.00,debit,expense,Shopping
+irregular,2026-08-15,SYNTH MOBILE RECHARGE,1131.00,debit,expense,Utilities
+irregular,2026-08-15,UPI/SYNTH BROKING/synthbroker@okaxis ADD FUNDS,15000.00,debit,investment_out,Investments & Savings
+irregular,2026-08-16,POS SYNTH CAFE,450.00,debit,expense,Food & Dining
+irregular,2026-08-16,POS SYNTH RESTAURANT,599.00,debit,expense,Food & Dining
+irregular,2026-08-16,SYNTH METRO CARD TOPUP,305.00,debit,expense,Transportation
+irregular,2026-08-17,NEFT-SYNTH CLIENT INVOICE PAYMENT,25993.00,credit,income,Other Income
+irregular,2026-08-18,NEFT-SYNTH CLIENT INVOICE PAYMENT,10007.00,credit,income,Other Income
+irregular,2026-08-18,POS SYNTH CAFE,1065.00,debit,expense,Food & Dining
+irregular,2026-08-20,SYNTH ELECTRONICS ORDER,561.00,debit,expense,Shopping
+irregular,2026-08-20,UPI/SYNTH FOOD DELIVERY/synthfood@okhdfc,639.00,debit,expense,Food & Dining
+irregular,2026-08-21,POS SYNTH KIRANA STORE,900.00,debit,expense,Groceries
+irregular,2026-08-22,UPI/P2P/PAYEE-0001,428.00,debit,expense,Transfers
+irregular,2026-08-23,POS SYNTH FASHION STORE,781.00,debit,expense,Shopping
+irregular,2026-08-24,POS FRESH VEG SYNTH,1769.00,debit,expense,Groceries
+irregular,2026-08-24,POS SYNTH CAFE,896.00,debit,expense,Food & Dining
+irregular,2026-08-25,POS FRESH VEG SYNTH,619.00,debit,expense,Groceries
+irregular,2026-08-26,POS SYNTH KIRANA STORE,1159.00,debit,expense,Groceries
+irregular,2026-08-26,POS SYNTH RESTAURANT,625.00,debit,expense,Food & Dining
+irregular,2026-08-26,UPI/P2P/PAYEE-0003,562.00,debit,expense,Transfers
+irregular,2026-08-26,UPI/SYNTH CABS/synthcabs@okicici,388.00,debit,expense,Transportation
+irregular,2026-08-27,SYNTH MOBILE RECHARGE,899.00,debit,expense,Utilities
+irregular,2026-09-01,POS SYNTH CAFE,1038.00,debit,expense,Food & Dining
+irregular,2026-09-02,NEFT-SYNTH CLIENT INVOICE PAYMENT,41030.00,credit,income,Other Income
+irregular,2026-09-02,NEFT-SYNTH HOUSING SOCIETY RENT,15000.00,debit,expense,Housing & Rent
+irregular,2026-09-03,SYNTH METRO CARD TOPUP,403.00,debit,expense,Transportation
+irregular,2026-09-03,SYNTH ONLINE MARKETPLACE ORDER,666.00,debit,expense,Shopping
+irregular,2026-09-03,UPI/SYNTH FOOD DELIVERY/synthfood@okhdfc,514.00,debit,expense,Food & Dining
+irregular,2026-09-04,SYNTH FIBER BROADBAND,1030.00,debit,expense,Utilities
+irregular,2026-09-05,NACH/SYNTH MF SIP/FOLIO 0000001,2000.00,debit,investment_out,Investments & Savings
+irregular,2026-09-05,POS SYNTH RESTAURANT,452.00,debit,expense,Food & Dining
+irregular,2026-09-05,SYNTH CINEMAS TICKETS,1338.00,debit,expense,Entertainment
+irregular,2026-09-05,UPI/SYNTH FOOD DELIVERY/synthfood@okhdfc,983.00,debit,expense,Food & Dining
+irregular,2026-09-06,POS SYNTH FUEL STATION,627.00,debit,expense,Transportation
+irregular,2026-09-12,POS SYNTH CAFE,941.00,debit,expense,Food & Dining
+irregular,2026-09-13,SYNTH MOBILE RECHARGE,511.00,debit,expense,Utilities
+irregular,2026-09-13,UPI/SYNTHMART GROCERY/synthmart@okaxis,1226.00,debit,expense,Groceries
+irregular,2026-09-15,NEFT-SYNTH CLIENT INVOICE PAYMENT,46970.00,credit,income,Other Income
+irregular,2026-09-15,POS SYNTH KIRANA STORE,1870.00,debit,expense,Groceries
+irregular,2026-09-15,UPI/SYNTH CABS/synthcabs@okicici,674.00,debit,expense,Transportation
+irregular,2026-09-17,SYNTH RAIL BOOKING,12000.00,debit,expense,Travel
+irregular,2026-09-17,UPI/SYNTHMART GROCERY/synthmart@okaxis,843.00,debit,expense,Groceries
+irregular,2026-09-18,POS SYNTH RESTAURANT,827.00,debit,expense,Food & Dining
+irregular,2026-09-18,SYNTH ONLINE COURSE FEE,1000.00,debit,expense,Education
+irregular,2026-09-19,POS SYNTH KIRANA STORE,687.00,debit,expense,Groceries
+irregular,2026-09-21,UPI/SYNTHMART GROCERY/synthmart@okaxis,1126.00,debit,expense,Groceries
+irregular,2026-09-22,SYNTH GAMING STORE,1607.00,debit,expense,Entertainment
+irregular,2026-09-22,SYNTH METRO CARD TOPUP,361.00,debit,expense,Transportation
+irregular,2026-09-25,POS SYNTH FASHION STORE,972.00,debit,expense,Shopping
+irregular,2026-09-25,SYNTH FIBER BROADBAND,834.00,debit,expense,Utilities
+irregular,2026-09-26,POS SYNTH CAFE,881.00,debit,expense,Food & Dining
+irregular,2026-09-26,POS SYNTH FUEL STATION,846.00,debit,expense,Transportation
+irregular,2026-09-26,POS SYNTH RESTAURANT,734.00,debit,expense,Food & Dining
+irregular,2026-09-27,SYNTH ELECTRONICS ORDER,790.00,debit,expense,Shopping
+irregular,2026-09-27,UPI/P2P/PAYEE-0001,1120.00,debit,expense,Transfers
+irregular,2026-09-28,SYNTH METRO CARD TOPUP,395.00,debit,expense,Transportation
+irregular,2026-09-28,UPI/P2P/PAYEE-0001,701.00,debit,expense,Transfers
+irregular,2026-09-30,SB INT PD SYNTH BANK,600.00,credit,income,Interest
+overspender,2026-04-01,NEFT-SYNTH EMPLOYER PAYROLL,70000.00,credit,income,Salary
+overspender,2026-04-02,POS SYNTH RESTAURANT,857.00,debit,expense,Food & Dining
+overspender,2026-04-03,POS FRESH VEG SYNTH,1430.00,debit,expense,Groceries
+overspender,2026-04-03,SYNTH GAMING STORE,1382.00,debit,expense,Entertainment
+overspender,2026-04-05,NACH/SYNTH MF SIP/FOLIO 0000001,3000.00,debit,investment_out,Investments & Savings
+overspender,2026-04-05,NEFT-SYNTH HOUSING SOCIETY RENT,22000.00,debit,expense,Housing & Rent
+overspender,2026-04-05,POS SYNTH RESTAURANT,807.00,debit,expense,Food & Dining
+overspender,2026-04-05,SYNTH POWER ELECTRICITY BILL,1131.00,debit,expense,Utilities
+overspender,2026-04-05,SYNTH STREAMING MONTHLY,357.00,debit,expense,Subscriptions
+overspender,2026-04-06,POS SYNTH FUEL STATION,422.00,debit,expense,Transportation
+overspender,2026-04-07,SYNTH GYM MEMBERSHIP,1162.00,debit,expense,Personal Care
+overspender,2026-04-08,UPI/SYNTH FOOD DELIVERY/synthfood@okhdfc,671.00,debit,expense,Food & Dining
+overspender,2026-04-08,UPI/SYNTH FOOD DELIVERY/synthfood@okhdfc,687.00,debit,expense,Food & Dining
+overspender,2026-04-09,SYNTH GAMING STORE,906.00,debit,expense,Entertainment
+overspender,2026-04-10,SYNTH MOBILE RECHARGE,1006.00,debit,expense,Utilities
+overspender,2026-04-11,POS FRESH VEG SYNTH,1041.00,debit,expense,Groceries
+overspender,2026-04-11,POS FRESH VEG SYNTH,1223.00,debit,expense,Groceries
+overspender,2026-04-11,SYNTH METRO CARD TOPUP,744.00,debit,expense,Transportation
+overspender,2026-04-12,UPI/P2P/PAYEE-0002,1093.00,debit,expense,Transfers
+overspender,2026-04-12,UPI/SYNTHMART GROCERY/synthmart@okaxis,503.00,debit,expense,Groceries
+overspender,2026-04-13,POS SYNTH CAFE,454.00,debit,expense,Food & Dining
+overspender,2026-04-13,SYNTH MOBILE RECHARGE,995.00,debit,expense,Utilities
+overspender,2026-04-13,SYNTH STREAMING MONTHLY,595.00,debit,expense,Subscriptions
+overspender,2026-04-13,UPI/SYNTH FOOD DELIVERY/synthfood@okhdfc,501.00,debit,expense,Food & Dining
+overspender,2026-04-14,POS SYNTH FUEL STATION,764.00,debit,expense,Transportation
+overspender,2026-04-14,POS SYNTH SALON,1011.00,debit,expense,Personal Care
+overspender,2026-04-15,SYNTH ELECTRONICS ORDER,1769.00,debit,expense,Shopping
+overspender,2026-04-15,SYNTH METRO CARD TOPUP,592.00,debit,expense,Transportation
+overspender,2026-04-15,SYNTH ONLINE MARKETPLACE ORDER,1975.00,debit,expense,Shopping
+overspender,2026-04-16,UPI/P2P/PAYEE-0001,411.00,debit,expense,Transfers
+overspender,2026-04-17,NACH/SYNTH HEALTH INSURANCE PREMIUM,1500.00,debit,expense,Insurance
+overspender,2026-04-17,POS SYNTH CAFE,590.00,debit,expense,Food & Dining
+overspender,2026-04-17,POS SYNTH FASHION STORE,2023.00,debit,expense,Shopping
+overspender,2026-04-17,SYNTH METRO CARD TOPUP,556.00,debit,expense,Transportation
+overspender,2026-04-20,POS SYNTH FUEL STATION,625.00,debit,expense,Transportation
+overspender,2026-04-21,SYNTH CINEMAS TICKETS,920.00,debit,expense,Entertainment
+overspender,2026-04-22,POS SYNTH KIRANA STORE,1212.00,debit,expense,Groceries
+overspender,2026-04-22,UPI/SYNTH CABS/synthcabs@okicici,425.00,debit,expense,Transportation
+overspender,2026-04-23,POS SYNTH RESTAURANT,897.00,debit,expense,Food & Dining
+overspender,2026-04-23,SYNTH STREAMING MONTHLY,248.00,debit,expense,Subscriptions
+overspender,2026-04-23,UPI/SYNTH FOOD DELIVERY/synthfood@okhdfc,400.00,debit,expense,Food & Dining
+overspender,2026-04-25,POS SYNTH CAFE,917.00,debit,expense,Food & Dining
+overspender,2026-04-25,SYNTH GAMING STORE,1182.00,debit,expense,Entertainment
+overspender,2026-04-25,SYNTH HOTEL BOOKING,2834.00,debit,expense,Travel
+overspender,2026-04-25,UPI/P2P/PAYEE-0002,853.00,debit,expense,Transfers
+overspender,2026-04-25,UPI/SYNTH FOOD DELIVERY/synthfood@okhdfc,337.00,debit,expense,Food & Dining
+overspender,2026-04-26,POS SYNTH FUEL STATION,265.00,debit,expense,Transportation
+overspender,2026-04-26,POS SYNTH RESTAURANT,784.00,debit,expense,Food & Dining
+overspender,2026-04-27,SYNTH ELECTRONICS ORDER,1489.00,debit,expense,Shopping
+overspender,2026-04-27,SYNTH ELECTRONICS ORDER,1587.00,debit,expense,Shopping
+overspender,2026-04-28,POS SYNTH KIRANA STORE,1248.00,debit,expense,Groceries
+overspender,2026-05-01,NEFT-SYNTH EMPLOYER PAYROLL,70000.00,credit,income,Salary
+overspender,2026-05-01,POS SYNTH KIRANA STORE,1352.00,debit,expense,Groceries
+overspender,2026-05-01,SYNTH STREAMING MONTHLY,391.00,debit,expense,Subscriptions
+overspender,2026-05-02,UPI/SYNTH CABS/synthcabs@okicici,464.00,debit,expense,Transportation
+overspender,2026-05-03,POS SYNTH RESTAURANT,748.00,debit,expense,Food & Dining
+overspender,2026-05-04,NACH/SYNTH HEALTH INSURANCE PREMIUM,1500.00,debit,expense,Insurance
+overspender,2026-05-04,NEFT-SYNTH HOUSING SOCIETY RENT,22000.00,debit,expense,Housing & Rent
+overspender,2026-05-05,NACH/SYNTH MF SIP/FOLIO 0000001,3000.00,debit,investment_out,Investments & Savings
+overspender,2026-05-05,POS FRESH VEG SYNTH,1085.00,debit,expense,Groceries
+overspender,2026-05-06,SYNTH STREAMING MONTHLY,358.00,debit,expense,Subscriptions
+overspender,2026-05-07,SYNTH FIBER BROADBAND,1381.00,debit,expense,Utilities
+overspender,2026-05-07,SYNTH RAIL BOOKING,3025.00,debit,expense,Travel
+overspender,2026-05-08,UPI/SYNTH CABS/synthcabs@okicici,359.00,debit,expense,Transportation
+overspender,2026-05-08,UPI/SYNTH CABS/synthcabs@okicici,930.00,debit,expense,Transportation
+overspender,2026-05-08,UPI/SYNTH FOOD DELIVERY/synthfood@okhdfc,824.00,debit,expense,Food & Dining
+overspender,2026-05-09,SYNTH GAMING STORE,1139.00,debit,expense,Entertainment
+overspender,2026-05-11,SYNTH CINEMAS TICKETS,1514.00,debit,expense,Entertainment
+overspender,2026-05-11,SYNTH FIBER BROADBAND,792.00,debit,expense,Utilities
+overspender,2026-05-12,POS SYNTH RESTAURANT,728.00,debit,expense,Food & Dining
+overspender,2026-05-12,SYNTH ELECTRONICS ORDER,1675.00,debit,expense,Shopping
+overspender,2026-05-12,UPI/SYNTH CABS/synthcabs@okicici,543.00,debit,expense,Transportation
+overspender,2026-05-13,POS FRESH VEG SYNTH,1287.00,debit,expense,Groceries
+overspender,2026-05-13,POS SYNTH CAFE,511.00,debit,expense,Food & Dining
+overspender,2026-05-13,SYNTH FIBER BROADBAND,913.00,debit,expense,Utilities
+overspender,2026-05-14,POS SYNTH RESTAURANT,959.00,debit,expense,Food & Dining
+overspender,2026-05-14,SYNTH GAMING STORE,891.00,debit,expense,Entertainment
+overspender,2026-05-14,SYNTH ONLINE MARKETPLACE ORDER,2202.00,debit,expense,Shopping
+overspender,2026-05-15,UPI/P2P/PAYEE-0001,492.00,debit,expense,Transfers
+overspender,2026-05-16,UPI/P2P/PAYEE-0003,601.00,debit,expense,Transfers
+overspender,2026-05-18,POS SYNTH KIRANA STORE,979.00,debit,expense,Groceries
+overspender,2026-05-18,POS SYNTH SALON,898.00,debit,expense,Personal Care
+overspender,2026-05-19,POS FRESH VEG SYNTH,1430.00,debit,expense,Groceries
+overspender,2026-05-20,IMPS/OWN ACCOUNT TRANSFER SELF,15000.00,debit,transfer,Transfers
+overspender,2026-05-20,SYNTH GYM MEMBERSHIP,1386.00,debit,expense,Personal Care
+overspender,2026-05-20,UPI/SYNTH CABS/synthcabs@okicici,642.00,debit,expense,Transportation
+overspender,2026-05-20,UPI/SYNTH FOOD DELIVERY/synthfood@okhdfc,548.00,debit,expense,Food & Dining
+overspender,2026-05-21,UPI/SYNTH CABS/synthcabs@okicici,773.00,debit,expense,Transportation
+overspender,2026-05-23,POS SYNTH CAFE,864.00,debit,expense,Food & Dining
+overspender,2026-05-23,POS SYNTH RESTAURANT,990.00,debit,expense,Food & Dining
+overspender,2026-05-23,SYNTH ONLINE MARKETPLACE ORDER,2247.00,debit,expense,Shopping
+overspender,2026-05-23,UPI/P2P/PAYEE-0002,700.00,debit,expense,Transfers
+overspender,2026-05-23,UPI/SYNTH FOOD DELIVERY/synthfood@okhdfc,588.00,debit,expense,Food & Dining
+overspender,2026-05-24,SYNTH ELECTRONICS ORDER,1010.00,debit,expense,Shopping
+overspender,2026-05-25,POS SYNTH FUEL STATION,822.00,debit,expense,Transportation
+overspender,2026-05-26,POS SYNTH RESTAURANT,730.00,debit,expense,Food & Dining
+overspender,2026-05-26,UPI/SYNTH FOOD DELIVERY/synthfood@okhdfc,967.00,debit,expense,Food & Dining
+overspender,2026-05-27,POS SYNTH FASHION STORE,1400.00,debit,expense,Shopping
+overspender,2026-05-27,SYNTH CINEMAS TICKETS,1201.00,debit,expense,Entertainment
+overspender,2026-05-27,UPI/SYNTH CABS/synthcabs@okicici,320.00,debit,expense,Transportation
+overspender,2026-05-27,UPI/SYNTHMART GROCERY/synthmart@okaxis,851.00,debit,expense,Groceries
+overspender,2026-05-28,POS SYNTH RESTAURANT,449.00,debit,expense,Food & Dining
+overspender,2026-05-28,SYNTH STREAMING MONTHLY,451.00,debit,expense,Subscriptions
+overspender,2026-06-01,NEFT-SYNTH EMPLOYER PAYROLL,70000.00,credit,income,Salary
+overspender,2026-06-02,NEFT-SYNTH HOUSING SOCIETY RENT,22000.00,debit,expense,Housing & Rent
+overspender,2026-06-02,POS SYNTH FUEL STATION,664.00,debit,expense,Transportation
+overspender,2026-06-02,POS SYNTH RESTAURANT,1040.00,debit,expense,Food & Dining
+overspender,2026-06-02,SYNTH ONLINE MARKETPLACE ORDER,2177.00,debit,expense,Shopping
+overspender,2026-06-03,POS SYNTH SALON,1086.00,debit,expense,Personal Care
+overspender,2026-06-04,POS FRESH VEG SYNTH,1109.00,debit,expense,Groceries
+overspender,2026-06-04,UPI/SYNTH CABS/synthcabs@okicici,576.00,debit,expense,Transportation
+overspender,2026-06-05,NACH/SYNTH MF SIP/FOLIO 0000001,3000.00,debit,investment_out,Investments & Savings
+overspender,2026-06-05,POS SYNTH FUEL STATION,589.00,debit,expense,Transportation
+overspender,2026-06-06,NACH/SYNTH HEALTH INSURANCE PREMIUM,1500.00,debit,expense,Insurance
+overspender,2026-06-07,SYNTH MOBILE RECHARGE,962.00,debit,expense,Utilities
+overspender,2026-06-07,UPI/SYNTHMART GROCERY/synthmart@okaxis,1497.00,debit,expense,Groceries
+overspender,2026-06-08,POS SYNTH RESTAURANT,406.00,debit,expense,Food & Dining
+overspender,2026-06-09,POS SYNTH KIRANA STORE,1235.00,debit,expense,Groceries
+overspender,2026-06-09,UPI/SYNTH CABS/synthcabs@okicici,869.00,debit,expense,Transportation
+overspender,2026-06-09,UPI/SYNTHMART GROCERY/synthmart@okaxis,1166.00,debit,expense,Groceries
+overspender,2026-06-10,POS SYNTH FUEL STATION,509.00,debit,expense,Transportation
+overspender,2026-06-10,SYNTH ELECTRONICS ORDER,1359.00,debit,expense,Shopping
+overspender,2026-06-10,SYNTH ELECTRONICS ORDER,1883.00,debit,expense,Shopping
+overspender,2026-06-10,SYNTH STREAMING MONTHLY,620.00,debit,expense,Subscriptions
+overspender,2026-06-11,UPI/SYNTHMART GROCERY/synthmart@okaxis,966.00,debit,expense,Groceries
+overspender,2026-06-13,POS SYNTH CAFE,712.00,debit,expense,Food & Dining
+overspender,2026-06-14,POS SYNTH CAFE,468.00,debit,expense,Food & Dining
+overspender,2026-06-14,POS SYNTH RESTAURANT,978.00,debit,expense,Food & Dining
+overspender,2026-06-14,SYNTH CINEMAS TICKETS,998.00,debit,expense,Entertainment
+overspender,2026-06-15,POS SYNTH CAFE,773.00,debit,expense,Food & Dining
+overspender,2026-06-15,SYNTH STREAMING MONTHLY,267.00,debit,expense,Subscriptions
+overspender,2026-06-15,SYNTH STREAMING MONTHLY,313.00,debit,expense,Subscriptions
+overspender,2026-06-16,POS SYNTH FASHION STORE,1531.00,debit,expense,Shopping
+overspender,2026-06-16,SYNTH FIBER BROADBAND,1172.00,debit,expense,Utilities
+overspender,2026-06-16,SYNTH GYM MEMBERSHIP,1564.00,debit,expense,Personal Care
+overspender,2026-06-16,SYNTH METRO CARD TOPUP,883.00,debit,expense,Transportation
+overspender,2026-06-18,REFUND SYNTH ONLINE MARKETPLACE,1200.00,credit,income,Refund & Cashback
+overspender,2026-06-18,SYNTH CINEMAS TICKETS,1040.00,debit,expense,Entertainment
+overspender,2026-06-19,POS SYNTH RESTAURANT,941.00,debit,expense,Food & Dining
+overspender,2026-06-19,SYNTH CINEMAS TICKETS,777.00,debit,expense,Entertainment
+overspender,2026-06-19,SYNTH METRO CARD TOPUP,436.00,debit,expense,Transportation
+overspender,2026-06-19,UPI/P2P/PAYEE-0001,625.00,debit,expense,Transfers
+overspender,2026-06-20,POS SYNTH RESTAURANT,441.00,debit,expense,Food & Dining
+overspender,2026-06-21,SYNTH CINEMAS TICKETS,1760.00,debit,expense,Entertainment
+overspender,2026-06-21,UPI/SYNTH FOOD DELIVERY/synthfood@okhdfc,764.00,debit,expense,Food & Dining
+overspender,2026-06-23,SYNTH ELECTRONICS ORDER,1203.00,debit,expense,Shopping
+overspender,2026-06-23,UPI/SYNTHMART GROCERY/synthmart@okaxis,1296.00,debit,expense,Groceries
+overspender,2026-06-24,SYNTH AIRLINES TICKET,3584.00,debit,expense,Travel
+overspender,2026-06-24,SYNTH MOBILE RECHARGE,638.00,debit,expense,Utilities
+overspender,2026-06-24,UPI/SYNTH FOOD DELIVERY/synthfood@okhdfc,420.00,debit,expense,Food & Dining
+overspender,2026-06-25,UPI/P2P/PAYEE-0003,1008.00,debit,expense,Transfers
+overspender,2026-06-25,UPI/SYNTH FOOD DELIVERY/synthfood@okhdfc,537.00,debit,expense,Food & Dining
+overspender,2026-06-28,POS SYNTH RESTAURANT,852.00,debit,expense,Food & Dining
+overspender,2026-06-28,SYNTH METRO CARD TOPUP,617.00,debit,expense,Transportation
+overspender,2026-06-28,UPI/P2P/PAYEE-0003,450.00,debit,expense,Transfers
+overspender,2026-06-30,SB INT PD SYNTH BANK,450.00,credit,income,Interest
+overspender,2026-07-01,NEFT-SYNTH EMPLOYER PAYROLL,70000.00,credit,income,Salary
+overspender,2026-07-02,SYNTH FIBER BROADBAND,666.00,debit,expense,Utilities
+overspender,2026-07-02,UPI/P2P/PAYEE-0003,957.00,debit,expense,Transfers
+overspender,2026-07-03,SYNTH FIBER BROADBAND,1223.00,debit,expense,Utilities
+overspender,2026-07-03,UPI/SYNTHMART GROCERY/synthmart@okaxis,1283.00,debit,expense,Groceries
+overspender,2026-07-05,NACH/SYNTH MF SIP/FOLIO 0000001,3000.00,debit,investment_out,Investments & Savings
+overspender,2026-07-05,NEFT-SYNTH HOUSING SOCIETY RENT,22000.00,debit,expense,Housing & Rent
+overspender,2026-07-05,POS SYNTH CAFE,598.00,debit,expense,Food & Dining
+overspender,2026-07-05,SYNTH GAMING STORE,1010.00,debit,expense,Entertainment
+overspender,2026-07-05,UPI/SYNTH FOOD DELIVERY/synthfood@okhdfc,1194.00,debit,expense,Food & Dining
+overspender,2026-07-07,POS SYNTH RESTAURANT,1107.00,debit,expense,Food & Dining
+overspender,2026-07-07,SYNTH METRO CARD TOPUP,262.00,debit,expense,Transportation
+overspender,2026-07-09,POS SYNTH CAFE,947.00,debit,expense,Food & Dining
+overspender,2026-07-09,UPI/SYNTH FOOD DELIVERY/synthfood@okhdfc,1182.00,debit,expense,Food & Dining
+overspender,2026-07-10,POS SYNTH RESTAURANT,653.00,debit,expense,Food & Dining
+overspender,2026-07-10,POS SYNTH RESTAURANT,999.00,debit,expense,Food & Dining
+overspender,2026-07-10,SYNTH METRO CARD TOPUP,503.00,debit,expense,Transportation
+overspender,2026-07-11,POS SYNTH RESTAURANT,539.00,debit,expense,Food & Dining
+overspender,2026-07-11,SYNTH ONLINE MARKETPLACE ORDER,1662.00,debit,expense,Shopping
+overspender,2026-07-11,UPI/SYNTHMART GROCERY/synthmart@okaxis,980.00,debit,expense,Groceries
+overspender,2026-07-12,UPI/SYNTHMART GROCERY/synthmart@okaxis,1187.00,debit,expense,Groceries
+overspender,2026-07-13,POS SYNTH FASHION STORE,2397.00,debit,expense,Shopping
+overspender,2026-07-13,SYNTH CINEMAS TICKETS,455.00,debit,expense,Entertainment
+overspender,2026-07-14,POS SYNTH CAFE,669.00,debit,expense,Food & Dining
+overspender,2026-07-14,SYNTH STREAMING MONTHLY,370.00,debit,expense,Subscriptions
+overspender,2026-07-15,POS SYNTH RESTAURANT,749.00,debit,expense,Food & Dining
+overspender,2026-07-15,SYNTH STREAMING MONTHLY,493.00,debit,expense,Subscriptions
+overspender,2026-07-16,SYNTH CINEMAS TICKETS,1042.00,debit,expense,Entertainment
+overspender,2026-07-16,UPI/SYNTH FOOD DELIVERY/synthfood@okhdfc,423.00,debit,expense,Food & Dining
+overspender,2026-07-17,POS SYNTH RESTAURANT,506.00,debit,expense,Food & Dining
+overspender,2026-07-17,SYNTH METRO CARD TOPUP,322.00,debit,expense,Transportation
+overspender,2026-07-18,UPI/SYNTH CABS/synthcabs@okicici,716.00,debit,expense,Transportation
+overspender,2026-07-19,POS SYNTH FASHION STORE,1464.00,debit,expense,Shopping
+overspender,2026-07-20,SYNTH GYM MEMBERSHIP,1365.00,debit,expense,Personal Care
+overspender,2026-07-20,SYNTH METRO CARD TOPUP,665.00,debit,expense,Transportation
+overspender,2026-07-21,NACH/SYNTH HEALTH INSURANCE PREMIUM,1500.00,debit,expense,Insurance
+overspender,2026-07-21,POS SYNTH SALON,816.00,debit,expense,Personal Care
+overspender,2026-07-21,SYNTH METRO CARD TOPUP,713.00,debit,expense,Transportation
+overspender,2026-07-22,SYNTH MF REDEMPTION PAYOUT,6000.00,credit,investment_in,Investment Redemption
+overspender,2026-07-22,POS SYNTH KIRANA STORE,1886.00,debit,expense,Groceries
+overspender,2026-07-23,SYNTH METRO CARD TOPUP,293.00,debit,expense,Transportation
+overspender,2026-07-23,SYNTH ONLINE MARKETPLACE ORDER,1728.00,debit,expense,Shopping
+overspender,2026-07-24,SYNTH STREAMING MONTHLY,337.00,debit,expense,Subscriptions
+overspender,2026-07-25,SYNTH ELECTRONICS ORDER,2037.00,debit,expense,Shopping
+overspender,2026-07-25,UPI/P2P/PAYEE-0002,690.00,debit,expense,Transfers
+overspender,2026-07-25,UPI/SYNTH CABS/synthcabs@okicici,692.00,debit,expense,Transportation
+overspender,2026-07-26,SYNTH GAMING STORE,1067.00,debit,expense,Entertainment
+overspender,2026-07-27,SYNTH MOBILE RECHARGE,1009.00,debit,expense,Utilities
+overspender,2026-07-27,UPI/SYNTHMART GROCERY/synthmart@okaxis,850.00,debit,expense,Groceries
+overspender,2026-07-28,POS SYNTH KIRANA STORE,1182.00,debit,expense,Groceries
+overspender,2026-07-28,SYNTH HOTEL BOOKING,3528.00,debit,expense,Travel
+overspender,2026-07-28,UPI/P2P/PAYEE-0003,640.00,debit,expense,Transfers
+overspender,2026-08-01,NEFT-SYNTH EMPLOYER PAYROLL,70000.00,credit,income,Salary
+overspender,2026-08-01,POS SYNTH KIRANA STORE,1110.00,debit,expense,Groceries
+overspender,2026-08-01,SYNTH STREAMING MONTHLY,452.00,debit,expense,Subscriptions
+overspender,2026-08-02,POS SYNTH CAFE,692.00,debit,expense,Food & Dining
+overspender,2026-08-03,NEFT-SYNTH HOUSING SOCIETY RENT,22000.00,debit,expense,Housing & Rent
+overspender,2026-08-04,POS SYNTH SALON,1264.00,debit,expense,Personal Care
+overspender,2026-08-05,NACH/SYNTH MF SIP/FOLIO 0000001,3000.00,debit,investment_out,Investments & Savings
+overspender,2026-08-05,POS SYNTH KIRANA STORE,1122.00,debit,expense,Groceries
+overspender,2026-08-05,SYNTH CINEMAS TICKETS,970.00,debit,expense,Entertainment
+overspender,2026-08-06,UPI/SYNTH CABS/synthcabs@okicici,433.00,debit,expense,Transportation
+overspender,2026-08-07,POS SYNTH RESTAURANT,804.00,debit,expense,Food & Dining
+overspender,2026-08-07,SYNTH METRO CARD TOPUP,943.00,debit,expense,Transportation
+overspender,2026-08-07,SYNTH ONLINE MARKETPLACE ORDER,1362.00,debit,expense,Shopping
+overspender,2026-08-08,POS SYNTH RESTAURANT,1026.00,debit,expense,Food & Dining
+overspender,2026-08-08,SYNTH FIBER BROADBAND,693.00,debit,expense,Utilities
+overspender,2026-08-09,POS SYNTH RESTAURANT,537.00,debit,expense,Food & Dining
+overspender,2026-08-10,UPI/P2P/PAYEE-0003,629.00,debit,expense,Transfers
+overspender,2026-08-10,UPI/SYNTH FOOD DELIVERY/synthfood@okhdfc,1036.00,debit,expense,Food & Dining
+overspender,2026-08-10,UPI/SYNTHMART GROCERY/synthmart@okaxis,1348.00,debit,expense,Groceries
+overspender,2026-08-11,POS SYNTH KIRANA STORE,711.00,debit,expense,Groceries
+overspender,2026-08-11,SYNTH CINEMAS TICKETS,984.00,debit,expense,Entertainment
+overspender,2026-08-12,SYNTH ELECTRONICS ORDER,2219.00,debit,expense,Shopping
+overspender,2026-08-12,UPI/SYNTHMART GROCERY/synthmart@okaxis,1632.00,debit,expense,Groceries
+overspender,2026-08-13,NACH/SYNTH HEALTH INSURANCE PREMIUM,1500.00,debit,expense,Insurance
+overspender,2026-08-14,UPI/P2P/PAYEE-0001,624.00,debit,expense,Transfers
+overspender,2026-08-15,SYNTH CINEMAS TICKETS,729.00,debit,expense,Entertainment
+overspender,2026-08-15,SYNTH METRO CARD TOPUP,647.00,debit,expense,Transportation
+overspender,2026-08-15,SYNTH METRO CARD TOPUP,878.00,debit,expense,Transportation
+overspender,2026-08-15,SYNTH STREAMING MONTHLY,448.00,debit,expense,Subscriptions
+overspender,2026-08-15,UPI/P2P/PAYEE-0003,609.00,debit,expense,Transfers
+overspender,2026-08-17,POS SYNTH FASHION STORE,1301.00,debit,expense,Shopping
+overspender,2026-08-17,UPI/SYNTHMART GROCERY/synthmart@okaxis,1422.00,debit,expense,Groceries
+overspender,2026-08-18,SYNTH STREAMING MONTHLY,300.00,debit,expense,Subscriptions
+overspender,2026-08-19,SYNTH METRO CARD TOPUP,507.00,debit,expense,Transportation
+overspender,2026-08-20,IMPS/OWN ACCOUNT TRANSFER SELF,15000.00,debit,transfer,Transfers
+overspender,2026-08-20,POS SYNTH CAFE,552.00,debit,expense,Food & Dining
+overspender,2026-08-20,SYNTH HOTEL BOOKING,2957.00,debit,expense,Travel
+overspender,2026-08-20,SYNTH MOBILE RECHARGE,801.00,debit,expense,Utilities
+overspender,2026-08-21,POS SYNTH RESTAURANT,768.00,debit,expense,Food & Dining
+overspender,2026-08-21,SYNTH METRO CARD TOPUP,508.00,debit,expense,Transportation
+overspender,2026-08-21,UPI/SYNTH FOOD DELIVERY/synthfood@okhdfc,381.00,debit,expense,Food & Dining
+overspender,2026-08-22,UPI/SYNTH FOOD DELIVERY/synthfood@okhdfc,864.00,debit,expense,Food & Dining
+overspender,2026-08-23,SYNTH METRO CARD TOPUP,343.00,debit,expense,Transportation
+overspender,2026-08-25,POS SYNTH RESTAURANT,740.00,debit,expense,Food & Dining
+overspender,2026-08-25,POS SYNTH RESTAURANT,823.00,debit,expense,Food & Dining
+overspender,2026-08-26,POS SYNTH CAFE,979.00,debit,expense,Food & Dining
+overspender,2026-08-26,SYNTH ELECTRONICS ORDER,994.00,debit,expense,Shopping
+overspender,2026-08-27,SYNTH GYM MEMBERSHIP,1366.00,debit,expense,Personal Care
+overspender,2026-08-27,SYNTH ONLINE MARKETPLACE ORDER,1444.00,debit,expense,Shopping
+overspender,2026-08-28,SYNTH FIBER BROADBAND,1546.00,debit,expense,Utilities
+overspender,2026-08-28,SYNTH GAMING STORE,928.00,debit,expense,Entertainment
+overspender,2026-08-28,SYNTH METRO CARD TOPUP,798.00,debit,expense,Transportation
+overspender,2026-09-01,NEFT-SYNTH EMPLOYER PAYROLL,70000.00,credit,income,Salary
+overspender,2026-09-01,NEFT-SYNTH HOUSING SOCIETY RENT,22000.00,debit,expense,Housing & Rent
+overspender,2026-09-01,SYNTH ONLINE MARKETPLACE ORDER,865.00,debit,expense,Shopping
+overspender,2026-09-01,UPI/SYNTH FOOD DELIVERY/synthfood@okhdfc,864.00,debit,expense,Food & Dining
+overspender,2026-09-02,SYNTH METRO CARD TOPUP,437.00,debit,expense,Transportation
+overspender,2026-09-03,POS SYNTH CAFE,697.00,debit,expense,Food & Dining
+overspender,2026-09-04,POS SYNTH CAFE,922.00,debit,expense,Food & Dining
+overspender,2026-09-04,POS SYNTH FASHION STORE,1629.00,debit,expense,Shopping
+overspender,2026-09-04,POS SYNTH RESTAURANT,997.00,debit,expense,Food & Dining
+overspender,2026-09-04,SYNTH GYM MEMBERSHIP,1213.00,debit,expense,Personal Care
+overspender,2026-09-05,NACH/SYNTH MF SIP/FOLIO 0000001,3000.00,debit,investment_out,Investments & Savings
+overspender,2026-09-05,POS SYNTH RESTAURANT,521.00,debit,expense,Food & Dining
+overspender,2026-09-05,SYNTH GAMING STORE,1073.00,debit,expense,Entertainment
+overspender,2026-09-05,UPI/SYNTH FOOD DELIVERY/synthfood@okhdfc,880.00,debit,expense,Food & Dining
+overspender,2026-09-05,UPI/SYNTHMART GROCERY/synthmart@okaxis,1221.00,debit,expense,Groceries
+overspender,2026-09-07,SYNTH FIBER BROADBAND,1295.00,debit,expense,Utilities
+overspender,2026-09-07,UPI/SYNTH CABS/synthcabs@okicici,660.00,debit,expense,Transportation
+overspender,2026-09-08,SYNTH STREAMING MONTHLY,373.00,debit,expense,Subscriptions
+overspender,2026-09-08,UPI/SYNTH CABS/synthcabs@okicici,336.00,debit,expense,Transportation
+overspender,2026-09-09,UPI/SYNTH FOOD DELIVERY/synthfood@okhdfc,734.00,debit,expense,Food & Dining
+overspender,2026-09-12,SYNTH RAIL BOOKING,3248.00,debit,expense,Travel
+overspender,2026-09-12,UPI/P2P/PAYEE-0001,586.00,debit,expense,Transfers
+overspender,2026-09-12,UPI/SYNTH FOOD DELIVERY/synthfood@okhdfc,491.00,debit,expense,Food & Dining
+overspender,2026-09-13,SYNTH GAMING STORE,935.00,debit,expense,Entertainment
+overspender,2026-09-14,POS FRESH VEG SYNTH,1010.00,debit,expense,Groceries
+overspender,2026-09-14,POS SYNTH RESTAURANT,995.00,debit,expense,Food & Dining
+overspender,2026-09-14,SYNTH ELECTRONICS ORDER,2176.00,debit,expense,Shopping
+overspender,2026-09-14,SYNTH GYM MEMBERSHIP,1166.00,debit,expense,Personal Care
+overspender,2026-09-14,SYNTH STREAMING MONTHLY,438.00,debit,expense,Subscriptions
+overspender,2026-09-14,UPI/P2P/PAYEE-0001,973.00,debit,expense,Transfers
+overspender,2026-09-15,POS SYNTH CAFE,870.00,debit,expense,Food & Dining
+overspender,2026-09-15,SYNTH ELECTRONICS ORDER,2301.00,debit,expense,Shopping
+overspender,2026-09-15,SYNTH GAMING STORE,740.00,debit,expense,Entertainment
+overspender,2026-09-15,SYNTH POWER ELECTRICITY BILL,701.00,debit,expense,Utilities
+overspender,2026-09-15,UPI/SYNTH CABS/synthcabs@okicici,577.00,debit,expense,Transportation
+overspender,2026-09-16,POS SYNTH FASHION STORE,2043.00,debit,expense,Shopping
+overspender,2026-09-17,POS SYNTH RESTAURANT,408.00,debit,expense,Food & Dining
+overspender,2026-09-18,NACH/SYNTH HEALTH INSURANCE PREMIUM,1500.00,debit,expense,Insurance
+overspender,2026-09-19,POS SYNTH CAFE,854.00,debit,expense,Food & Dining
+overspender,2026-09-20,SYNTH GAMING STORE,1592.00,debit,expense,Entertainment
+overspender,2026-09-20,UPI/SYNTH CABS/synthcabs@okicici,418.00,debit,expense,Transportation
+overspender,2026-09-21,POS SYNTH FUEL STATION,720.00,debit,expense,Transportation
+overspender,2026-09-21,POS SYNTH KIRANA STORE,1197.00,debit,expense,Groceries
+overspender,2026-09-22,UPI/SYNTH CABS/synthcabs@okicici,508.00,debit,expense,Transportation
+overspender,2026-09-23,POS FRESH VEG SYNTH,846.00,debit,expense,Groceries
+overspender,2026-09-24,POS FRESH VEG SYNTH,1426.00,debit,expense,Groceries
+overspender,2026-09-24,UPI/P2P/PAYEE-0003,590.00,debit,expense,Transfers
+overspender,2026-09-25,SYNTH STREAMING MONTHLY,389.00,debit,expense,Subscriptions
+overspender,2026-09-26,POS SYNTH FUEL STATION,303.00,debit,expense,Transportation
+overspender,2026-09-27,UPI/SYNTHMART GROCERY/synthmart@okaxis,1994.00,debit,expense,Groceries
+overspender,2026-09-28,SYNTH FIBER BROADBAND,1073.00,debit,expense,Utilities
+overspender,2026-09-30,SB INT PD SYNTH BANK,600.00,credit,income,Interest
