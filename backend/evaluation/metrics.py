@@ -129,3 +129,51 @@ def override_stats(rows: list[tuple[float, float, str]]) -> tuple[float, float |
     overridden = [(agent, final) for agent, final, source in rows if source == "user"]
     sized = [abs(final - agent) / agent for agent, final in overridden if agent > 0]
     return len(overridden) / len(rows), (sum(sized) / len(sized) if sized else None)
+
+
+# --- Financial Forecast Agent (Phase 5) ---
+#
+# Point errors (MAE, RMSE, MAPE, sMAPE) come from app/services/forecasting/metrics.py,
+# the SAME functions the agent's backtest uses. Only evaluation-specific ones live here:
+#
+#   coverage   share of forecasts whose interval [lower, upper] contained the actual
+#              value. An 80% interval should cover about 80%: far less = overconfident,
+#              far more = too wide to be useful (so always report it with the width)
+#   width      mean (upper - lower), in rupees
+#   regret     how much worse the backtest-selected model did than the best FIXED model
+#              chosen in hindsight (negative = selection beat every fixed model)
+#   confusion  TP/FP/FN/TN, precision, recall and F1 of a yes/no warning (cash crunch)
+
+
+def interval_coverage(actuals: list[float], lowers: list[float], uppers: list[float]) -> float:
+    """Share of actuals inside their [lower, upper] interval (bounds included)."""
+    if not actuals or not len(actuals) == len(lowers) == len(uppers):
+        raise ValueError("actuals, lowers and uppers must be non-empty and the same length")
+    return sum(1 for a, lo, hi in zip(actuals, lowers, uppers) if lo <= a <= hi) / len(actuals)
+
+
+def mean_interval_width(lowers: list[float], uppers: list[float]) -> float:
+    """Mean of upper - lower."""
+    if not lowers or len(lowers) != len(uppers):
+        raise ValueError("lowers and uppers must be non-empty and the same length")
+    return sum(hi - lo for lo, hi in zip(lowers, uppers)) / len(lowers)
+
+
+def selection_regret(selected_error: float, fixed_errors: dict[str, float]) -> tuple[float, str]:
+    """(selected error - best fixed error, name of that best fixed model)."""
+    if not fixed_errors:
+        raise ValueError("at least one fixed model error is needed")
+    best = min(fixed_errors, key=lambda name: (fixed_errors[name], name))
+    return selected_error - fixed_errors[best], best
+
+
+def confusion(truth_flags: list[bool], pred_flags: list[bool]) -> dict[str, float]:
+    """Counts plus precision/recall/F1 (precision/recall follow binary_precision_recall's empty-case rule)."""
+    precision, recall = binary_precision_recall(truth_flags, pred_flags)
+    pairs = list(zip(truth_flags, pred_flags))
+    counts = {
+        "tp": sum(1 for t, p in pairs if t and p), "fp": sum(1 for t, p in pairs if not t and p),
+        "fn": sum(1 for t, p in pairs if t and not p), "tn": sum(1 for t, p in pairs if not t and not p),
+    }
+    f1 = 2 * precision * recall / (precision + recall) if precision + recall else 0.0
+    return {**{k: float(v) for k, v in counts.items()}, "precision": precision, "recall": recall, "f1": f1}
