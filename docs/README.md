@@ -2,7 +2,7 @@
 
 Docs for the backend as of **Phase 5** (Financial Forecast Agent) on top of **Phase 4** (Budget Planning
 Agent) and **Phase 3B v3** (Expense Intelligence Agent: statement ingestion, investment flows, manual
-override, evaluation), plus the start of the frontend Test Console.
+override, evaluation), plus the frontend Test Console (every page built).
 
 Read in this order if you are new to the project:
 

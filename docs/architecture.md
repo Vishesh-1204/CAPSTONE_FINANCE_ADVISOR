@@ -165,4 +165,4 @@ Everything left of the LLM arrow in section 1 is local. Specifically:
 - Forecast: income is treated as known (no band), intervals cover about 61-65% instead of 80%, backtest selection
   does not beat the best fixed model on the synthetic panel, own-account transfers are not forecast (see
   [modules/forecast-evaluation.md](modules/forecast-evaluation.md)).
-- The frontend Test Console is only partly built (see [modules/frontend-console.md](modules/frontend-console.md)).
+- The frontend Test Console is a testing aid (token in `localStorage`); the Phase 12 dashboard replaces it (see [modules/frontend-console.md](modules/frontend-console.md)).

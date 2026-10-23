@@ -1,4 +1,4 @@
-# Module: Frontend Test Console (S7) — IN PROGRESS
+# Module: Frontend Test Console (S7)
 
 **Folder:** `frontend/` (Next.js 16, React 19, TypeScript, Tailwind 4, Shadcn UI, Recharts, plain `fetch`)
 
@@ -14,10 +14,10 @@ but its client and components are written to be reused there.
 | F0 | Scaffold, `lib/api.ts`, shared components, home page = backend connection check, `GET /api/categories` (backend) | **done** |
 | F1 | `/login` (login + register) | **done** |
 | F2 | `/upload` (drag-drop, password, import summary, run categorizer, past batches) | **done** |
-| F3 | `/transactions` (filters, paging, source badges, confidence bar, reasoning tooltip, lock, inline edit with "apply to similar" / "remember this payee") | not started |
-| F4 | `/review` (needs-review queue, bulk select + bulk category) | not started |
-| F5 | `/summary` (Recharts: expense by category; income vs expense vs investment) | not started |
-| F6 | `/rules` (list / delete payee rules) | not started |
+| F3 | `/transactions` (filters, paging, source badges, confidence bar, reasoning tooltip, lock, inline edit with "apply to similar" / "remember this payee") | **done** |
+| F4 | `/review` (needs-review queue, bulk select + bulk category) | **done** |
+| F5 | `/summary` (Recharts: expense by category; income vs expense vs investment) | **done** |
+| F6 | `/rules` (list / delete payee rules) | **done** |
 | P8 | `/budgets` (Phase 4: financial profile + income suggestion, generate plan, limits table with inline override / reset, status bars, Recharts spent vs limit) | **done** |
 | F10 | `/forecast` (Phase 5: 30/60/90 toggle, opening balance prefilled from the latest statement balance, cards, Recharts balance line with 80% band, cash-crunch banner, low-confidence notice, template / AI badge, budget warnings, recurring payments) | **done** |
 
@@ -45,6 +45,15 @@ Restart `npm run dev` after changing `.env.local` (`NEXT_PUBLIC_` values are bak
 | `components/api-error-alert.tsx` | Readable red error box |
 | `components/auth-guard.tsx`, `app/(console)/layout.tsx` | Pages inside the `(console)` route group require a token |
 | `components/ui/` | Shadcn-generated components |
+| `app/(console)/transactions/page.tsx` | `/transactions`: owns the filters, the page offset and the loaded page; one changed row is swapped locally, a change that may touch other rows (apply to similar, new payee rule) refetches |
+| `components/transaction-table.tsx` | Shared by /transactions and /review: badges, confidence bar, reasoning tooltip, lock/unlock, inline editor (category + the two checkboxes), optional row selection |
+| `components/transaction-badges.tsx` | `SourceBadge` (rule / memory / llm / user / payee rule), `TxnTypeBadge`, `ConfidenceBar` |
+| `components/transaction-filters.tsx`, `components/pager.tsx` | Filter bar (one control per query parameter) and Previous / Next with "Showing x–y of total" |
+| `components/category-select.tsx` | Category dropdown fed by `GET /api/categories/` (never hard-coded); `ANY` sentinel for "no filter" |
+| `app/(console)/review/page.tsx` | `/review`: the needs-review queue (least confident first), selection, bulk category with skipped / not-found ids reported |
+| `app/(console)/summary/page.tsx`, `components/summary-charts.tsx` | `/summary`: totals by transaction type, savings + investment rate, expenses by category (uncategorized in amber), income vs expenses vs investments |
+| `app/(console)/rules/page.tsx` | `/rules`: payee rules with a two-step delete (Delete → Confirm delete) |
+| `components/month-picker.tsx` | The `YYYY-MM` month input shared by /budgets and /summary (half-typed values are ignored) |
 | `app/(console)/budgets/page.tsx` | `/budgets`: owns the month and three loads (profile, limits, status); refetches after every change |
 | `components/financial-profile-card.tsx` | Income + savings % form (`PUT /api/profile/financial`), "Suggest from my income" (fills the field, saves nothing) |
 | `components/budget-plan-card.tsx` | Result of `POST /api/budgets/generate`: method, summary, feasibility, LLM used / guard result, data quality. Only shown right after generating (the summary is not stored) |
@@ -108,3 +117,35 @@ and a readable "Network error" with it stopped.
 5. Type `12.345` → a readable error before any call (nothing new in the raw panel).
 6. With an LLM key: badge "explanation: AI · guard passed"; without one: "explanation: template".
 7. The recurring table fills only after 3+ similar monthly payments (the fixtures are too short, by design).
+
+## Transactions, review, summary and rules notes (F3-F6)
+- **Editing a category** (pencil) opens an editor row under the transaction. The dropdown offers only labels that
+  fit the row's direction (debit or credit lists from `GET /api/categories/`). Saving locks the row
+  (`source=user`, lock icon) and keeps the agent's original label, shown as "agent said: …".
+  - "Apply to similar" also relabels your **unlocked** rows of the same payee; "Remember this payee" creates a
+    payee rule. Either one may change other rows, so the page refetches; otherwise only that row is swapped.
+  - The lock icon unlocks (the category stays; the agent may redo it on "Re-run, replacing AI results").
+- **Radix Select** cannot have an item whose value is `""`, so "any" options use the `ANY` sentinel from
+  `category-select.tsx`, and a label in both lists (e.g. "Transfers") is shown once.
+- **Review:** every fix makes a row leave the queue, so any change refetches it and clears the selection.
+  Changing page also clears the selection (never act on rows you cannot see). Bulk: rows the label does not fit
+  are skipped by the backend and listed by id.
+- **Summary:** only `txn_type=expense` is spending. Investments, redemptions and own-account transfers have their
+  own tiles. The "Uncategorized" bar is amber. The page only shows data for the selected month (no stale month).
+- **Rules:** there is no "add rule" button by design; rules come from "Remember this payee". Deleting a rule
+  only affects future categorization.
+
+## How to test (/transactions, /review, /summary, /rules)
+`npm run lint` and `npm run build` must pass. Manual, as a fresh synthetic user:
+1. Upload `backend/tests/fixtures/statements/messy.csv`, then open `/summary` for **2026-09**: everything is
+   "Uncategorized" (amber).
+2. `/transactions` → Categorize: rows get `rule` / `llm` badges and confidence bars; hover ⓘ for the reasoning.
+3. Filters: Type = Expense, From 2026-09-01 To 2026-09-30 → 16 rows; "Clear filters" resets; paging shows
+   "Showing 1–… of …".
+4. Pencil on an expense → choose "Shopping", tick "Remember this payee" → Save: notice with the payee rule, a lock
+   icon, "agent said: …". The dropdown has no income labels (Salary etc.) for a debit.
+5. Click the lock → unlocked, category kept.
+6. `/review`: 3 person-to-person transfers (guarded from the LLM, 50 %). Tick 2, choose "Transfers" → Apply:
+   "Updated 2 rows", they leave the queue. Choosing an income label for a debit row reports it as skipped.
+7. `/rules`: the rule from step 4 → Delete → Confirm delete → gone; the transaction keeps "Shopping".
+8. `/summary` 2026-09 again: categories now filled; income vs expenses vs investments chart; savings rate ≈ 55 %.
