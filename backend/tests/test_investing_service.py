@@ -5,13 +5,16 @@
 # the service only ever READS saved runs, so no forecast maths runs here.
 # Essential spending comes from Phase 4 budget rows. No LLM is involved yet.
 
+import json
 from datetime import date
 from decimal import Decimal
 
 import pytest
 from fastapi import HTTPException
 
+from app.agents.investment_explainer import InvestmentExplainer
 from app.core.config import settings
+from app.core.disclaimers import INVESTING_DISCLAIMER
 from app.models.budget import Budget
 from app.models.forecast import ForecastRun
 from app.models.investment import InvestmentPlan
@@ -19,6 +22,7 @@ from app.schemas.investment import HoldingIn, InvestmentProfileUpdate, SimulateR
 from app.services import budget_service
 from app.services import investment_service as svc
 from app.services.forecast_service import latest_run_row
+from app.services.investing.claims_guard import find_prohibited_claims
 from app.services.investing.sip_planner import required_sip
 
 AS_OF = date(2026, 10, 23)
@@ -27,9 +31,30 @@ BRAVE, CAUTIOUS = (5, 5, 5), (1, 1, 1)
 
 
 @pytest.fixture(autouse=True)
-def fast_simulation(monkeypatch):
-    """Fewer Monte Carlo paths keep the suite fast; the maths is the same."""
+def fast_simulation_and_no_llm(monkeypatch):
+    """Fewer Monte Carlo paths keep the suite fast (same maths); no test may reach a real LLM."""
     monkeypatch.setattr(settings, "INVEST_MC_PATHS", 200)
+    monkeypatch.setattr(svc, "_build_explainer", lambda: InvestmentExplainer(find_prohibited_claims, chains=[]))
+
+
+class FakeChain:
+    """Fake LLM: returns a canned answer (or raises) and records every request."""
+
+    def __init__(self, answer: str | Exception):
+        self.answer = answer
+        self.calls: list[dict] = []
+
+    def invoke(self, inputs: dict) -> str:
+        self.calls.append(inputs)
+        if isinstance(self.answer, Exception):
+            raise self.answer
+        return self.answer
+
+
+def use_fake_llm(monkeypatch, summary: str) -> FakeChain:
+    chain = FakeChain(json.dumps({"summary": summary}, ensure_ascii=False))
+    monkeypatch.setattr(svc, "_build_explainer", lambda: InvestmentExplainer(find_prohibited_claims, chain=chain))
+    return chain
 
 
 # --- Helpers ---
@@ -259,12 +284,14 @@ def test_plan_without_a_profile_is_409(db):
     assert error.value.status_code == 409
 
 
-def test_plan_is_stored_without_an_explanation_until_the_explainer_exists(db):
+def test_plan_is_stored_with_the_template_and_research_log_when_no_llm_is_configured(db):
     save_profile(db)
     run = add_forecast(db)
     plan = svc.generate_plan(db, 1, AS_OF)
     row = db.get(InvestmentPlan, plan["id"])
-    assert row.explanation is None and row.llm_used is False and row.explanation_source == "template"
+    assert row.explanation.endswith(INVESTING_DISCLAIMER) and "limit" in row.explanation
+    assert (row.llm_used, row.explanation_faithful, row.claims_compliant) == (False, None, None)
+    assert (row.llm_calls, row.raw_prohibited_claims, row.explanation_source) == (0, 0, "template")
     assert row.engine_version == svc.ENGINE_VERSION
     assert row.inputs_json["forecast_run_id"] == run.id and row.inputs_json["detected_monthly_sip"] == 3044.0
     assert row.assumptions_json["mc_seed"] == settings.INVEST_MC_SEED
@@ -309,6 +336,35 @@ def test_user_isolation(db):
     assert {"forecast_missing", "essentials_unknown", "no_holdings"} <= set(plan_b["warnings"])
     assert [p["id"] for p in svc.list_plans(db, 1, limit=10)["plans"]] == [plan_a["id"]]
     assert [p["id"] for p in svc.list_plans(db, 2, limit=10)["plans"]] == [plan_b["id"]]
+
+
+# --- Explanation (the agent itself is tested in test_investment_explainer.py) ---
+
+def test_faithful_llm_text_is_stored_with_one_call(db, monkeypatch):
+    essentials_20000(db)
+    add_forecast(db)
+    save_profile(db)
+    chain = use_fake_llm(monkeypatch, "Your category is aggressive and both factors agree. Projections are "
+                                      "scenarios under stated assumptions.")
+    plan = svc.generate_plan(db, 1, AS_OF)
+    row = db.get(InvestmentPlan, plan["id"])
+    assert len(chain.calls) == 1 and row.llm_calls == 1
+    assert (row.llm_used, row.explanation_faithful, row.claims_compliant) == (True, True, True)
+    assert plan["explanation_source"] == "llm" and plan["explanation"].endswith(INVESTING_DISCLAIMER)
+
+
+def test_prohibited_claim_is_logged_and_the_template_is_stored(db, monkeypatch):
+    save_profile(db)
+    svc.replace_holdings(db, 1, [HoldingIn(asset_class="equity", amount=Decimal("1000"), label="my secret label")],
+                         AS_OF)
+    chain = use_fake_llm(monkeypatch, "Index funds give guaranteed returns.")
+    plan = svc.generate_plan(db, 1, AS_OF)
+    row = db.get(InvestmentPlan, plan["id"])
+    # Privacy: holding labels never reach the LLM
+    assert "my secret label" not in chain.calls[0]["facts_json"]
+    assert (row.llm_used, row.explanation_faithful, row.claims_compliant) == (True, True, False)
+    assert row.raw_prohibited_claims == 1 and plan["explanation_source"] == "template"
+    assert "guaranteed" not in plan["explanation"].lower()
 
 
 # --- What-if and assumptions ---

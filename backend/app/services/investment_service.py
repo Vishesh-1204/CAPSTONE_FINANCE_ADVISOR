@@ -14,7 +14,8 @@
 #      (fallback: income minus budgets, with "forecast_missing"; never a silent guess)
 #   6. SIP: emergency top-up first, safety factor, capped by the goal's required SIP
 #   7. seeded Monte Carlo at the existing and the recommended SIP
-#   8. store an investment_plans row (explanation added by the explainer, Phase 6A-4)
+#   8. explanation: template or ONE guarded LLM call (agents/investment_explainer.py)
+#   9. store an investment_plans row with the explanation's research log
 #
 # Security: every query filters by the user_id from the JWT.
 
@@ -26,6 +27,7 @@ from decimal import Decimal
 from fastapi import HTTPException, status
 from sqlalchemy.orm import Session
 
+from app.agents.investment_explainer import InvestmentExplainer
 from app.core.config import settings
 from app.core.money import to_money
 from app.models.forecast import ForecastRun
@@ -35,6 +37,7 @@ from app.services import budget_service, forecast_service
 from app.services.budget_service import ESSENTIALS_NONE, EssentialSpending
 from app.services.investing.allocation import ASSET_CLASSES, rebalance_actions, target_allocation
 from app.services.investing.assumptions import InvestingAssumptions, load_assumptions
+from app.services.investing.claims_guard import find_prohibited_claims
 from app.services.investing.instrument_catalog import instruments_for
 from app.services.investing.monte_carlo import simulate_sip
 from app.services.investing.portfolio_stats import portfolio_return_and_volatility
@@ -74,6 +77,11 @@ def _emergency_months(liquid_savings: Decimal, essentials: EssentialSpending) ->
 
 def _risk_dict(risk: RiskProfile) -> dict:
     return asdict(risk)
+
+
+def _build_explainer() -> InvestmentExplainer:
+    """Replaced by a fake in the tests (monkeypatch), like forecast_service._build_explainer."""
+    return InvestmentExplainer.from_settings(find_prohibited_claims)
 
 
 # --- Profile ---
@@ -339,9 +347,13 @@ def generate_plan(
         "essentials_source": essentials.source,
         "essentials_months_used": essentials.months_used,
     }
+    assumptions_dict = assumptions.to_dict()
+    explanation = _build_explainer().explain(result, assumptions_dict)
     plan = InvestmentPlan(
-        user_id=user_id, inputs_json=inputs, result_json=result, assumptions_json=assumptions.to_dict(),
-        engine_version=ENGINE_VERSION,
+        user_id=user_id, inputs_json=inputs, result_json=result, assumptions_json=assumptions_dict,
+        engine_version=ENGINE_VERSION, explanation=explanation.text, llm_used=explanation.llm_used,
+        explanation_faithful=explanation.explanation_faithful, claims_compliant=explanation.claims_compliant,
+        llm_calls=explanation.llm_calls, raw_prohibited_claims=explanation.raw_prohibited_claims,
     )
     db.add(plan)
     db.commit()
@@ -349,7 +361,8 @@ def generate_plan(
     logger.info(
         f"Investment plan generated plan={plan.id} user_id={user_id} category={risk.category} "
         f"limiting={risk.limiting_factor} surplus_source={surplus.source} sip={sip.recommended_total} "
-        f"limited_by={sip.limited_by} warnings={warnings}"
+        f"limited_by={sip.limited_by} warnings={warnings} llm_used={explanation.llm_used} "
+        f"llm_calls={explanation.llm_calls} rejected_for={explanation.rejected_for}"
     )
     return plan_to_response(plan)
 

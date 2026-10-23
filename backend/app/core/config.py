@@ -128,6 +128,8 @@ class Settings(BaseSettings):
     INVEST_EMERGENCY_FILL_MONTHS: int = Field(default=12, ge=1, le=60)
     # A 30-day forecast made more than this many days ago covers a window that is over: "forecast_stale".
     INVEST_FORECAST_MAX_AGE_DAYS: int = Field(default=31, ge=1)
+    # Ablation switch: False = template explanations only, no LLM call.
+    INVEST_USE_LLM_EXPLANATIONS: bool = True
 
     model_config = SettingsConfigDict(env_file=".env", extra="ignore")
 

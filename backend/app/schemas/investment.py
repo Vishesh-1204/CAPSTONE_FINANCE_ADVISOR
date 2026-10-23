@@ -15,10 +15,9 @@ from typing import Literal
 
 from pydantic import BaseModel, Field, field_validator, model_validator
 
-DISCLAIMER = (
-    "Educational planning tool, not financial advice. "
-    "Projections are scenarios under stated assumptions, not guarantees."
-)
+from app.core.disclaimers import INVESTING_DISCLAIMER
+
+DISCLAIMER = INVESTING_DISCLAIMER
 
 AssetClass = Literal["equity", "debt", "gold", "cash"]                 # allocation.ASSET_CLASSES
 RiskCategory = Literal["conservative", "moderate", "aggressive"]       # allocation policy base keys
