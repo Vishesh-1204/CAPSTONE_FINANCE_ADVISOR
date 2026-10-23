@@ -131,6 +131,28 @@ ask for more money than the month leaves. Engine 6.1 keeps R4 and warns `emergen
 
   The same 22 people are infeasible for every method; the baselines' other 99 violations are avoidable.
 
+## Real-LLM explanation sample (`--llm real`, one run)
+
+One run finished on 2026-10-23 at 17:26 IST: the first 30 personas through the real `generate_plan`, Gemini
+(`gemini-3.5-flash-lite`, free tier, synthetic data only), 500 paths (the explanation metrics do not depend on the
+path count). Results: `backend/evaluation/results/investing_metrics_paths500_llm_20261023_115604.md` (gitignored).
+
+| Metric | Value | n |
+|---|---|---|
+| LLM answered (provider returned text) | 66.7% | 30 |
+| LLM calls per plan | 1.00 | 30 |
+| Raw faithfulness (numeric guards passed, before any fallback) | 100.0% | 20 answered |
+| Raw prohibited claims per plan (claims found in the RAW text) | 0.00 | 20 answered |
+| Raw compliant rate (claims guard passed) | 100.0% | 20 answered |
+| Fallback to the template | 33.3% (10 / 30) | 30 |
+
+**Read with care.** All 10 fallbacks are provider failures (no answer), not guard rejections: every answer that
+came back passed both guards and was used. The run finished **before** three later commits, so it measured
+engine 6.0 with claims guard **v1** and **no pause between calls** (the free-tier rate limit is the likely cause of
+the 10 failures; the pause was added in `8d012a0` for that reason). n = 20 answered plans is small, and a 0%
+prohibited-claims rate under the stricter v2 guard is not measured. Treat this as a first sanity check, not a
+result for the paper.
+
 ## Results before the fixes (engine 6.0; offline, seed 42, 2,000 paths)
 
 These are the numbers that motivated the one round of fixes above. They are kept as the "before" record; the
@@ -189,7 +211,7 @@ Per rule (violation rate over the personas the rule applies to; path-independent
 ### Explanations
 
 - Real pipeline sample: P in the harness = the real `generate_plan` on **30 / 30** personas; the template passes
-  every guard on 30 / 30. Real-LLM rates: not measured yet (`--llm real`, approved, pending).
+  every guard on 30 / 30. Real-LLM rates: see [Real-LLM explanation sample](#real-llm-explanation-sample---llm-real-one-run).
 - Claims guard on 60 sentences (none independent): precision 66.7%, recall 66.7%, false-positive rate 33.3%.
   All 9 negations are flagged (by design) plus one factual sentence about deposit insurance; the 10 misses are
   promises without the trigger words ("surely", "locked in", "fully protected", "cannot fail", "no downside").
@@ -229,7 +251,8 @@ infeasible given the surplus) and allocation violations are 0%; the trade-offs b
 
 - Synthetic personas with independently drawn attributes (unrealistic combinations; R7 almost never applies).
   The spending-variability range (5-30%) is a modelling choice that drives the gap between low and mean surplus
-  (median low/mean = 0.61; 12.6% of personas have a low surplus ≤ 0).
+  (median low/mean = 0.61; 12.6% of personas have a low surplus ≤ 0); see the variability sensitivity table
+  (section 5b of `backend/evaluation/investing_metrics.md`).
 - No ground truth: the rules are the team's pre-registered judgement; three of eight (R1, R2, R4) are enforced
   by P's design, and R3a is a trade-off with R4 (relabelled after seeing the engine 6.1 results). All rules were
   written by the method's author (no independent labelling).
@@ -237,6 +260,8 @@ infeasible given the surplus) and allocation violations are 0%; the trade-offs b
 - The panel replay has no savings data, so it tests surplus sizing only (no emergency fund, no goal).
 - The 60 guard sentences were written by the same side as the regex; recall is optimistic.
 - `goal_p75` uses a heuristic return adjustment; its achieved probability is measured, not assumed.
+- Projections start from Rs 0: they cover the monthly SIP only, existing holdings are not included (in the
+  evaluation and in the app's plan projection).
 
 ## Run it
 
@@ -253,8 +278,9 @@ Only the default run (2,000 paths, 500 personas, seed 42, no LLM, with the panel
 
 ## Next research steps
 
-- Teammate-written rules and ≥ 20 independent guard sentences, each in its own marked commit, then re-run.
-- `--llm real` on the 30-persona sample: raw faithful / compliant rates, fallback rate, calls per plan.
+- Re-run `--llm real` on engine 6.1 with claims guard v2 and the pause between calls (the only run so far
+  predates all three and lost 10 of 30 calls to the provider; see the real-LLM section). Report the same four
+  numbers: raw faithfulness, raw prohibited claims, fallback rate, calls per plan.
 - Paired significance tests on `investing_persona_rows_*.csv` (same personas, common random numbers).
 - Correlated persona sampling (or a targeted subset) so R7 and the "strong" segment are tested.
 - Replace the placeholder returns with cited figures and re-run the sensitivity table; Phase 7 index history
