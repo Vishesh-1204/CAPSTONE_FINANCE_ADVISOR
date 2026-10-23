@@ -2,6 +2,7 @@
 
 from typing import Literal
 
+from pydantic import Field
 from pydantic_settings import BaseSettings, SettingsConfigDict
 
 
@@ -103,6 +104,32 @@ class Settings(BaseSettings):
     FORECAST_RECURRING_FREQUENCY_CHECK: bool = True
     # Ablation switch: False = template explanations only, no LLM call.
     FORECAST_USE_LLM_EXPLANATIONS: bool = True
+
+    # --- Investment Advisor Agent (Phase 6) ---
+    # Annual expected return and volatility per asset class (0.11 = 11%).
+    # ILLUSTRATIVE PLACEHOLDERS for development, NOT market data: replace them with
+    # figures from a cited source (and add a low/base/high sensitivity table) before publication.
+    INVEST_EQUITY_RETURN: float = Field(default=0.11, gt=-1, lt=1)
+    INVEST_EQUITY_VOL: float = Field(default=0.17, ge=0, lt=1)
+    INVEST_DEBT_RETURN: float = Field(default=0.06, gt=-1, lt=1)
+    INVEST_DEBT_VOL: float = Field(default=0.04, ge=0, lt=1)
+    INVEST_GOLD_RETURN: float = Field(default=0.07, gt=-1, lt=1)
+    INVEST_GOLD_VOL: float = Field(default=0.14, ge=0, lt=1)
+    INVEST_CASH_RETURN: float = Field(default=0.035, gt=-1, lt=1)
+    INVEST_CASH_VOL: float = Field(default=0.005, ge=0, lt=1)
+    # The SIP uses only this share of the lower-band surplus (a buffer for bad months).
+    INVEST_SIP_SAFETY_FACTOR: float = Field(default=0.8, gt=0, le=1)
+    # Monte Carlo paths per projection, and the seed (same inputs + seed = same answer).
+    INVEST_MC_PATHS: int = Field(default=2000, ge=100, le=20000)
+    INVEST_MC_SEED: int = 42
+    # The emergency fund is topped up to this many months of essential spending ...
+    INVEST_EMERGENCY_TARGET_MONTHS: float = Field(default=6.0, gt=0, le=24)
+    # ... spread over this many months of the surplus.
+    INVEST_EMERGENCY_FILL_MONTHS: int = Field(default=12, ge=1, le=60)
+    # A 30-day forecast made more than this many days ago covers a window that is over: "forecast_stale".
+    INVEST_FORECAST_MAX_AGE_DAYS: int = Field(default=31, ge=1)
+    # Ablation switch: False = template explanations only, no LLM call.
+    INVEST_USE_LLM_EXPLANATIONS: bool = True
 
     model_config = SettingsConfigDict(env_file=".env", extra="ignore")
 

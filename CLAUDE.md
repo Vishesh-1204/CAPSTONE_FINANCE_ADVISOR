@@ -67,13 +67,37 @@ research value, explainability and maintainability over quick fixes.
   F9 global LightGBM model (adds scikit-learn + lightgbm).
 - Done: Phase 5 F10 frontend /forecast page (horizon toggle, statement-balance prefill, Recharts balance + 80% band,
   cash-crunch banner, low-confidence notice, template/AI badge, budget warnings, recurring table, raw panel).
-- Next: Phase 6 Investment Advisor (after the forecast and console PRs are merged into DEV).
+- Done: Phase 6A + 6B backend (spec docs/phase6-spec.md, decisions in its section 14) on branch
+  feature/vishesh-investing, 745 tests passing, live smoke test 16/16. Migration 0005 (investment_profiles,
+  holdings with CHECK + NOT NULL label, investment_plans with (user_id, created_at DESC) index), pure modules in
+  services/investing/ (risk scoring, allocation, portfolio stats, SIP planner, Monte Carlo, claims guard, catalog,
+  assumptions from INVEST_* settings = illustrative placeholders, cite before publishing), investment_service
+  (lower-band surplus from the latest 30-day forecast, essentials via budget_service.average_essential_spending,
+  warnings forecast_missing/forecast_stale/surplus_unknown/essentials_unknown/no_holdings), agents/
+  investment_explainer.py (pre-formatted facts with Indian digit grouping, rupee + percentage + lakh/crore +
+  claims guards, claims checker injected by the service, disclaimer from core/disclaimers.py added after the
+  guards), /api/investing/* (9 routes). 6B: evaluation/investing_rules.py (pre-registered, committed alone first),
+  investing_personas.py (500, seed 42), investing_methods.py (B0, B1, B2, P, two mixed variants, 7 ablations),
+  evaluate_investing.py -> backend/evaluation/investing_metrics.csv + .md (2,000 paths, committed). Engine 6.1
+  (one round of fixes after the 6.0 run, logged in docs/modules/investing-evaluation.md): P breaks R4 0.0% (was
+  15.6%; top-up now capped at the surplus) and R5 0.0% (was 58.5%; fragile-household cap), allocation rules broken
+  0.0% (was 16.6%), vs 100% R4 for the naive-SIP baselines. R3a 18.2% is a trade-off (relabelled from enforced
+  after seeing results): all 22 violations are infeasible given the surplus (0 avoidable). Panel replay: SIP from
+  low band x 0.8 exceeds the actual next-month surplus in 28.4% of 450 forecasts vs 47.3% for the mean surplus.
+  Docs: docs/modules/investing.md, investing-evaluation.md; api/database/testing/architecture updated.
+- Done: Phase 6C frontend /investing page (F11, docs/modules/frontend-console.md) + GET /api/investing/plans/{plan_id}
+  for the plan history, 771 tests passing, smoke 16/16.
+- Next: Phase 7 (Stock Intelligence). No teammate rules or guard sentences (decided 2026-10-23): all rules
+  and guard sentences are written by the method's author, stated as a limitation.
 - Known gaps: no HuggingFace/Llama provider in llm/factory.py yet (approved stack); person guard recall 0.857
   (1 person-like string reached the LLM stage in the offline eval); budget guard only checks amounts with a
   currency marker; B2 (--llm real) faithfulness not measured yet; synthetic personas do not react to budgets.
   Forecast: backtest selection does not beat the best fixed model on the panel (regret +Rs 82 to +Rs 629);
   interval coverage 61-65% vs 80% target; income treated as known (freelancer net cash flow MAE ~Rs 49k);
   own-account transfers not forecast; forecast LLM faithfulness (--llm real) not measured yet.
+  Investing: claims guard recall 67% / every negation flagged on the 60 hand-labelled sentences (none independent
+  yet); goal SIP sized at the expected return (~50% chance by construction); R7 applies to 1 persona only
+  (independent attribute draws); normal returns, no tax/fees/inflation.
 
 ## Architecture (clean layers: each layer only calls the one below it)
 backend/app/
@@ -98,6 +122,7 @@ Every query that touches user data must filter by user_id.
 - Run unit tests:          docker compose exec backend python -m pytest tests -q
 - Smoke test (live API):   docker compose exec backend python -m scripts.smoke_test   (needs compose up)
 - Evaluation (offline):    docker compose exec backend python -m evaluation.evaluate_categorizer
+                           (also evaluate_budget, evaluate_forecast, evaluate_investing [--paths 500 for dev])
 - Frontend (host):         cd frontend; npm run dev   -> open http://localhost:3000 (not 127.0.0.1, CORS)
 - Manual API testing:      http://127.0.0.1:8000/docs (Swagger). Authorize with the login token.
 - In PowerShell `curl` is an alias for Invoke-WebRequest. Use Swagger, or `curl.exe` with escaped quotes.

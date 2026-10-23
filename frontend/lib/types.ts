@@ -334,3 +334,189 @@ export interface RecurringList {
   as_of: string;
   items: RecurringItem[];
 }
+
+// --- investing (schemas/investment.py, Phase 6) ---
+// Every investing response carries `disclaimer` (added by backend code, never by the LLM).
+export type AssetClass = "equity" | "debt" | "gold" | "cash";
+export type RiskCategory = "conservative" | "moderate" | "aggressive";
+// which side set the final category; "both" = tolerance and capacity gave the same category
+export type LimitingFactor = "tolerance" | "capacity" | "both";
+export type RebalanceAction = "add" | "reduce" | "hold";
+export type SipLimitedBy = "capacity" | "target" | "none";
+export type ExplanationSource = "llm" | "template";
+
+/** The three questionnaire answers, each 1 (most cautious) to 5 (most comfortable with risk). */
+export interface ToleranceAnswers {
+  reaction_to_20pct_drop: number;
+  investing_experience: number;
+  return_vs_safety: number;
+}
+
+export interface RiskProfile {
+  tolerance_score: number; // 0-100, attitude (questionnaire)
+  capacity_score: number; // 0-100, finances (emergency fund, income stability, dependents, horizon)
+  tolerance_category: RiskCategory;
+  capacity_category: RiskCategory;
+  category: RiskCategory; // the safer of the two
+  limiting_factor: LimitingFactor;
+}
+
+/** PUT /api/investing/profile body (money as numbers; the backend accepts at most 2 decimals). */
+export interface InvestmentProfileUpdate {
+  answers: ToleranceAnswers;
+  liquid_savings: number;
+  existing_monthly_sip: number;
+  income_stability: number; // 1 = irregular ... 5 = very stable
+  dependents: number;
+  horizon_years: number;
+}
+
+export interface InvestmentProfile {
+  answers: ToleranceAnswers;
+  liquid_savings: number;
+  existing_monthly_sip: number;
+  income_stability: number;
+  dependents: number;
+  horizon_years: number;
+  emergency_fund_months: number; // liquid savings / average monthly essential spending
+  risk_profile: RiskProfile;
+  updated_at: string | null;
+  disclaimer: string;
+}
+
+export interface HoldingIn {
+  asset_class: AssetClass;
+  amount: number;
+  label: string; // "" = no label
+}
+
+export interface Holding {
+  asset_class: AssetClass;
+  amount: number;
+  label: string;
+  as_of: string; // YYYY-MM-DD
+  weight: number; // share of the total, 0-1
+}
+
+export interface HoldingsResponse {
+  holdings: Holding[];
+  total: number;
+  weights_by_class: Partial<Record<AssetClass, number>>;
+  disclaimer: string;
+}
+
+export interface RebalanceRow {
+  asset_class: AssetClass;
+  current_weight: number;
+  target_weight: number;
+  amount_change: number; // rupees to add (+) or reduce (-) at the same total
+  action: RebalanceAction;
+}
+
+export interface SipRecommendation {
+  capacity_total: number; // most the user can safely invest per month
+  recommended_total: number;
+  change_vs_existing: number;
+  emergency_topup: number; // monthly amount reserved to fill the emergency fund
+  limited_by: SipLimitedBy;
+  emergency_topup_capped: boolean; // the whole surplus goes to the fund
+}
+
+/** Monte Carlo range at one monthly SIP. Scenarios under assumptions, not predictions. */
+export interface Projection {
+  monthly_sip: number;
+  years: number;
+  p10: number; // bad case
+  p50: number; // typical case
+  p90: number; // good case
+  probability_of_goal: number | null; // null when no goal was given
+  months_to_goal: number | null; // null: no goal, zero SIP, or over 100 years
+  n_paths: number;
+}
+
+export interface InstrumentTypes {
+  asset_class: AssetClass;
+  instrument_types: string[]; // instrument TYPES only, never named funds
+  note: string;
+}
+
+export interface AssetAssumption {
+  asset_class: AssetClass;
+  expected_return: number; // annual, 0.10 = 10%
+  volatility: number; // annual standard deviation
+}
+
+export interface InvestingAssumptions {
+  assets: AssetAssumption[];
+  sip_safety_factor: number;
+  mc_paths: number;
+  mc_seed: number;
+  note: string; // "illustrative placeholders, not cited market data"
+  disclaimer: string;
+}
+
+export interface InvestmentPlan {
+  id: number;
+  created_at: string | null;
+  risk_profile: RiskProfile;
+  target_allocation: Partial<Record<AssetClass, number>>;
+  current_allocation: Partial<Record<AssetClass, number>>;
+  rebalance: RebalanceRow[];
+  sip: SipRecommendation;
+  projection_current: Projection; // at the existing SIP
+  projection_recommended: Projection;
+  portfolio: { expected_return: number; volatility: number }; // of the TARGET split
+  emergency_fund: {
+    essential_monthly_spend: number;
+    essentials_source: "budget" | "history" | "none";
+    months_covered: number;
+    target_months: number;
+    gap: number; // rupees still missing to reach target_months
+  };
+  surplus: {
+    monthly_low: number; // lower-band monthly surplus BEFORE investing
+    source: "forecast" | "budget" | "none";
+    forecast_as_of: string | null;
+  };
+  goal: { amount: number | null; years: number; required_sip: number | null };
+  instruments: InstrumentTypes[];
+  assumptions: InvestingAssumptions; // the ones THIS plan was computed with
+  warnings: string[]; // codes such as "forecast_missing", "forecast_stale"
+  forecast_run_id: number | null;
+  explanation: string | null;
+  explanation_source: ExplanationSource; // "llm" only when the LLM text passed both guards
+  llm_used: boolean;
+  explanation_faithful: boolean | null;
+  claims_compliant: boolean | null;
+  engine_version: string;
+  disclaimer: string;
+}
+
+export interface PlanHistoryItem {
+  id: number;
+  created_at: string | null;
+  category: RiskCategory;
+  recommended_sip: number;
+  explanation_source: ExplanationSource;
+}
+
+export interface PlanHistory {
+  plans: PlanHistoryItem[];
+  disclaimer: string;
+}
+
+export interface SimulateRequest {
+  monthly_sip: number;
+  years: number; // 1-40
+  category: RiskCategory;
+  goal_amount?: number;
+}
+
+export interface SimulateResponse {
+  category: RiskCategory;
+  target_allocation: Partial<Record<AssetClass, number>>;
+  expected_return: number;
+  volatility: number;
+  projection: Projection;
+  disclaimer: string;
+}

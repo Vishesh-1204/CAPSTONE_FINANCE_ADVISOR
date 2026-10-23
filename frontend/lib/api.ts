@@ -23,11 +23,20 @@ import type {
   ForecastHistoryItem,
   ForecastHorizon,
   ForecastRun,
+  HoldingIn,
+  HoldingsResponse,
   ImportBatch,
   IncomeSuggestion,
+  InvestingAssumptions,
+  InvestmentPlan,
+  InvestmentProfile,
+  InvestmentProfileUpdate,
   MonthlySummary,
   PayeeRule,
+  PlanHistory,
   RecurringList,
+  SimulateRequest,
+  SimulateResponse,
   StatementImportSummary,
   Token,
   Transaction,
@@ -254,4 +263,26 @@ export const api = {
   listForecastHistory: (limit = 20) => apiFetch<ForecastHistoryItem[]>("/api/forecast/history", { query: { limit } }),
   getForecastRun: (id: number) => apiFetch<ForecastRun>(`/api/forecast/runs/${id}`),
   getRecurringItems: () => apiFetch<RecurringList>("/api/forecast/recurring"),
+
+  // investing (Phase 6). GET profile and GET plan/latest return 404 until the first one is saved.
+  getInvestmentProfile: () => apiFetch<InvestmentProfile>("/api/investing/profile"),
+  saveInvestmentProfile: (profile: InvestmentProfileUpdate) =>
+    apiFetch<InvestmentProfile>("/api/investing/profile", { method: "PUT", json: profile }),
+  getHoldings: () => apiFetch<HoldingsResponse>("/api/investing/holdings"),
+  // REPLACES the whole list (an empty list clears it)
+  saveHoldings: (holdings: HoldingIn[]) =>
+    apiFetch<HoldingsResponse>("/api/investing/holdings", { method: "PUT", json: { holdings } }),
+  // 409 without a risk profile; goal_years needs goal_amount (422 otherwise)
+  generateInvestmentPlan: (goalAmount?: number, goalYears?: number) =>
+    apiFetch<InvestmentPlan>("/api/investing/plan", {
+      method: "POST",
+      json: { goal_amount: goalAmount ?? null, goal_years: goalYears ?? null },
+    }),
+  getLatestInvestmentPlan: () => apiFetch<InvestmentPlan>("/api/investing/plan/latest"),
+  listInvestmentPlans: (limit = 20) => apiFetch<PlanHistory>("/api/investing/plans", { query: { limit } }),
+  getInvestmentPlan: (id: number) => apiFetch<InvestmentPlan>(`/api/investing/plans/${id}`),
+  // what-if: nothing is stored
+  simulateInvestment: (request: SimulateRequest) =>
+    apiFetch<SimulateResponse>("/api/investing/simulate", { method: "POST", json: request }),
+  getInvestingAssumptions: () => apiFetch<InvestingAssumptions>("/api/investing/assumptions"),
 };

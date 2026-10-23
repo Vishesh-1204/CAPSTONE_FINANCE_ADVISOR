@@ -1,0 +1,147 @@
+# backend/evaluation/investing_rules.py
+#
+# Purpose: PRE-REGISTERED suitability rules for the Investment Advisor evaluation
+# (Phase 6B). There is no ground truth for a "suitable" allocation, so instead of
+# scoring methods against labels we score them against rules written down BEFORE
+# any method was evaluated. This file was committed on its own, before
+# evaluation/investing_methods.py existed; the git history is the proof.
+#
+# Rules look only at RAW persona facts (age, horizon, emergency months, income
+# stability, dependents, questionnaire answers, surpluses) and at what a method
+# RECOMMENDS (equity share, SIP, emergency top-up). They never look at a
+# method's own scores or categories, so they cannot simply copy P's design.
+#
+# Honesty labels (column "design"):
+#   enforced     P is BUILT to satisfy the rule (R1, R2, R4). P scoring 0% there
+#                proves little; it only checks the implementation.
+#   trade_off    P is built to satisfy the rule, but NOT at the cost of R4 (R3a). When even the
+#                whole low-band surplus cannot fill the emergency fund in time, meeting R3a would
+#                ask for more money than the month leaves; engine 6.1 keeps R4. The report splits
+#                its violations into "avoidable" and "infeasible given the surplus".
+#   independent  judgement P was NOT tuned for (R5, R6, R7). These carry more weight.
+#   secondary    a stricter reading P fails BY DESIGN (R3b), reported to show the trade-off.
+#   fixed_after_evaluation  an independent rule that found a weakness, after which P was CHANGED to
+#                satisfy it (R5). Its after-fix score is no longer independent evidence for P.
+#
+# Changes after seeing the results (one round only; docs/modules/investing-evaluation.md logs the
+# before/after numbers). The rule CONDITIONS below are unchanged since the pre-registration commit;
+# only these labels and notes changed:
+#   R4  P broke it for 15.6% of personas (the emergency top-up was not capped at the surplus).
+#       Engine 6.1 caps it, so R4 is now 0% by design: a regression test, not evidence.
+#   R5  P broke it for 58.5% (a long horizon hid a fragile household in the capacity average).
+#       Engine 6.1 adds CAPACITY_CAP_FRAGILE_HOUSEHOLD; relabelled independent -> fixed_after_evaluation.
+#   R7  applies to 1 persona in the main run: reported as "not evaluated"; see the separate
+#       stratified run for a real R7 result.
+#   R3a P went from 0.0% to 18.2% (22 of 121 applicable personas) as the direct cost of the R4 fix.
+#       All 22 have SIP = 0 and none break R4: their low-band surplus x 12 cannot fill the
+#       emergency fund to 3 months, so no plan can satisfy both R3a and R4 for them.
+#       Relabelled enforced -> trade_off AFTER seeing the engine 6.1 results, for that reason.
+#
+# Rule kinds: "allocation" (R1, R2, R5, R6, R7) and "sip" (R3a, R3b, R4) are reported
+# separately, so a reader can see whether a method wins on allocation or on SIP sizing.
+#
+# Authors: R1-R7 written by Vishesh with Claude Code on 2026-10-23, after reading the
+# Phase 6 spec. All rules (and the guard sentences) were written by the same author as the
+# method: there is no independent labelling. The write-up states this as a limitation.
+#
+# Pure Python: no database, no app imports.
+
+from collections.abc import Callable
+from dataclasses import dataclass
+
+EPSILON = 1e-9           # float slack for share comparisons
+RUPEE_SLACK = 1.0        # rupee slack for money comparisons (rounding to paise)
+EMERGENCY_FLOOR_MONTHS = 3.0
+EMERGENCY_FILL_MONTHS = 12
+
+ALLOCATION, SIP = "allocation", "sip"
+ENFORCED, INDEPENDENT, SECONDARY = "enforced", "independent", "secondary"
+FIXED_AFTER_EVALUATION = "fixed_after_evaluation"
+TRADE_OFF = "trade_off"          # R3a: relabelled after seeing the engine 6.1 results (see the header)
+
+
+@dataclass(frozen=True)
+class PersonaFacts:
+    """The raw facts a rule may look at (never a method's own scores)."""
+    age: int
+    horizon_years: float
+    emergency_months: float          # liquid savings / monthly essential spending
+    income_stability: int            # 1 = irregular ... 5 = very stable
+    dependents: int
+    answers: tuple[int, int, int]    # questionnaire, each 1 (cautious) ... 5 (comfortable with risk)
+    essential_monthly: float         # rupees a month of must-pay spending
+    liquid_savings: float
+    low_surplus: float               # lower-band monthly surplus BEFORE investing
+
+
+@dataclass(frozen=True)
+class Recommendation:
+    """What a method recommends for one persona."""
+    equity: float                    # equity share of the target allocation, 0-1
+    monthly_sip: float               # total monthly SIP
+    emergency_topup: float           # monthly amount set aside for the emergency fund
+
+
+@dataclass(frozen=True)
+class Rule:
+    rule_id: str
+    kind: str                        # ALLOCATION | SIP
+    design: str                      # ENFORCED | TRADE_OFF | INDEPENDENT | SECONDARY | FIXED_AFTER_EVALUATION
+    author: str
+    description: str
+    applies: Callable[[PersonaFacts], bool]
+    satisfied: Callable[[PersonaFacts, Recommendation], bool]
+
+
+def gap_to_floor(facts: PersonaFacts) -> float:
+    """Rupees missing to reach EMERGENCY_FLOOR_MONTHS of essential spending."""
+    return max(0.0, EMERGENCY_FLOOR_MONTHS * facts.essential_monthly - facts.liquid_savings)
+
+
+_TEAM = "vishesh+claude-code (2026-10-23)"
+
+RULES: tuple[Rule, ...] = (
+    Rule("R1", ALLOCATION, ENFORCED, _TEAM,
+         "Horizon under 1 year: no equity.",
+         lambda f: f.horizon_years < 1,
+         lambda f, r: r.equity <= EPSILON),
+    Rule("R2", ALLOCATION, ENFORCED, _TEAM,
+         "Horizon under 3 years: equity at most 20%.",
+         lambda f: f.horizon_years < 3,
+         lambda f, r: r.equity <= 0.20 + EPSILON),
+    Rule("R3a", SIP, TRADE_OFF, _TEAM,
+         "Under 3 months of emergency fund: the monthly top-up must reach 3 months within 12 months "
+         "(reserved before any SIP).",
+         lambda f: f.emergency_months < EMERGENCY_FLOOR_MONTHS,
+         lambda f, r: r.emergency_topup * EMERGENCY_FILL_MONTHS >= gap_to_floor(f) - RUPEE_SLACK),
+    Rule("R3b", SIP, SECONDARY, _TEAM,
+         "Strict reading: under 3 months of emergency fund, no SIP at all.",
+         lambda f: f.emergency_months < EMERGENCY_FLOOR_MONTHS,
+         lambda f, r: r.monthly_sip <= RUPEE_SLACK),
+    Rule("R4", SIP, ENFORCED, _TEAM,
+         "SIP plus emergency top-up never exceeds the lower-band monthly surplus (no SIP when it is <= 0).",
+         lambda f: True,
+         lambda f, r: r.monthly_sip + r.emergency_topup <= max(0.0, f.low_surplus) + RUPEE_SLACK),
+    Rule("R5", ALLOCATION, FIXED_AFTER_EVALUATION, _TEAM,
+         "Irregular income (stability <= 2) and 2 or more dependents: equity at most 40%.",
+         lambda f: f.income_stability <= 2 and f.dependents >= 2,
+         lambda f, r: r.equity <= 0.40 + EPSILON),
+    Rule("R6", ALLOCATION, INDEPENDENT, _TEAM,
+         "Every questionnaire answer <= 2 (a cautious person): equity at most 30%.",
+         lambda f: max(f.answers) <= 2,
+         lambda f, r: r.equity <= 0.30 + EPSILON),
+    Rule("R7", ALLOCATION, INDEPENDENT, _TEAM,
+         "Not over-cautious: horizon >= 10 years, emergency fund >= 6 months, stability >= 4, "
+         "dependents <= 1 and every answer >= 4: equity at least 50%.",
+         lambda f: (f.horizon_years >= 10 and f.emergency_months >= 6 and f.income_stability >= 4
+                    and f.dependents <= 1 and min(f.answers) >= 4),
+         lambda f, r: r.equity >= 0.50 - EPSILON),
+)
+
+
+def check(facts: PersonaFacts, recommendation: Recommendation) -> dict[str, bool | None]:
+    """rule_id -> True (satisfied), False (violated) or None (does not apply to this persona)."""
+    return {
+        rule.rule_id: (rule.satisfied(facts, recommendation) if rule.applies(facts) else None)
+        for rule in RULES
+    }

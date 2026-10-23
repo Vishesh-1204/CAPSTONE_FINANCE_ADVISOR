@@ -1,7 +1,7 @@
 # backend/scripts/smoke_test.py
 #
 # Purpose: end-to-end SMOKE TEST of the running API (Phase 2 auth -> Phase 3
-# import/categorize -> Phase 4 budgets -> Phase 5 forecast). Unlike the pytest suite (SQLite + fake
+# import/categorize -> Phase 4 budgets -> Phase 5 forecast -> Phase 6 investing). Unlike the pytest suite (SQLite + fake
 # LLM, in-process), this talks to the REAL server over HTTP, with the real
 # Postgres database and migrations, so it catches wiring problems the unit
 # tests cannot see (missing router, broken migration, CORS-free HTTP errors...).
@@ -10,7 +10,8 @@
 # categorize -> save the financial profile -> income suggestion -> generate the
 # budget for NEXT month -> status -> override one limit -> regenerate ->
 # confirm the override survived -> forecast without a balance (400, the CSV has
-# no balance column) -> 30-day forecast with a typed balance -> latest/history/recurring.
+# no balance column) -> 30-day forecast with a typed balance -> latest/history/recurring ->
+# investing: risk profile, holdings, plan (uses that forecast), simulate (not stored).
 #
 # Synthetic data only: every merchant and amount below is made up, and every
 # description matches a keyword rule, so categorization needs no LLM call.
@@ -44,6 +45,13 @@ SAVINGS_TARGET_PCT = 20
 OVERRIDE_CATEGORY = "Food & Dining"  # a discretionary category the CSV is sure to produce
 OPENING_BALANCE = 50_000             # typed by the "user": the smoke CSV has no balance column
 FORECAST_DAYS = 30
+INVEST_PROFILE = {                   # synthetic questionnaire and facts
+    "answers": {"reaction_to_20pct_drop": 4, "investing_experience": 2, "return_vs_safety": 4},
+    "liquid_savings": 150_000, "existing_monthly_sip": 3_000, "income_stability": 4, "dependents": 1,
+    "horizon_years": 10,
+}
+INVEST_HOLDINGS = {"holdings": [{"asset_class": "equity", "amount": 80_000},
+                               {"asset_class": "debt", "amount": 20_000}]}
 
 
 class StepFailed(Exception):
@@ -204,6 +212,7 @@ class SmokeTest:
             ("forecast without a balance is 400", self.forecast_needs_balance),
             (f"generate {FORECAST_DAYS}-day forecast", self.generate_forecast),
             ("forecast latest, history, recurring", self.forecast_reads),
+            ("investing: profile, holdings, plan, simulate", self.investing),
         ]
 
     # Each step returns a short detail string for the PASS line, or raises StepFailed.
@@ -351,6 +360,42 @@ class SmokeTest:
         if "income" not in kinds:
             raise StepFailed(f"the monthly salary was not detected as recurring income: {recurring['items']}")
         return f"latest={latest['id']} history={len(history)} recurring kinds={kinds}"
+
+    def investing(self) -> str:
+        profile = expect(self.api.request("PUT", "/api/investing/profile", json_body=INVEST_PROFILE), 200,
+                         "investing profile")
+        holdings = expect(self.api.request("PUT", "/api/investing/holdings", json_body=INVEST_HOLDINGS), 200,
+                          "investing holdings")
+        if holdings["total"] != 100_000:
+            raise StepFailed(f"holdings total {holdings['total']}, expected 100000")
+        plan = expect(self.api.request("POST", "/api/investing/plan", json_body={"goal_amount": 500_000,
+                                                                                "goal_years": 5}),
+                      200, "investing plan")
+        if plan["forecast_run_id"] != self.forecast["id"] or plan["surplus"]["source"] != "forecast":
+            raise StepFailed(f"plan did not use this user's 30-day forecast: {plan['forecast_run_id']} "
+                             f"{plan['surplus']}")
+        if abs(sum(plan["target_allocation"].values()) - 1) > 1e-6:
+            raise StepFailed(f"target allocation does not sum to 1: {plan['target_allocation']}")
+        sip, projection = plan["sip"], plan["projection_recommended"]
+        if sip["recommended_total"] > sip["capacity_total"] + 0.01:
+            raise StepFailed(f"recommended SIP above capacity: {sip}")
+        if not projection["p10"] <= projection["p50"] <= projection["p90"]:
+            raise StepFailed(f"projection percentiles out of order: {projection}")
+        for name, body in (("profile", profile), ("holdings", holdings), ("plan", plan)):
+            if not body.get("disclaimer"):
+                raise StepFailed(f"{name} response has no disclaimer")
+        latest = expect(self.api.request("GET", "/api/investing/plan/latest"), 200, "investing latest plan")
+        if latest["id"] != plan["id"]:
+            raise StepFailed(f"latest plan is {latest['id']}, expected {plan['id']}")
+        simulation = expect(self.api.request("POST", "/api/investing/simulate", json_body={
+            "monthly_sip": 10_000, "years": 10, "category": "moderate"}), 200, "investing simulate")
+        plans = expect(self.api.request("GET", "/api/investing/plans"), 200, "investing plans")["plans"]
+        if [item["id"] for item in plans] != [plan["id"]]:
+            raise StepFailed(f"simulate must not store a plan; history is {plans}")
+        return (f"category={plan['risk_profile']['category']} ({plan['risk_profile']['limiting_factor']}) "
+                f"surplus_low={plan['surplus']['monthly_low']:.0f} sip={sip['recommended_total']:.0f} "
+                f"({sip['limited_by']}) p50={projection['p50']:.0f} warnings={plan['warnings']} "
+                f"explanation={plan['explanation_source']} simulate_p50={simulation['projection']['p50']:.0f}")
 
     def run(self) -> int:
         """Prints one PASS/FAIL line per step; stops at the first failure (later steps depend on it)."""

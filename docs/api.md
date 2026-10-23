@@ -51,6 +51,16 @@ The Pydantic shapes live in `backend/app/schemas/`; the TypeScript mirror is `fr
 | GET | `/api/forecast/history` | Your saved forecasts (summary), newest first |
 | GET | `/api/forecast/recurring` | Detected salary, bills and SIPs (read-only) |
 | GET | `/api/forecast/runs/{id}` | One saved forecast |
+| PUT | `/api/investing/profile` | Save the risk questionnaire and facts; returns the risk profile |
+| GET | `/api/investing/profile` | Your risk profile (404 until saved) |
+| PUT | `/api/investing/holdings` | Replace your holdings list (rupees per asset class) |
+| GET | `/api/investing/holdings` | Your holdings with weights |
+| POST | `/api/investing/plan` | Generate and save an investment plan (409 without a profile) |
+| GET | `/api/investing/plan/latest` | Your newest plan |
+| GET | `/api/investing/plans` | Your plans (summary), newest first |
+| GET | `/api/investing/plans/{plan_id}` | One of your plans in full (404 if missing or not yours) |
+| POST | `/api/investing/simulate` | What-if projection (not saved) |
+| GET | `/api/investing/assumptions` | The return/volatility assumptions in force |
 
 ---
 
@@ -283,6 +293,60 @@ cash_crunch_date, llm_used, created_at}]`, newest first; `limit` 1–100.
 `kind`: `income`, `fixed_expense` or `investment`. `active=false`: not seen for 45 days, so not projected.
 `projected_dates` covers the next 30 days. Never fails for lack of history (empty list).
 
+## Investing
+
+**Educational planning tool, not financial advice.** Every response carries `disclaimer` (added by code).
+The user is always the one in the token; a `user_id` in a body is ignored. `as_of` (optional, `YYYY-MM-DD`)
+works like the forecast's: default today (UTC), a future date → **422**.
+How it works: [modules/investing.md](modules/investing.md).
+
+### `PUT /api/investing/profile?as_of=` · `GET /api/investing/profile`
+```json
+{"answers": {"reaction_to_20pct_drop": 4, "investing_experience": 2, "return_vs_safety": 4},
+ "liquid_savings": 150000, "existing_monthly_sip": 3000, "income_stability": 4, "dependents": 1,
+ "horizon_years": 10}
+```
+Answers and `income_stability` 1–5, `dependents` 0–20, `horizon_years` 0–50, money ≥ 0 (≤ 2 decimals); else **422**.
+Response: the inputs plus `emergency_fund_months` (savings ÷ average monthly essential spending, 0 when unknown)
+and `risk_profile {tolerance_score, capacity_score, tolerance_category, capacity_category, category,
+limiting_factor ("tolerance"|"capacity"|"both")}`, `updated_at`, `disclaimer`. GET before a save → **404**.
+
+### `PUT /api/investing/holdings?as_of=` · `GET /api/investing/holdings`
+Body `{"holdings": [{"asset_class": "equity"|"debt"|"gold"|"cash", "amount": 80000, "label": "", "as_of": null}]}`
+REPLACES the list (`[]` clears it); at most 50 rows; a duplicate `(asset_class, label)` (case and spaces
+ignored) → **422**. Response `{holdings [{asset_class, amount, label, as_of, weight}], total, weights_by_class, disclaimer}`.
+
+### `POST /api/investing/plan?as_of=`
+Optional body `{"goal_amount": 500000, "goal_years": 5}` (`goal_years` 1–40 needs `goal_amount`; else **422**).
+No risk profile → **409**. Builds, explains and saves a plan. Response `InvestmentPlanResponse`: `id, created_at,
+risk_profile, target_allocation, current_allocation, rebalance [{asset_class, current_weight, target_weight,
+amount_change, action ("add"|"reduce"|"hold")}], sip {capacity_total, recommended_total, change_vs_existing,
+emergency_topup, limited_by}, projection_current / projection_recommended {monthly_sip, years, p10, p50, p90,
+probability_of_goal, months_to_goal, n_paths}, portfolio {expected_return, volatility}, emergency_fund
+{essential_monthly_spend, essentials_source, months_covered, target_months, gap}, surplus {monthly_low, source
+("forecast"|"budget"|"none"), forecast_as_of}, goal {amount, years, required_sip}, instruments, assumptions,
+warnings, forecast_run_id, explanation, explanation_source ("llm"|"template"), llm_used, explanation_faithful,
+claims_compliant, engine_version, disclaimer`.
+Warnings: `forecast_missing`, `forecast_stale`, `surplus_unknown`, `essentials_unknown`, `no_holdings`.
+
+### `GET /api/investing/plan/latest` · `GET /api/investing/plans?limit=20`
+`latest`: the newest `InvestmentPlanResponse`; **404** before the first. `plans`: `{plans [{id, created_at,
+category, recommended_sip, explanation_source}], disclaimer}`, newest first; `limit` 1–100.
+
+### `GET /api/investing/plans/{plan_id}`
+One saved plan as a full `InvestmentPlanResponse` (the frontend history list opens older plans with it).
+**404** when the id does not exist or belongs to another user (the same answer, so ids are not revealed).
+
+### `POST /api/investing/simulate`
+Body `{"monthly_sip": 10000, "years": 10, "category": "moderate", "goal_amount": null, "annual_step_up": 0}`:
+`years` 1–40, `monthly_sip` ≤ ₹1,00,00,000, `annual_step_up` 0–0.5, `category` conservative|moderate|aggressive.
+Not saved; the number of paths and the seed come from settings (a client cannot choose them).
+Response `{category, target_allocation, expected_return, volatility, projection, disclaimer}`.
+
+### `GET /api/investing/assumptions`
+`{assets [{asset_class, expected_return, volatility}], sip_safety_factor, mc_paths, mc_seed, note, disclaimer}`.
+The defaults are illustrative placeholders (see `INVEST_*` in `backend/.env.example`).
+
 ---
 
 ## Examples in PowerShell
@@ -313,4 +377,11 @@ curl.exe -s "http://127.0.0.1:8000/api/budgets/status?month=2026-10" -H "Authori
 # forecast: 60 days with a typed balance, then the detected recurring items
 curl.exe -s -X POST "http://127.0.0.1:8000/api/forecast/generate?horizon_days=60&opening_balance=45000" -H "Authorization: Bearer $token"
 curl.exe -s "http://127.0.0.1:8000/api/forecast/recurring" -H "Authorization: Bearer $token"
+
+# investing: profile, then a plan with a goal (generate a 30-day forecast first for the best surplus)
+curl.exe -s -X PUT http://127.0.0.1:8000/api/investing/profile -H "Authorization: Bearer $token" `
+  -H "Content-Type: application/json" `
+  -d '{\"answers\": {\"reaction_to_20pct_drop\": 4, \"investing_experience\": 2, \"return_vs_safety\": 4}, \"liquid_savings\": 150000, \"income_stability\": 4, \"dependents\": 1, \"horizon_years\": 10}'
+curl.exe -s -X POST http://127.0.0.1:8000/api/investing/plan -H "Authorization: Bearer $token" `
+  -H "Content-Type: application/json" -d '{\"goal_amount\": 500000, \"goal_years\": 5}'
 ```

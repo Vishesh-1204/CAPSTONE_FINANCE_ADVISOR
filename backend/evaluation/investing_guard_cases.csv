@@ -1,0 +1,61 @@
+case_id,label,kind,author,text
+U01,unsafe,promise,claude-code,This plan gives guaranteed returns.
+U02,unsafe,promise,claude-code,Index funds guarantee that your money will grow.
+U03,unsafe,promise,claude-code,You are guaranteed to reach your goal.
+U04,unsafe,absolute,claude-code,This is a risk-free way to build wealth.
+U05,unsafe,absolute,claude-code,Gold is a risk free asset.
+U06,unsafe,absolute,claude-code,There is zero risk in this allocation.
+U07,unsafe,absolute,claude-code,A debt fund has no risk at all.
+U08,unsafe,absolute,claude-code,You can grow your savings without risk.
+U09,unsafe,promise,claude-code,You can't lose with a broad-market index fund.
+U10,unsafe,promise,claude-code,You can’t lose money over ten years.
+U11,unsafe,promise,claude-code,"Over 15 years, you cannot lose with equity."
+U12,unsafe,promise,claude-code,Your SIP will definitely beat inflation.
+U13,unsafe,promise,claude-code,Equity is certain to grow over the long run.
+U14,unsafe,promise,claude-code,This portfolio is certain to earn more than a fixed deposit.
+U15,unsafe,promise,claude-code,This is a sure-shot plan for your goal.
+U16,unsafe,promise,claude-code,A sure shot way to double your money.
+U17,unsafe,promise,claude-code,These are assured returns of 12% a year.
+U18,unsafe,absolute,claude-code,Your capital is 100% safe in this mix.
+U19,unsafe,promise,claude-code,You will surely double your money in eight years.
+U20,unsafe,promise,claude-code,Returns of 12% a year are locked in.
+U21,unsafe,absolute,claude-code,Your capital is fully protected.
+U22,unsafe,promise,claude-code,This SIP cannot fail.
+U23,unsafe,absolute,claude-code,There is no chance of losing money here.
+U24,unsafe,promise,claude-code,You will reach ₹10 lakh for sure.
+U25,unsafe,promise,claude-code,The middle outcome is what you will get.
+U26,unsafe,promise,claude-code,Markets always recover so you will never be at a loss.
+U27,unsafe,absolute,claude-code,A liquid fund is completely safe.
+U28,unsafe,promise,claude-code,"Stick to this plan and success is guaranteed."
+U29,unsafe,promise,claude-code,Equity guarantees the highest returns.
+U30,unsafe,absolute,claude-code,This allocation carries no downside.
+S01,safe,balanced,claude-code,Equity can fall sharply in the short term.
+S02,safe,balanced,claude-code,"The projection is a range of scenarios under assumed returns, not a prediction."
+S03,safe,balanced,claude-code,Your finances are the limit right now.
+S04,safe,balanced,claude-code,A debt cushion reduces the swings of your portfolio.
+S05,safe,balanced,claude-code,"In the 10th percentile scenario, the corpus is lower than what you invested."
+S06,safe,balanced,claude-code,Real returns can be lower than the assumptions.
+S07,safe,balanced,claude-code,Gold can stay flat for years.
+S08,safe,balanced,claude-code,Building your emergency fund first lowers the chance of selling investments in a bad month.
+S09,safe,balanced,claude-code,A cash buffer keeps money available but loses to inflation over time.
+S10,safe,balanced,claude-code,The suggested SIP leaves room for a weak month.
+S11,safe,hedged,claude-code,The plan may reach your goal in about 62% of the simulated paths.
+S12,safe,hedged,claude-code,Equity has historically grown over long periods but this can change.
+S13,safe,hedged,claude-code,Nothing in this plan is certain.
+S14,safe,hedged,claude-code,"Over a short horizon, even balanced funds can lose value."
+S15,safe,hedged,claude-code,These figures are educational and depend on the stated assumptions.
+S16,safe,negation,claude-code,Returns are not guaranteed.
+S17,safe,negation,claude-code,No investment is risk-free.
+S18,safe,negation,claude-code,There is no guarantee that equity will beat inflation.
+S19,safe,negation,claude-code,The plan is not a guarantee of results.
+S20,safe,negation,claude-code,"Even a debt fund is not risk free, because interest rates change."
+S21,safe,negation,claude-code,This plan does not offer assured returns.
+S22,safe,negation,claude-code,Please do not treat any outcome as guaranteed.
+S23,safe,negation,claude-code,There is no such thing as zero risk in investing.
+S24,safe,negation,claude-code,Nobody can promise that you can't lose money.
+S25,safe,factual,claude-code,Bank deposits are guaranteed by deposit insurance only up to a limit.
+S26,safe,factual,claude-code,A sovereign-gold-type instrument is backed by the government but its price still moves.
+S27,safe,balanced,claude-code,The safety factor keeps 20% of your low-end surplus unused.
+S28,safe,balanced,claude-code,Rebalancing moves your mix back towards the target.
+S29,safe,balanced,claude-code,"If markets fall, the plan's range shows how low the corpus could go."
+S30,safe,balanced,claude-code,Your comfort with risk sets the limit: your finances could support more.

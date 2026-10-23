@@ -20,6 +20,7 @@ const LINKS = [
   { href: "/rules", label: "Rules" },
   { href: "/budgets", label: "Budgets" },
   { href: "/forecast", label: "Forecast" },
+  { href: "/investing", label: "Investing" },
 ];
 
 export function NavBar() {
