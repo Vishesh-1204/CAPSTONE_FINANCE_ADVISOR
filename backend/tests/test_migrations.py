@@ -168,3 +168,81 @@ def test_0004_keeps_existing_data_and_adds_forecast_runs(db_url):
             "50000, 18000, 20000, 15000, 25000, 3000, 9000, 19000, 14000, 24000, 'text', 0, '[]', '[]', '[]', '[]')"
         )
         assert connection.exec_driver_sql("SELECT created_at FROM forecast_runs").scalar() is not None
+
+
+_INVESTING_TABLES = {"investment_profiles", "holdings", "investment_plans"}
+
+
+def test_0005_adds_investing_tables_keeps_data_and_rolls_back_cleanly(db_url):
+    """
+    The real dev database is at 0004 with data. 0005 must only ADD the three
+    investing tables, and must be reversible: downgrade to 0004 removes exactly
+    those tables (old data intact), and upgrading again works.
+    """
+    config = _alembic_config(db_url)
+    command.upgrade(config, "0004")
+
+    engine = create_engine(db_url)
+    with engine.begin() as connection:
+        connection.exec_driver_sql(
+            "INSERT INTO users (id, email, full_name, hashed_password, is_active) VALUES (1, 'a@x.com', 'A', 'x', 1)"
+        )
+        connection.exec_driver_sql(
+            "INSERT INTO budgets (user_id, month, category, limit_amount, agent_limit_amount) "
+            "VALUES (1, '2026-10', 'Groceries', 5000, 5000)"
+        )
+
+    def version() -> str:
+        with engine.connect() as connection:
+            return connection.exec_driver_sql("SELECT version_num FROM alembic_version").scalar()
+
+    # 1. Upgrade: the tables and the newest-first plan index appear
+    command.upgrade(config, "head")
+    assert version() == "0005"
+    assert _INVESTING_TABLES <= set(inspect(engine).get_table_names())
+    with engine.begin() as connection:
+        index_sql = connection.exec_driver_sql(
+            "SELECT sql FROM sqlite_master WHERE type = 'index' AND name = 'ix_investment_plans_user_id_created_at'"
+        ).scalar()
+        assert index_sql is not None and "user_id, created_at DESC" in index_sql
+        assert float(connection.exec_driver_sql("SELECT limit_amount FROM budgets").scalar()) == 5000
+        # The new tables accept rows, and the server defaults fill in
+        connection.exec_driver_sql(
+            "INSERT INTO investment_profiles (user_id, tolerance_answers, capacity_facts, liquid_savings, "
+            "tolerance_score, capacity_score, category, limiting_factor) "
+            "VALUES (1, '{}', '{}', 150000.50, 75.0, 40.0, 'moderate', 'capacity')"
+        )
+        connection.exec_driver_sql(
+            "INSERT INTO holdings (user_id, asset_class, amount, as_of) VALUES (1, 'equity', 50000, '2026-10-23')"
+        )
+        connection.exec_driver_sql(
+            "INSERT INTO investment_plans (user_id, inputs_json, result_json, assumptions_json, engine_version) "
+            "VALUES (1, '{}', '{}', '{}', '6.0')"
+        )
+        profile = connection.exec_driver_sql("SELECT liquid_savings, existing_monthly_sip FROM investment_profiles").one()
+        assert float(profile.liquid_savings) == 150000.5 and float(profile.existing_monthly_sip) == 0
+        assert connection.exec_driver_sql("SELECT label FROM holdings").scalar() == ""
+        plan = connection.exec_driver_sql(
+            "SELECT llm_used, llm_calls, raw_prohibited_claims, explanation, created_at FROM investment_plans"
+        ).one()
+        assert (plan.llm_used, plan.llm_calls, plan.raw_prohibited_claims, plan.explanation) == (0, 0, 0, None)
+        assert plan.created_at is not None
+
+    # 2. Downgrade to 0004: exactly the investing tables (and their index) go, old data stays
+    command.downgrade(config, "0004")
+    assert version() == "0004"
+    tables = set(inspect(engine).get_table_names())
+    assert not (_INVESTING_TABLES & tables)
+    assert {"users", "transactions", "budgets", "forecast_runs"} <= tables
+    with engine.begin() as connection:
+        assert connection.exec_driver_sql(
+            "SELECT count(*) FROM sqlite_master WHERE type = 'index' AND name LIKE 'ix_investment_plans%'"
+        ).scalar() == 0
+        assert float(connection.exec_driver_sql("SELECT limit_amount FROM budgets").scalar()) == 5000
+
+    # 3. Upgrade again: no leftovers block a second run, and the tables are back (empty)
+    command.upgrade(config, "head")
+    assert version() == "0005"
+    assert _INVESTING_TABLES <= set(inspect(engine).get_table_names())
+    with engine.begin() as connection:
+        assert connection.exec_driver_sql("SELECT count(*) FROM investment_plans").scalar() == 0
