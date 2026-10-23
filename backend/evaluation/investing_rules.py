@@ -33,8 +33,8 @@
 # separately, so a reader can see whether a method wins on allocation or on SIP sizing.
 #
 # Authors: R1-R7 written by Vishesh with Claude Code on 2026-10-23, after reading the
-# Phase 6 spec. Rules written by a teammate who has NOT read P's code are added in a
-# LATER, separate commit and marked author="teammate:<name>" (none yet).
+# Phase 6 spec. All rules (and the guard sentences) were written by the same author as the
+# method: there is no independent labelling. The write-up states this as a limitation.
 #
 # Pure Python: no database, no app imports.
 

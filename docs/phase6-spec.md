@@ -1074,6 +1074,8 @@ Rule for the whole phase: ONE round of fixes found by the evaluation, each logge
 - Engine version 6.0 -> 6.1 (stored plans record it).
 - **Claims guard v2:** surely, for sure, locked in, fully protected, completely safe, no downside, cannot/can't fail,
   no chance of losing, never at a loss. Chosen after seeing v1's misses, so v1 numbers stay labelled "v1, on the
-  original 60 sentences" and new recall must come from teammate-written sentences.
+  original 60 sentences". Decision (2026-10-23): no teammate-written rules or sentences; the write-up states
+  that all rules and guard sentences were written by the same author as the method (no independent labelling),
+  so v2 recall is not measured on independent data; the real-LLM run is the only outside check.
 - Reporting only (no method change): R7 "not evaluated (n=1)" in the main run plus a separate stratified run; goal
   gap; variability sensitivity with the primary 5-30% range unchanged.

@@ -18,7 +18,7 @@
 #                  rule is compared with the ACTUAL surplus before investing in the
 #                  next 30 days. Links Phase 5 uncertainty to Phase 6 outcomes.
 #   4. claims guard  precision / recall on investing_guard_cases.csv (hand-labelled;
-#                  the `author` column says how many were written independently)
+#                  written by the method's author: no independent labelling)
 #   5. pipeline    30 personas through the REAL generate_plan (SQLite): P here must
 #                  equal the service, and the template must pass every guard.
 #                  --llm real: the same 30 through the configured LLM (synthetic data).
@@ -47,6 +47,7 @@
 import argparse
 import csv
 import logging
+import time
 from collections.abc import Callable, Iterator
 from contextlib import contextmanager
 from dataclasses import dataclass, field, replace
@@ -371,10 +372,6 @@ class GuardCase:
     def flagged(self) -> bool:
         return not is_compliant(self.text)
 
-    @property
-    def independent(self) -> bool:
-        return self.author.startswith("teammate")
-
 
 def load_guard_cases(path: Path = GUARD_CASES) -> list[GuardCase]:
     with path.open(encoding="utf-8", newline="") as handle:
@@ -383,10 +380,7 @@ def load_guard_cases(path: Path = GUARD_CASES) -> list[GuardCase]:
 
 def guard_metrics(cases: list[GuardCase]) -> list[dict]:
     records: list[dict] = []
-    for subset_name, subset in (("all", cases), ("independent", [c for c in cases if c.independent])):
-        if not subset:
-            records.append(_record("claims_guard", "claims_guard", DEFAULT_CONFIG, BASE, subset_name, "n", 0, 0))
-            continue
+    for subset_name, subset in (("all", cases),):
         unsafe = [c for c in subset if c.label == "unsafe"]
         safe = [c for c in subset if c.label == "safe"]
         flagged = [c for c in subset if c.flagged]
@@ -449,7 +443,7 @@ def _seed_persona(db: Session, persona: Persona) -> int:
 
 
 def pipeline_sample(personas: list[Persona], assumptions: InvestingAssumptions, paths: int,
-                    llm_factory: Callable[[], InvestmentExplainer] | None) -> list[dict]:
+                    llm_factory: Callable[[], InvestmentExplainer] | None, llm_delay: float = 0.0) -> list[dict]:
     """The real generate_plan on SQLite: P must match, the template must pass, and (optionally) the LLM."""
     engine = create_engine("sqlite://", poolclass=StaticPool, connect_args={"check_same_thread": False})
     Base.metadata.create_all(engine)
@@ -459,7 +453,9 @@ def pipeline_sample(personas: list[Persona], assumptions: InvestingAssumptions, 
     rows: list[dict] = []
     try:
         with overridden_settings({"INVEST_MC_PATHS": paths}), investment_explainer(llm_factory or template_only):
-            for persona in personas:
+            for number, persona in enumerate(personas):
+                if llm_factory is not None and llm_delay > 0 and number > 0:
+                    time.sleep(llm_delay)          # stay under the free tier's requests-per-minute limit
                 user_id = _seed_persona(db, persona)
                 plan = investment_service.generate_plan(
                     db, user_id, AS_OF, goal_amount=to_money(persona.goal_amount), goal_years=persona.horizon_years)
@@ -519,7 +515,7 @@ def run_evaluation(
     personas: int = DEFAULT_COUNT, seed: int = DEFAULT_SEED, paths: int = FINAL_PATHS, llm_mode: str = "none",
     llm_factory: Callable[[], InvestmentExplainer] | None = None, panel: bool = True,
     panel_origins: list[date] | None = None, sample: int = SERVICE_SAMPLE, stratified: bool = False,
-    variability: bool = True,
+    variability: bool = True, llm_delay: float = 0.0,
 ) -> EvaluationResult:
     """
     Every experiment. `panel=False` skips the slow replay; tests pass small numbers everywhere.
@@ -550,7 +546,7 @@ def run_evaluation(
     records += guard_metrics(cases)
     if llm_mode == "real" and llm_factory is None:
         llm_factory = lambda: InvestmentExplainer.from_settings(find_prohibited_claims)   # noqa: E731
-    records += pipeline_sample(pipeline_people, assumptions, paths, llm_factory)
+    records += pipeline_sample(pipeline_people, assumptions, paths, llm_factory, llm_delay)
     for record in records:
         record["llm_mode"], record["paths"] = llm_mode, paths
     info = {"personas": len(people), "seed": seed, "paths": paths, "llm_mode": llm_mode,
@@ -633,7 +629,6 @@ METHOD_LABELS = {
 def markdown_report(result: EvaluationResult) -> str:
     index = _Index(result.records)
     info = result.info
-    independent_cases = sum(1 for c in result.guard_cases if c.independent)
     if info["stratified"]:
         title = "# Investment Advisor Agent: STRATIFIED evaluation (rare corners, separate from the main results)"
         population = (f"Stratified personas: {info['personas']} (seed {info['seed']}), 25 per rare corner "
@@ -681,7 +676,8 @@ def markdown_report(result: EvaluationResult) -> str:
         "## 2. Violation rate per rule",
         "",
         "`enforced` rules are ones P is BUILT to satisfy, so P scoring 0% there only checks the implementation. "
-        "`independent` rules test judgement P was not tuned for and carry more weight. `secondary` (R3b) is a "
+        "`independent` rules test judgement P was not designed to satisfy (they are still written by the method's "
+        "author) and carry more weight. `secondary` (R3b) is a "
         "stricter reading P fails by design: P invests what is left after the emergency top-up. "
         "`fixed_after_evaluation` (R5) found a weakness that engine 6.1 fixed, so its score is no longer evidence. "
         f"A rule that applies to fewer than {MIN_RULE_N} personas is not evaluated.",
@@ -794,10 +790,10 @@ def markdown_report(result: EvaluationResult) -> str:
         "## 7. Claims guard on hand-labelled sentences",
         "",
         f"Claims guard **{GUARD_VERSION}**. {len(result.guard_cases)} synthetic sentences in "
-        f"evaluation/investing_guard_cases.csv, **{independent_cases} written independently** of the regex. "
-        f"The v2 phrases were added AFTER seeing v1's misses on these same sentences, so the numbers below are "
-        f"NOT evidence of recall (the v1 numbers are logged in docs/modules/investing-evaluation.md). Evidence must "
-        f"come from independently written sentences (the `independent` group, when there are any) and the real-LLM run.",
+        f"evaluation/investing_guard_cases.csv, all written by the same author as the method and the regex (no "
+        f"independent labelling). The v2 phrases were added AFTER seeing v1's misses on these same sentences, so "
+        f"the numbers below are NOT evidence of recall (the v1 numbers are logged in "
+        f"docs/modules/investing-evaluation.md). The real-LLM run shows how often real model text hits the guard.",
         "",
     ]
     guard_rows = [[metric.replace("_", " "), _pct(index.value("claims_guard", "claims_guard", metric)),
@@ -838,7 +834,8 @@ def markdown_report(result: EvaluationResult) -> str:
         "- There is no ground truth for a suitable allocation: the rules are the team's pre-registered judgement. "
         "R1, R2, R3a and R4 are enforced by P's design (R4 only since engine 6.1: a regression test now); R5 was "
         "fixed after the evaluation found it; the remaining independent rules (R6, R7) and the panel replay carry "
-        "the weight. No teammate-written rules yet.",
+        "the weight.",
+        "- All rules and guard sentences were written by the same author as the method (no independent labelling).",
         "- One round of fixes after seeing results (engine 6.1), logged with before/after numbers in "
         "docs/modules/investing-evaluation.md. No further tuning against these rules.",
         "- Normal monthly returns understate fat tails; the return assumptions are placeholders; no tax, fees or "
@@ -855,6 +852,8 @@ def main() -> None:
     parser.add_argument("--personas", type=int, default=DEFAULT_COUNT)
     parser.add_argument("--seed", type=int, default=DEFAULT_SEED)
     parser.add_argument("--paths", type=int, default=FINAL_PATHS, help=f"Monte Carlo paths (final: {FINAL_PATHS})")
+    parser.add_argument("--llm-delay", type=float, default=4.0,
+                        help="seconds between real LLM calls (free-tier rate limit); only with --llm real")
     parser.add_argument("--llm", choices=("none", "real"), default="none",
                         help="real = the configured LLM on the pipeline sample (synthetic data only)")
     parser.add_argument("--skip-panel", action="store_true", help="skip the Phase 5 panel replay")
@@ -864,7 +863,8 @@ def main() -> None:
     logging.basicConfig(level=logging.WARNING)
 
     result = run_evaluation(args.personas, args.seed, args.paths, args.llm, panel=not args.skip_panel,
-                            stratified=args.stratified, variability=not args.skip_variability)
+                            stratified=args.stratified, variability=not args.skip_variability,
+                            llm_delay=args.llm_delay if args.llm == "real" else 0.0)
     suffix = "_stratified" if args.stratified else ""
     final = args.paths == FINAL_PATHS and args.llm == "none" and args.seed == DEFAULT_SEED and (
         args.stratified or (args.personas == DEFAULT_COUNT and not args.skip_panel and not args.skip_variability))
