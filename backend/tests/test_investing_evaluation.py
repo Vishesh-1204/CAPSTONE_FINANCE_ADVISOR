@@ -16,7 +16,9 @@ from evaluation import evaluate_investing as ev
 from evaluation.evaluate_forecast import default_origins
 from evaluation.investing_methods import ABLATIONS, METHODS, ablation_plan, method_plan
 from evaluation.investing_personas import generate_personas, make_persona
-from evaluation.investing_rules import ENFORCED, INDEPENDENT, RULES, SECONDARY, PersonaFacts, Recommendation, check
+from evaluation.investing_rules import (
+    ENFORCED, FIXED_AFTER_EVALUATION, INDEPENDENT, RULES, SECONDARY, PersonaFacts, Recommendation, check,
+)
 
 ASSUMPTIONS = load_assumptions()
 PERSONAS = generate_personas(40)
@@ -44,7 +46,8 @@ def persona_like(**changes):
 def test_rules_carry_their_honesty_labels():
     design = {rule.rule_id: rule.design for rule in RULES}
     assert [i for i, d in design.items() if d == ENFORCED] == ["R1", "R2", "R3a", "R4"]
-    assert [i for i, d in design.items() if d == INDEPENDENT] == ["R5", "R6", "R7"]
+    assert [i for i, d in design.items() if d == INDEPENDENT] == ["R6", "R7"]
+    assert [i for i, d in design.items() if d == FIXED_AFTER_EVALUATION] == ["R5"]
     assert [i for i, d in design.items() if d == SECONDARY] == ["R3b"]
 
 

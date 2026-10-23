@@ -16,9 +16,18 @@
 #                proves little; it only checks the implementation.
 #   independent  judgement P was NOT tuned for (R5, R6, R7). These carry more weight.
 #   secondary    a stricter reading P fails BY DESIGN (R3b), reported to show the trade-off.
-# R4 note: P caps the SIP at the surplus, but NOT the emergency top-up, so P can still
-# break R4 when the top-up alone exceeds a small surplus. That is a real finding, not a bug
-# in the rule.
+#   fixed_after_evaluation  an independent rule that found a weakness, after which P was CHANGED to
+#                satisfy it (R5). Its after-fix score is no longer independent evidence for P.
+#
+# Changes after seeing the results (one round only; docs/modules/investing-evaluation.md logs the
+# before/after numbers). The rule CONDITIONS below are unchanged since the pre-registration commit;
+# only these labels and notes changed:
+#   R4  P broke it for 15.6% of personas (the emergency top-up was not capped at the surplus).
+#       Engine 6.1 caps it, so R4 is now 0% by design: a regression test, not evidence.
+#   R5  P broke it for 58.5% (a long horizon hid a fragile household in the capacity average).
+#       Engine 6.1 adds CAPACITY_CAP_FRAGILE_HOUSEHOLD; relabelled independent -> fixed_after_evaluation.
+#   R7  applies to 1 persona in the main run: reported as "not evaluated"; see the separate
+#       stratified run for a real R7 result.
 #
 # Rule kinds: "allocation" (R1, R2, R5, R6, R7) and "sip" (R3a, R3b, R4) are reported
 # separately, so a reader can see whether a method wins on allocation or on SIP sizing.
@@ -39,6 +48,7 @@ EMERGENCY_FILL_MONTHS = 12
 
 ALLOCATION, SIP = "allocation", "sip"
 ENFORCED, INDEPENDENT, SECONDARY = "enforced", "independent", "secondary"
+FIXED_AFTER_EVALUATION = "fixed_after_evaluation"
 
 
 @dataclass(frozen=True)
@@ -103,7 +113,7 @@ RULES: tuple[Rule, ...] = (
          "SIP plus emergency top-up never exceeds the lower-band monthly surplus (no SIP when it is <= 0).",
          lambda f: True,
          lambda f, r: r.monthly_sip + r.emergency_topup <= max(0.0, f.low_surplus) + RUPEE_SLACK),
-    Rule("R5", ALLOCATION, INDEPENDENT, _TEAM,
+    Rule("R5", ALLOCATION, FIXED_AFTER_EVALUATION, _TEAM,
          "Irregular income (stability <= 2) and 2 or more dependents: equity at most 40%.",
          lambda f: f.income_stability <= 2 and f.dependents >= 2,
          lambda f, r: r.equity <= 0.40 + EPSILON),
