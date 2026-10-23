@@ -1,5 +1,7 @@
 # app/core/config.py
 
+from typing import Literal
+
 from pydantic_settings import BaseSettings, SettingsConfigDict
 
 
@@ -75,6 +77,32 @@ class Settings(BaseSettings):
     BUDGET_GUARD_TOLERANCE: float = 1.0
     # Ablation switch (B1 vs B2): False = template explanations only, no LLM call.
     BUDGET_USE_LLM_EXPLANATIONS: bool = True
+
+    # --- Financial Forecast Agent (Phase 5) ---
+    # Target coverage of the prediction interval (0.8 = the true value should fall inside 80% of the time).
+    FORECAST_INTERVAL_COVERAGE: float = 0.8
+    # Fewer complete months of expenses than this -> HTTP 422 (nothing to forecast from).
+    FORECAST_MIN_HISTORY_MONTHS: int = 1
+    # A payee is "recurring" after this many roughly monthly payments ...
+    FORECAST_RECURRING_MIN_OCCURRENCES: int = 3
+    # ... whose recent amounts stay within this fraction of their median (0.15 = 15%).
+    FORECAST_RECURRING_AMOUNT_TOLERANCE: float = 0.15
+    # A recurring item not seen for this many days before as_of is treated as stopped (not projected).
+    FORECAST_RECURRING_STALE_DAYS: int = 45
+    # Half-width of the interval (fraction of the point) when the backtest has too few errors.
+    FORECAST_FALLBACK_INTERVAL_WIDTH: float = 0.25
+    # Backtest folds needed before the agent CHOOSES a model; fewer -> moving average + low_confidence.
+    FORECAST_MIN_BACKTEST_FOLDS: int = 2
+    # Horizon-sum backtest errors needed for a residual-based interval; fewer -> fallback width.
+    FORECAST_MIN_INTERVAL_ERRORS: int = 3
+    # How the interval is built from those errors: student_t (default since F6.1), empirical
+    # (plain percentiles; too narrow with few errors) or conformal. See forecasting/backtest.py.
+    FORECAST_INTERVAL_METHOD: Literal["student_t", "empirical", "conformal"] = "student_t"
+    # A recurring bill must also be paid about once a month across ALL payments to that payee,
+    # so a grocery store paid 6 times a month is not a "fixed bill" (F6.1). False = the old rule.
+    FORECAST_RECURRING_FREQUENCY_CHECK: bool = True
+    # Ablation switch: False = template explanations only, no LLM call.
+    FORECAST_USE_LLM_EXPLANATIONS: bool = True
 
     model_config = SettingsConfigDict(env_file=".env", extra="ignore")
 

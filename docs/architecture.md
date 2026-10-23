@@ -46,19 +46,23 @@ id therefore looks exactly like a missing id (404), which reveals nothing.
 |---|---|
 | `app/main.py` | Creates the app, CORS middleware, registers routers, `/health` |
 | `app/api/deps.py` | `get_current_user` (JWT → `User`) |
-| `app/api/routes/` | `auth`, `statements`, `transactions`, `payee_rules`, `categories`, `profile`, `budgets` |
+| `app/api/routes/` | `auth`, `statements`, `transactions`, `payee_rules`, `categories`, `profile`, `budgets`, `forecast` |
 | `app/services/` | All business logic (see the module pages) |
 | `app/services/statement_parsers/` | `base.py` (interface), `csv_parser`, `xlsx_parser`, `pdf_parser`, `tabular.py` (shared) |
 | `app/agents/expense_categorizer.py` | The LLM layer of the categorizer |
+| `app/services/forecasting/` | Phase 5 forecast building blocks: pure maths (models, backtest, intervals, recurrence, horizon, cash-flow projector) plus `data_preparation.py`, the only one that reads the DB |
 | `app/agents/budget_planner.py`, `explanation_guard.py` | Budget explanations (one LLM call, template fallback) and the faithfulness guard |
+| `app/agents/forecast_explainer.py` | Forecast explanation (template, one LLM call, the same guard) |
 | `app/llm/` | `base.py`, `factory.py`, `gemini_provider.py`, `openai_provider.py` |
 | `app/core/` | `config.py`, `security.py`, `categories.py`, `transaction_types.py`, `merchant_dictionary.py`, `money.py`, `month_utils.py`, `logging_config.py` |
 | `app/models/`, `app/schemas/` | Tables and API shapes |
-| `migrations/` | Alembic: `0001_baseline`, `0002_statement_ingestion_and_overrides`, `0003_budget_planning` |
-| `evaluation/` | Research harnesses (`evaluate_categorizer.py`, `evaluate_budget.py`), datasets, `budget_metrics.csv`, `results/` (gitignored) |
+| `migrations/` | Alembic: `0001_baseline`, `0002_statement_ingestion_and_overrides`, `0003_budget_planning`, `0004_forecast_runs` |
+| `evaluation/` | Research harnesses (`evaluate_categorizer.py`, `evaluate_budget.py`, `evaluate_forecast.py`), datasets, `budget_metrics.csv`, `forecast_metrics.csv`, `results/` (gitignored) |
 | `scripts/make_synthetic_statements.py` | Generates the synthetic PDF/XLSX/CSV fixtures (dev only) |
 | `scripts/make_synthetic_history.py` | Generates the seeded 6-month, 3-persona history for the budget evaluation |
-| `tests/` | 363 unit and HTTP tests (in-memory SQLite, fake LLM) |
+| `scripts/make_synthetic_panel.py` | Generates the seeded 24-month, 30-user, 4-persona panel for the forecast evaluation |
+| `scripts/smoke_test.py` | Live end-to-end check of the running API (15 steps) |
+| `tests/` | 541 unit and HTTP tests (in-memory SQLite, fake LLM) |
 
 ## 4. Flow 1: upload a statement
 
@@ -145,6 +149,9 @@ Everything left of the LLM arrow in section 1 is local. Specifically:
 | Budgets: Python computes, the LLM only explains (one call per plan) | Limits are guaranteed to fit the income and are unit-testable; the guard rejects any invented amount; it works with no API key |
 | `agent_limit_amount` kept when the user overrides a limit | Reset, and the override-rate metric |
 | Provider abstraction + fallback chain | Swap Gemini/OpenAI by config; a quota error on one provider does not stop the run |
+| Forecast = recurring items on their dates + a simple per-user model for the rest | Short histories overfit deep models; each part is explainable ("rent leaves on the 5th") and testable |
+| Per-user backtest selection, Student-t interval from the model's own errors, `low_confidence` flag | Honest uncertainty instead of a black box; measurable coverage for the paper |
+| Shared SQL filters (`transaction_filters.py`) for spending/income | The Budget and Forecast agents can never disagree on what counts as spending |
 
 ## 8. Known gaps (carry into later phases)
 
@@ -155,4 +162,7 @@ Everything left of the LLM arrow in section 1 is local. Specifically:
 - Scanned PDFs are rejected (no OCR).
 - The budget guard only checks amounts with a currency marker (₹ / Rs. / INR); a bare "5000" is not checked.
 - The budget evaluation uses synthetic people who do not react to their budget (see [modules/budget-evaluation.md](modules/budget-evaluation.md)).
-- The frontend Test Console is only partly built (see [modules/frontend-console.md](modules/frontend-console.md)).
+- Forecast: income is treated as known (no band), intervals cover about 61-65% instead of 80%, backtest selection
+  does not beat the best fixed model on the synthetic panel, own-account transfers are not forecast (see
+  [modules/forecast-evaluation.md](modules/forecast-evaluation.md)).
+- The frontend Test Console is a testing aid (token in `localStorage`); the Phase 12 dashboard replaces it (see [modules/frontend-console.md](modules/frontend-console.md)).

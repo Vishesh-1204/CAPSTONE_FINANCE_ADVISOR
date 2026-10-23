@@ -1,7 +1,7 @@
 # backend/scripts/smoke_test.py
 #
 # Purpose: end-to-end SMOKE TEST of the running API (Phase 2 auth -> Phase 3
-# import/categorize -> Phase 4 budgets). Unlike the pytest suite (SQLite + fake
+# import/categorize -> Phase 4 budgets -> Phase 5 forecast). Unlike the pytest suite (SQLite + fake
 # LLM, in-process), this talks to the REAL server over HTTP, with the real
 # Postgres database and migrations, so it catches wiring problems the unit
 # tests cannot see (missing router, broken migration, CORS-free HTTP errors...).
@@ -9,7 +9,8 @@
 # Flow: health -> register a unique user -> log in -> upload a small CSV ->
 # categorize -> save the financial profile -> income suggestion -> generate the
 # budget for NEXT month -> status -> override one limit -> regenerate ->
-# confirm the override survived.
+# confirm the override survived -> forecast without a balance (400, the CSV has
+# no balance column) -> 30-day forecast with a typed balance -> latest/history/recurring.
 #
 # Synthetic data only: every merchant and amount below is made up, and every
 # description matches a keyword rule, so categorization needs no LLM call.
@@ -41,6 +42,8 @@ REQUEST_TIMEOUT_SECONDS = 120        # categorize/generate may wait on a rate-li
 MONTHLY_INCOME = 60_000
 SAVINGS_TARGET_PCT = 20
 OVERRIDE_CATEGORY = "Food & Dining"  # a discretionary category the CSV is sure to produce
+OPENING_BALANCE = 50_000             # typed by the "user": the smoke CSV has no balance column
+FORECAST_DAYS = 30
 
 
 class StepFailed(Exception):
@@ -182,6 +185,7 @@ class SmokeTest:
         self.override_id: int | None = None
         self.override_value: float | None = None
         self.regenerated: dict = {}
+        self.forecast: dict = {}
 
     def steps(self) -> list[tuple[str, Callable[[], str]]]:
         return [
@@ -197,6 +201,9 @@ class SmokeTest:
             ("override one limit", self.override),
             ("regenerate budget", self.regenerate),
             ("override survived regeneration", self.override_survived),
+            ("forecast without a balance is 400", self.forecast_needs_balance),
+            (f"generate {FORECAST_DAYS}-day forecast", self.generate_forecast),
+            ("forecast latest, history, recurring", self.forecast_reads),
         ]
 
     # Each step returns a short detail string for the PASS line, or raises StepFailed.
@@ -305,6 +312,45 @@ class SmokeTest:
         if row["id"] != self.override_id or row["source"] != "user" or row["limit_amount"] != self.override_value:
             raise StepFailed(f"override lost: expected user limit {self.override_value} on id {self.override_id}, got {row}")
         return f"{OVERRIDE_CATEGORY} still {row['limit_amount']:.2f} (source=user)"
+
+    def forecast_needs_balance(self) -> str:
+        response = self.api.request("POST", "/api/forecast/generate", params={"horizon_days": FORECAST_DAYS})
+        body = expect(response, 400, "forecast without opening_balance")
+        return f"detail={str(body.get('detail'))[:60]}..."
+
+    def generate_forecast(self) -> str:
+        params = {"horizon_days": FORECAST_DAYS, "opening_balance": OPENING_BALANCE}
+        body = expect(self.api.request("POST", "/api/forecast/generate", params=params), 200, "forecast")
+        self.forecast = body
+        trajectory = body["trajectory"]
+        if len(trajectory) != FORECAST_DAYS:
+            raise StepFailed(f"expected {FORECAST_DAYS} trajectory days, got {len(trajectory)}")
+        if body["opening_balance_source"] != "request" or body["opening_balance"] != OPENING_BALANCE:
+            raise StepFailed(f"typed opening balance not used: {body['opening_balance_source']} {body['opening_balance']}")
+        end = body["projected_end_balance"]
+        if abs(end["point"] - (OPENING_BALANCE + body["net_cashflow"])) > 0.05:
+            raise StepFailed(f"end balance {end['point']} != opening + net cash flow {body['net_cashflow']}")
+        if not end["lower"] <= end["point"] <= end["upper"]:
+            raise StepFailed(f"end balance outside its own band: {end}")
+        if any(item["kind"] == "fixed_expense" and item["category"] == "Investments & Savings"
+               for item in body["recurring_items"]):
+            raise StepFailed("the SIP (an investment) was projected as a fixed expense")
+        return (f"model={body['model_name']} months={body['history_months']} low_conf={body['low_confidence']} "
+                f"income={body['expected_income']:.0f} ({body['income_source']}) end={end['point']:.0f} "
+                f"crunch={body['cash_crunch_date']} llm_used={body['llm_used']}")
+
+    def forecast_reads(self) -> str:
+        latest = expect(self.api.request("GET", "/api/forecast/latest"), 200, "forecast latest")
+        if latest["id"] != self.forecast["id"]:
+            raise StepFailed(f"latest is run {latest['id']}, expected {self.forecast['id']}")
+        history = expect(self.api.request("GET", "/api/forecast/history"), 200, "forecast history")
+        if [run["id"] for run in history] != [self.forecast["id"]]:
+            raise StepFailed(f"history should hold exactly this user's one run, got {history}")
+        recurring = expect(self.api.request("GET", "/api/forecast/recurring"), 200, "forecast recurring")
+        kinds = sorted({item["kind"] for item in recurring["items"]})
+        if "income" not in kinds:
+            raise StepFailed(f"the monthly salary was not detected as recurring income: {recurring['items']}")
+        return f"latest={latest['id']} history={len(history)} recurring kinds={kinds}"
 
     def run(self) -> int:
         """Prints one PASS/FAIL line per step; stops at the first failure (later steps depend on it)."""

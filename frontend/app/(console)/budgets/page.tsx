@@ -20,19 +20,16 @@ import { BudgetPlanCard } from "@/components/budget-plan-card";
 import { BudgetStatusCard } from "@/components/budget-status-card";
 import { BudgetTable } from "@/components/budget-table";
 import { FinancialProfileCard } from "@/components/financial-profile-card";
+import { MonthPicker } from "@/components/month-picker";
 import { PageHeader } from "@/components/page-header";
 import { RawResponsePanel } from "@/components/raw-response-panel";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
-import { Input } from "@/components/ui/input";
-import { Label } from "@/components/ui/label";
 import { useApiData } from "@/hooks/use-api-data";
 import { useApiLog } from "@/hooks/use-api-log";
 import { ApiError, api } from "@/lib/api";
 import { currentMonth } from "@/lib/format";
 import type { BudgetPlan } from "@/lib/types";
-
-const MONTH_PATTERN = /^\d{4}-(0[1-9]|1[0-2])$/; // same rule as the backend
 
 export default function BudgetsPage() {
   const log = useApiLog();
@@ -79,21 +76,7 @@ export default function BudgetsPage() {
     }
   }
 
-  const monthPicker = (
-    <div className="flex items-center gap-2">
-      <Label htmlFor="budget-month" className="text-sm">
-        Month
-      </Label>
-      <Input
-        id="budget-month"
-        type="month"
-        className="w-44"
-        value={month}
-        // a cleared or half-typed value is ignored, so the API never gets a bad month
-        onChange={(event) => MONTH_PATTERN.test(event.target.value) && setMonth(event.target.value)}
-      />
-    </div>
-  );
+  const monthPicker = <MonthPicker id="budget-month" value={month} onChange={setMonth} />;
 
   return (
     <>

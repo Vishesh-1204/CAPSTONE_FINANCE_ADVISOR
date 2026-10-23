@@ -177,5 +177,5 @@ limit → regenerate (your limit is unchanged) → `POST /{id}/reset` → `GET /
 ## What it connects to next
 
 - **P8 (frontend):** `/budgets` page: profile form with the suggestion button, generate, edit/reset, status bars.
-- **Phase 5 (Forecast):** replaces the simple average with a forecast model; the B1 history-average is its baseline.
+- **Phase 5 (Forecast, done):** forecasts spending per user with a backtest-chosen model; the B1 3-month average is one of its baselines. See [forecasting.md](forecasting.md).
 - **Phase 9 (Celery):** monthly automatic regeneration. **Phase 10 (Coach):** uses `status` to nudge the user.

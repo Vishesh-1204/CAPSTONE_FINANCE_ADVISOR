@@ -20,10 +20,14 @@ import type {
   CategoryOptions,
   CorrectionResponse,
   FinancialProfile,
+  ForecastHistoryItem,
+  ForecastHorizon,
+  ForecastRun,
   ImportBatch,
   IncomeSuggestion,
   MonthlySummary,
   PayeeRule,
+  RecurringList,
   StatementImportSummary,
   Token,
   Transaction,
@@ -237,4 +241,17 @@ export const api = {
     apiFetch<BudgetItem>(`/api/budgets/${id}`, { method: "PUT", json: { limit_amount: limitAmount } }),
   resetBudget: (id: number) => apiFetch<BudgetItem>(`/api/budgets/${id}/reset`, { method: "POST" }),
   getBudgetStatus: (month: string) => apiFetch<BudgetStatus>("/api/budgets/status", { query: { month } }),
+
+  // forecast (Phase 5). Without openingBalance the backend uses the latest statement balance (400 if none).
+  generateForecast: (horizonDays: ForecastHorizon, openingBalance?: number) =>
+    apiFetch<ForecastRun>("/api/forecast/generate", {
+      method: "POST",
+      query: { horizon_days: horizonDays, opening_balance: openingBalance },
+    }),
+  // 404 until the first forecast (of that horizon) is generated
+  getLatestForecast: (horizonDays?: ForecastHorizon) =>
+    apiFetch<ForecastRun>("/api/forecast/latest", { query: { horizon_days: horizonDays } }),
+  listForecastHistory: (limit = 20) => apiFetch<ForecastHistoryItem[]>("/api/forecast/history", { query: { limit } }),
+  getForecastRun: (id: number) => apiFetch<ForecastRun>(`/api/forecast/runs/${id}`),
+  getRecurringItems: () => apiFetch<RecurringList>("/api/forecast/recurring"),
 };

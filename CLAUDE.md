@@ -48,15 +48,32 @@ research value, explainability and maintainability over quick fixes.
   P8 frontend /budgets page (profile + income suggestion, generate, limits table with inline
   override/reset, status bars, Recharts spent vs limit, raw panel). Lookback ablation is 1/2/3 (6 would read
   the test months; see docs/modules/budget-evaluation.md).
-- In progress: S7 frontend Test Console (frontend/, npm run dev on the host). F0 done (scaffold, lib/api.ts,
-  shared components, home = connection check, backend GET /api/categories), F1 /login, F2 /upload.
-  Not built yet: F3-F6 /transactions, /review, /summary, /rules (see docs/modules/frontend-console.md).
-- Optional, ask first: S9 Celery + Redis background import/categorize.
-- Next: finish S7 pages (F3-F6), then Phase 5 Forecast
-  (B1 history-average is its baseline; reuse the evaluate_budget.py split).
+- Done: S7 frontend Test Console (frontend/, npm run dev on the host): F0 scaffold + lib/api.ts, F1 /login,
+  F2 /upload, F3 /transactions (filters, paging, badges, inline edit + apply-to-similar / remember-payee, unlock),
+  F4 /review (queue + bulk category), F5 /summary (Recharts), F6 /rules (list/delete), on branch
+  feature/vishesh-console-pages (stacked on feature/vishesh-forecast). See docs/modules/frontend-console.md.
+- Done: Phase 5 core (F0-F7 + F6.1, spec docs/phase5-spec.md) on branch feature/vishesh-forecast, 541 tests
+  passing, live smoke test 15/15. Migration 0004 (forecast_runs), services/forecasting/ (pure models, backtest,
+  Student-t horizon-sum intervals, recurrence detector, horizon weights, cash-flow projector; data_preparation.py
+  is the only DB reader), forecast_service + /api/forecast/{generate,latest,history,recurring,runs/{id}},
+  agents/forecast_explainer.py (template, one LLM call, Phase 4 guard), budget-overspend warnings.
+  F6: scripts/make_synthetic_panel.py (24 months, 30 users, 4 personas, seed 42; CSV not committed, SHA-256 in
+  the results) + evaluation/evaluate_forecast.py (rolling origin, 15 origins x 3 horizons = 1,350 forecasts via
+  the real service) -> backend/evaluation/forecast_metrics.csv + .md (committed, deterministic).
+  F6.1 (found by F6): recurrence frequency check (precision 56% -> 94%, FORECAST_RECURRING_FREQUENCY_CHECK) and
+  FORECAST_INTERVAL_METHOD=student_t (coverage 47% -> 61-65%; empirical/conformal kept as ablations).
+  Docs: docs/modules/forecasting.md, forecast-evaluation.md; api/database/testing/architecture updated.
+- Optional, ask first: S9 Celery + Redis background import/categorize; Phase 5 F8 GET /api/forecast/accuracy;
+  F9 global LightGBM model (adds scikit-learn + lightgbm).
+- Done: Phase 5 F10 frontend /forecast page (horizon toggle, statement-balance prefill, Recharts balance + 80% band,
+  cash-crunch banner, low-confidence notice, template/AI badge, budget warnings, recurring table, raw panel).
+- Next: Phase 6 Investment Advisor (after the forecast and console PRs are merged into DEV).
 - Known gaps: no HuggingFace/Llama provider in llm/factory.py yet (approved stack); person guard recall 0.857
   (1 person-like string reached the LLM stage in the offline eval); budget guard only checks amounts with a
   currency marker; B2 (--llm real) faithfulness not measured yet; synthetic personas do not react to budgets.
+  Forecast: backtest selection does not beat the best fixed model on the panel (regret +Rs 82 to +Rs 629);
+  interval coverage 61-65% vs 80% target; income treated as known (freelancer net cash flow MAE ~Rs 49k);
+  own-account transfers not forecast; forecast LLM faithfulness (--llm real) not measured yet.
 
 ## Architecture (clean layers: each layer only calls the one below it)
 backend/app/

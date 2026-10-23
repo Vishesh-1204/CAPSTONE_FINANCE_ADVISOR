@@ -1,185 +1,246 @@
-========================================================================
- Agentic AI-Based Autonomous Personal Finance Advisor
- SETUP GUIDE FOR TEAM MEMBERS (Priti, Anvisha, Dev)
- Phase 1 - Project Setup Verification
-========================================================================
+# Agentic AI-Based Autonomous Personal Finance Advisor
 
-This guide gets the backend + database running on your laptop using
-Docker. You do NOT need to install Python, PostgreSQL, or any
-dependencies manually — Docker handles all of that for you.
+Final-year B.Tech capstone. Backend: FastAPI + PostgreSQL (in Docker). Frontend: Next.js (runs on your laptop).
+This README is only commands: follow it top to bottom and the project runs. No other help needed.
 
-Follow the steps in order. Do not skip steps.
+| What | Where |
+|---|---|
+| Frontend (the app you use) | http://localhost:3000 |
+| Backend API docs (Swagger) | http://127.0.0.1:8000/docs |
+| Backend health check | http://127.0.0.1:8000/health |
 
-------------------------------------------------------------------------
-STEP 0: PREREQUISITES (one-time setup)
-------------------------------------------------------------------------
+Commands below are for **Windows PowerShell**. Mac/Linux differences are noted.
 
-1. Install Git
-   Download: https://git-scm.com/downloads
+---
 
-2. Install Docker Desktop
-   Download: https://www.docker.com/products/docker-desktop/
+## 1. One-time setup (do this once per laptop)
 
-   Windows users: Docker Desktop requires WSL 2.
-   Open PowerShell as Administrator and run:
-       wsl --install
-   Then RESTART your PC before opening Docker Desktop for the first time.
+Install these and restart your PC if the installer asks:
 
-3. Verify Docker is installed correctly.
-   Open a terminal (PowerShell / Terminal / Bash) and run:
+1. **Git**: https://git-scm.com/downloads
+2. **Docker Desktop**: https://www.docker.com/products/docker-desktop/
+   Windows only: open PowerShell as Administrator, run `wsl --install`, then **restart the PC** before first opening Docker Desktop.
+3. **Node.js 20 or newer** (for the frontend): https://nodejs.org (choose LTS)
 
-       docker --version
-       docker run hello-world
+Check they work:
 
-   You should see a "Hello from Docker!" message.
-   If you see this, Docker is working. If not, do not proceed —
-   fix Docker first (search the exact error message you see).
+```powershell
+git --version
+docker --version
+node -v
+```
 
-------------------------------------------------------------------------
-STEP 1: CLONE THE REPOSITORY
-------------------------------------------------------------------------
+`node -v` must print `v20` or higher.
 
-Open a terminal, navigate to the folder where you want the project,
-then run:
+**Optional but recommended (Windows, stops Docker from eating all your RAM).**
+Create the file `C:\Users\<your-name>\.wslconfig` with:
 
-    git clone https://github.com/<your-username>/finance-advisor.git
-    cd finance-advisor
-    git checkout dev
-    git pull
+```ini
+[wsl2]
+memory=4GB
+processors=2
+swap=2GB
+```
 
-------------------------------------------------------------------------
-STEP 2: CREATE YOUR OWN .env FILE
-------------------------------------------------------------------------
+Then run `wsl --shutdown` once.
 
-Each person needs their own local .env file (this file is never
-pushed to GitHub — it's private to your machine).
+---
 
-    cd backend
-    copy .env.example .env        (Windows PowerShell / CMD)
-    cp .env.example .env          (macOS / Linux)
+## 2. Get the code
 
-    cd ..
+```powershell
+git clone https://github.com/Vishesh-1204/CAPSTONE_FINANCE_ADVISOR.git
+cd CAPSTONE_FINANCE_ADVISOR
+git checkout DEV
+git pull origin DEV
+```
 
-You do not need to edit the values inside .env for now — the defaults
-already match docker-compose.yml.
+The branch name is **`DEV`** in capitals. All the commands below run from this folder (the repo root, the one containing `docker-compose.yml`).
 
-------------------------------------------------------------------------
-STEP 3: BUILD AND START THE PROJECT
-------------------------------------------------------------------------
+---
 
-From the ROOT of the repo (the "finance-advisor" folder, NOT the
-"backend" folder), run:
+## 3. Create your settings files
 
-    docker compose up --build
+### Backend `.env`
 
-Wait for the logs to settle. You should see a line similar to:
+```powershell
+copy backend\.env.example backend\.env
+```
+Mac/Linux: `cp backend/.env.example backend/.env`
 
-    backend-1  | INFO:     Uvicorn running on http://0.0.0.0:8000
+Open `backend\.env` and set your free Gemini key (get one at https://aistudio.google.com, no card needed):
 
-Leave this terminal window open — it's running your server.
-Do not close it while testing.
+```text
+LLM_PROVIDER=gemini
+GEMINI_API_KEY=paste-your-key-here
+```
 
-------------------------------------------------------------------------
-STEP 4: TEST THE BACKEND IS ALIVE
-------------------------------------------------------------------------
+Everything else can stay as it is. The app still works without a key: transactions are categorized by rules, and budget and forecast text falls back to templates.
 
-Open a web browser and go to:
+**Never commit `.env` or share your key.** It is already in `.gitignore`.
 
-    http://127.0.0.1:8000/health
+### Frontend `.env.local`
 
-Expected result (exact text may vary slightly):
+```powershell
+copy frontend\.env.local.example frontend\.env.local
+```
+Mac/Linux: `cp frontend/.env.local.example frontend/.env.local`
 
-    {"status":"ok","project":"Agentic AI Personal Finance Advisor"}
+If the example file does not exist, create `frontend\.env.local` containing exactly:
 
-If you see this JSON response, your backend is working correctly.
+```text
+NEXT_PUBLIC_API_URL=http://127.0.0.1:8000
+```
 
-------------------------------------------------------------------------
-STEP 5: TEST THE DATABASE IS ALIVE (optional but recommended)
-------------------------------------------------------------------------
+---
 
-Open a SECOND terminal window (keep the first one running from Step 3)
-and run:
+## 4. Start the backend and database (Terminal 1)
 
-    docker ps
+1. Open **Docker Desktop** and wait until it says **Engine running**.
+2. In the repo root:
 
-Look for a container name ending in "-db-1" (e.g. finance-advisor-db-1).
-Copy that exact name, then run:
+```powershell
+docker compose up --build
+```
 
-    docker exec -it finance-advisor-db-1 psql -U finance_user -d finance_db -c "\dt"
+- The first build can take several minutes (it downloads packages). Later starts are fast.
+- Success looks like: `Application startup complete.`
+- The database tables are created automatically (migrations run on every start).
+- **Leave this terminal open.**
 
-Expected result:
+Check it: open http://127.0.0.1:8000/health. You should see `{"status":"ok", ...}`.
 
-    Did not find any relations.
+---
 
-This is CORRECT — it means PostgreSQL is running but has no tables
-yet (tables get added starting Phase 2).
+## 5. Start the frontend (Terminal 2)
 
-------------------------------------------------------------------------
-STEP 6: STOPPING THE PROJECT
-------------------------------------------------------------------------
+Open a second terminal (in VS Code: the `+` in the terminal panel), then:
 
-When you're done working, go back to the terminal running
-"docker compose up" and press:
+```powershell
+cd frontend
+npm install
+npm run dev
+```
 
-    CTRL + C
+- `npm install` is needed only the first time (and when `package.json` changes).
+- Open **http://localhost:3000**.
+- **Leave this terminal open too.**
 
-To fully stop and remove the containers, run:
+---
 
-    docker compose down
+## 6. Try the app (2 minutes)
 
-Your database data is preserved between sessions (it's stored in a
-Docker volume), so you won't lose anything by stopping it.
+1. Open http://localhost:3000 and **register**, then log in.
+2. Make a small fake statement. In a third terminal, in the repo root:
 
-------------------------------------------------------------------------
-COMMON PROBLEMS AND FIXES
-------------------------------------------------------------------------
+```powershell
+@"
+Date,Description,Debit,Credit
+01/10/2026,UPI/ZOMATO/4821/PAYMENT,450.00,
+02/10/2026,UPI/UBER INDIA/9921/RIDE,230.00,
+03/10/2026,NETFLIX.COM,649.00,
+04/10/2026,SALARY OCT ACME PVT LTD,,50000.00
+05/10/2026,UPI/BIGBASKET/1123,1280.50,
+06/10/2026,ELECTRICITY BILL BESCOM,1890.00,
+"@ | Set-Content sample_transactions.csv
+```
 
-Problem: "port is already allocated" error on 8000 or 5432
-Fix:     Something else on your laptop is already using that port.
-         Close other apps using those ports, or restart your computer.
+3. In the app: **Upload** the file, then run **Categorize**, then open **Transactions**.
+4. Open **Budgets**: save your income and savings target, then **Generate budget**.
 
-Problem: "WSL 2 installation is incomplete" (Windows only)
-Fix:     Run "wsl --install" in PowerShell (as Administrator), then
-         restart your PC before opening Docker Desktop again.
+Use fake data only. Never upload a real bank statement while using the free Gemini key (Google may use free-tier inputs to improve its products).
 
-Problem: docker compose up gives a build error
-Fix:     Make sure you are running the command from the REPO ROOT
-         folder (finance-advisor), not from inside "backend".
+Prefer the raw API instead of the frontend? Use Swagger at http://127.0.0.1:8000/docs: register, log in, click **Authorize**, then try the endpoints.
 
-Problem: .env file not found / DATABASE_URL missing
-Fix:     Make sure you completed Step 2 — copy .env.example to .env
-         inside the "backend" folder.
+---
 
-Problem: Docker Desktop won't start at all
-Fix:     Confirm virtualization is enabled in your BIOS settings, and
-         that you restarted your PC after installing WSL 2.
+## 7. Check that everything works (one command each)
 
-------------------------------------------------------------------------
-DAILY WORKFLOW ONCE SETUP IS DONE
-------------------------------------------------------------------------
+Run these while Terminal 1 (Docker) is running:
 
-Every time you sit down to work on the project:
+```powershell
+docker compose exec backend python -m pytest tests -q
+docker compose exec backend python -m scripts.smoke_test
+```
 
-    cd finance-advisor
-    git checkout dev
-    git pull
-    docker compose up --build
+- The first runs all automated tests. It must end with `N passed` and no failures.
+- The second runs a live end-to-end check against the running API. It must end with `ALL ... STEPS PASSED`.
 
-Before starting your own feature work:
+---
 
-    git checkout -b feature/<your-name>-<short-description>
-    (example: git checkout -b feature/auth-priti)
+## 8. Every day after that
 
-When your work is ready:
+```powershell
+# Terminal 1 (repo root), after Docker Desktop shows "Engine running"
+docker compose up
 
-    git add .
-    git commit -m "clear description of what you did"
-    git push -u origin feature/<your-name>-<short-description>
+# Terminal 2
+cd frontend
+npm run dev
+```
 
-Then open a Pull Request into the "dev" branch on GitHub.
-Do NOT push directly to "main" or "dev".
+Use `docker compose up --build` only after `requirements.txt` or the `Dockerfile` changed.
 
-========================================================================
- If your /health check and database check both succeed, Phase 1 is
- verified on your machine. Message the team lead (Vishesh) to confirm.
-========================================================================
+To stop: press `Ctrl+C` in each terminal. Optionally run `docker compose down` (this keeps your data).
+
+---
+
+## 9. Reset the database (deletes all test data)
+
+```powershell
+docker compose down -v
+docker compose up --build
+```
+
+`-v` deletes the database volume. Use it only when you want a completely fresh database. You will need to register again.
+
+---
+
+## 10. Problems and fixes
+
+| Problem | Fix |
+|---|---|
+| `failed to connect to the docker API` | Docker Desktop is not running yet. Open it and wait for "Engine running". |
+| `env file ...\backend\.env not found` | Do step 3 (`copy backend\.env.example backend\.env`). |
+| `port is already allocated` (8000 or 5432) | `docker compose down`, then `docker compose up`. If it persists, restart the PC. |
+| `docker compose` says no configuration file | You are in the wrong folder. `cd` to the repo root (where `docker-compose.yml` is). |
+| Build fails with `Could not find a version ... Mako` or timeouts | Network was slow or dropped. Run `docker compose up --build` again. Try another network or a phone hotspot. |
+| Build is extremely slow (kB/s) | PyPI download is slow on your network. Wait, or switch network. It only happens on the first build. |
+| Docker Desktop error mentioning `daemon.json` / `\x00` | Close Docker Desktop, run `wsl --shutdown`, rename the folder `C:\Users\<you>\.docker` to `.docker.bad`, start Docker Desktop again. |
+| Laptop freezes when Docker starts | Create `.wslconfig` as in step 1, then `wsl --shutdown`. |
+| `localhost:3000` does not load | Terminal 2 (`npm run dev`) is not running, or you opened port 8000 by mistake. |
+| Frontend loads but shows a backend/connection error | Terminal 1 is not running, or `frontend\.env.local` is missing or wrong. |
+| `npm install` errors | Check `node -v` is 20 or newer. Delete `frontend\node_modules` and run `npm install` again. |
+| Gemini errors / rate limit messages | Check `GEMINI_API_KEY` in `backend\.env`, then `docker compose restart backend`. Free tier allows only a few requests per minute. |
+| 401 Unauthorized in Swagger | Your login token expired. Log in again and click **Authorize**. |
+| `git pull` says local changes would be overwritten | `git stash`, then `git pull origin DEV`, then `git stash pop`. |
+
+---
+
+## 11. Git workflow (teammates)
+
+```powershell
+git checkout DEV
+git pull origin DEV
+git checkout -b feature/<your-name>-<short-description>
+# ... make changes ...
+git status                      # make sure .env is NOT listed
+git add .
+git commit -m "clear description of what you did"
+git push -u origin feature/<your-name>-<short-description>
+```
+
+Then open a **Pull Request into `DEV`** on GitHub. Never push directly to `main` or `DEV`. Never commit `.env`, real bank statements, or API keys.
+
+---
+
+## 12. Project map
+
+```text
+backend/    FastAPI app (app/), database migrations (migrations/), tests (tests/), scripts/, evaluation/
+frontend/   Next.js test console
+docs/       Specs and per-module documentation
+CLAUDE.md   Project notes read by Claude Code (keep it up to date)
+```
+
+More detail: `docs/README.md` (architecture, API, database, testing) and `docs/testing.md` (manual test checklist).

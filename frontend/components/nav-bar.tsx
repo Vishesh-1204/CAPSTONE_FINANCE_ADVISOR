@@ -19,6 +19,7 @@ const LINKS = [
   { href: "/summary", label: "Summary" },
   { href: "/rules", label: "Rules" },
   { href: "/budgets", label: "Budgets" },
+  { href: "/forecast", label: "Forecast" },
 ];
 
 export function NavBar() {

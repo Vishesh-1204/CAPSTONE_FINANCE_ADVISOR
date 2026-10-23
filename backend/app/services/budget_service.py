@@ -21,15 +21,15 @@ from datetime import datetime, timezone
 from decimal import Decimal
 
 from fastapi import HTTPException, status
-from sqlalchemy import and_, func, or_
+from sqlalchemy import func
 from sqlalchemy.orm import Session
 
 from app.agents.budget_planner import BudgetFact, BudgetPlannerAgent, PlanContext
-from app.core.categories import CATEGORY_NAMES, REFUND_CATEGORY, TRANSFERS_CATEGORY
+from app.core.categories import CATEGORY_NAMES, TRANSFERS_CATEGORY
 from app.core.config import settings
 from app.core.money import to_money
 from app.core.month_utils import lookback_window, month_bounds, month_key, shift_month
-from app.core.transaction_types import CREDIT, DEBIT, TXN_EXPENSE, TXN_INCOME, TXN_INVESTMENT_OUT
+from app.core.transaction_types import TXN_INVESTMENT_OUT
 from app.models.budget import SOURCE_AGENT, SOURCE_USER, Budget, BudgetRun
 from app.models.financial_profile import FinancialProfile
 from app.models.transaction import Transaction
@@ -37,16 +37,14 @@ from app.services.budget_calculator import (
     build_history_plan, compute_spendable, is_essential, savings_target_amount,
 )
 from app.services.summary_service import UNCATEGORIZED_LABEL
+from app.services.transaction_filters import EXPENSE_FILTER, INCOME_FILTER
 
 logger = logging.getLogger(__name__)
 
 _ZERO = Decimal("0.00")
 
-# "Is this row spending?" as a SQL condition (see the header)
-_EXPENSE_FILTER = or_(
-    Transaction.txn_type == TXN_EXPENSE,
-    and_(Transaction.txn_type.is_(None), Transaction.direction == DEBIT),
-)
+# "Is this row spending / earnings?" SQL conditions live in transaction_filters.py,
+# shared with the Forecast agent so both agents always agree.
 
 
 def _check_month(month: str) -> None:
@@ -100,15 +98,8 @@ def profile_to_response(profile: FinancialProfile) -> dict:
 
 # --- Income suggestion ---
 
-# "Is this row earnings?" Income credits only. A refund is money returned, not
-# earned, so it would inflate the income (and the budget). The explicit NULL
-# check is needed because SQL's `category != 'x'` is never true for NULL.
-_INCOME_FILTER = and_(
-    Transaction.txn_type == TXN_INCOME,
-    Transaction.direction == CREDIT,
-    or_(Transaction.category.is_(None), Transaction.category != REFUND_CATEGORY),
-)
-
+# Income credits only (INCOME_FILTER): a refund is money returned, not earned,
+# so it would inflate the income (and the budget).
 
 def suggest_income(db: Session, user_id: int, month: str | None = None) -> dict:
     """
@@ -133,7 +124,7 @@ def suggest_income(db: Session, user_id: int, month: str | None = None) -> dict:
 
     months_with_data = {month_key(moment) for (moment,) in db.query(Transaction.transaction_date).filter(*window)}
     income: dict[str, Decimal] = {m: _ZERO for m in months_with_data}
-    for amount, moment in db.query(Transaction.amount, Transaction.transaction_date).filter(*window, _INCOME_FILTER):
+    for amount, moment in db.query(Transaction.amount, Transaction.transaction_date).filter(*window, INCOME_FILTER):
         key = month_key(moment)
         income[key] = income.get(key, _ZERO) + to_money(amount)
 
@@ -179,7 +170,7 @@ def _history_averages(db: Session, user_id: int, month: str, lookback: int) -> t
             Transaction.user_id == user_id,
             Transaction.transaction_date >= start,
             Transaction.transaction_date < end,
-            _EXPENSE_FILTER,
+            EXPENSE_FILTER,
             Transaction.category.in_(CATEGORY_NAMES),
         )
         .all()
@@ -202,7 +193,7 @@ def _data_quality(db: Session, user_id: int, month: str, lookback: int, months_u
         Transaction.user_id == user_id,
         Transaction.transaction_date >= start,
         Transaction.transaction_date < end,
-        _EXPENSE_FILTER,
+        EXPENSE_FILTER,
     )
     uncategorized = db.query(func.count(Transaction.id)).filter(*window, Transaction.category.is_(None)).scalar()
     needs_review = db.query(func.count(Transaction.id)).filter(*window, Transaction.needs_review.is_(True)).scalar()
@@ -397,7 +388,7 @@ def budget_status(db: Session, user_id: int, month: str) -> dict:
     spent: dict[str, Decimal] = {}
     for category, total in (
         db.query(Transaction.category, func.sum(Transaction.amount))
-        .filter(*in_month, _EXPENSE_FILTER)
+        .filter(*in_month, EXPENSE_FILTER)
         .group_by(Transaction.category)
         .all()
     ):

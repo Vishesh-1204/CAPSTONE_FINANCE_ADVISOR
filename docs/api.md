@@ -46,6 +46,11 @@ The Pydantic shapes live in `backend/app/schemas/`; the TypeScript mirror is `fr
 | PUT | `/api/budgets/{id}` | Your own limit for one category |
 | POST | `/api/budgets/{id}/reset` | Back to the planner's limit |
 | GET | `/api/budgets/status?month=` | Spending vs limits for the month |
+| POST | `/api/forecast/generate?horizon_days=` | Forecast the next 30/60/90 days (saved) |
+| GET | `/api/forecast/latest` | Your newest saved forecast |
+| GET | `/api/forecast/history` | Your saved forecasts (summary), newest first |
+| GET | `/api/forecast/recurring` | Detected salary, bills and SIPs (read-only) |
+| GET | `/api/forecast/runs/{id}` | One saved forecast |
 
 ---
 
@@ -239,6 +244,45 @@ Reset → `limit_amount = agent_limit_amount`, `source="agent"`. Both return the
 `unbudgeted` (spending with no limit; `limit`, `remaining`, `percent_used` are `null`). Only expenses count
 as spending; `invested_this_month` is saved money, not spent. `savings_target_amount` is `null` without a profile.
 
+## Forecast
+
+`horizon_days` must be 30, 60 or 90 (anything else → **422**). `as_of` (optional, `YYYY-MM-DD`) forecasts as if
+today were that date; default today (UTC); a future date → **422**. Someone else's run id → **404**.
+How it works: [modules/forecasting.md](modules/forecasting.md).
+
+### `POST /api/forecast/generate?horizon_days=30&opening_balance=&as_of=`
+Builds, explains and saves a forecast for the `horizon_days` after `as_of`.
+- `opening_balance` (optional, ≤ 2 decimals): your current balance. Empty → the latest statement `balance` on or
+  before `as_of` (`opening_balance_source="statement"`, with `opening_balance_date`); none → **400**.
+- Fewer than 1 complete month of expenses before `as_of` → **422**.
+
+Response `ForecastRunResponse`: `id, as_of, horizon_days, created_at, model_name, history_months,
+low_confidence, opening_balance, opening_balance_source ("request"|"statement"), opening_balance_date,
+income_source ("recurring"|"profile"|"none"), expected_income, expected_fixed_expenses,
+expected_variable_expenses {point, lower, upper}, expected_investments, net_cashflow,
+projected_end_balance {point, lower, upper}, cash_crunch_date (null = none), cash_crunch_basis ("lower"),
+summary, llm_used, explanation_faithful (true|false|null), model_scores [{model_name, mae, folds}],
+recurring_items [RecurringItem], budget_warnings [{month, category, projected, limit, over_by}],
+trajectory [{date, balance, lower, upper}]` (one point per day). Full example:
+[modules/forecasting.md](modules/forecasting.md#output).
+
+### `GET /api/forecast/latest?horizon_days=` · `GET /api/forecast/runs/{id}`
+A saved `ForecastRunResponse`. `latest` is the newest run (of that horizon, if given); **404** before the first run.
+
+### `GET /api/forecast/history?limit=20`
+`[{id, as_of, horizon_days, model_name, low_confidence, net_cashflow, projected_end_balance,
+cash_crunch_date, llm_used, created_at}]`, newest first; `limit` 1–100.
+
+### `GET /api/forecast/recurring?as_of=`
+```json
+{"as_of": "2026-02-15",
+ "items": [{"key": "synth housing society rent", "kind": "fixed_expense", "category": "Housing & Rent",
+            "typical_amount": 19600.0, "typical_day": 5, "occurrences": 17, "last_seen": "2026-02-05",
+            "active": true, "projected_dates": ["2026-03-05"]}]}
+```
+`kind`: `income`, `fixed_expense` or `investment`. `active=false`: not seen for 45 days, so not projected.
+`projected_dates` covers the next 30 days. Never fails for lack of history (empty list).
+
 ---
 
 ## Examples in PowerShell
@@ -265,4 +309,8 @@ curl.exe -s -X PUT http://127.0.0.1:8000/api/profile/financial -H "Authorization
   -H "Content-Type: application/json" -d '{\"monthly_income\": 60000, \"savings_target_pct\": 20}'
 curl.exe -s -X POST "http://127.0.0.1:8000/api/budgets/generate?month=2026-10" -H "Authorization: Bearer $token"
 curl.exe -s "http://127.0.0.1:8000/api/budgets/status?month=2026-10" -H "Authorization: Bearer $token"
+
+# forecast: 60 days with a typed balance, then the detected recurring items
+curl.exe -s -X POST "http://127.0.0.1:8000/api/forecast/generate?horizon_days=60&opening_balance=45000" -H "Authorization: Bearer $token"
+curl.exe -s "http://127.0.0.1:8000/api/forecast/recurring" -H "Authorization: Bearer $token"
 ```
