@@ -20,6 +20,7 @@ but its client and components are written to be reused there.
 | F6 | `/rules` (list / delete payee rules) | **done** |
 | P8 | `/budgets` (Phase 4: financial profile + income suggestion, generate plan, limits table with inline override / reset, status bars, Recharts spent vs limit) | **done** |
 | F10 | `/forecast` (Phase 5: 30/60/90 toggle, opening balance prefilled from the latest statement balance, cards, Recharts balance line with 80% band, cash-crunch banner, low-confidence notice, template / AI badge, budget warnings, recurring payments) | **done** |
+| F11 | `/investing` (Phase 6C: risk profile with the limiting factor in plain words, holdings editor with weights, generate plan with an optional goal, target vs current allocation chart + rebalance table, SIP card, bad / typical / good projection with goal probability, instrument types, assumptions panel, warnings, AI-written / Template badge, plan history (opens any saved plan), what-if simulator, permanent disclaimer banner) | **done** |
 
 ## Run it (on the host, not in Docker)
 ```powershell
@@ -63,6 +64,14 @@ Restart `npm run dev` after changing `.env.local` (`NEXT_PUBLIC_` values are bak
 | `components/forecast-result.tsx` | One `ForecastRun`: model badge (hover = backtest error per model), template / AI badge, crunch banner, low-confidence notice, cards, explanation, budget warnings |
 | `components/forecast-balance-chart.tsx` | Recharts `ComposedChart`: range `Area` for the 80% band (`[lower, upper]` per day), `Line` for the balance, ₹0 and crunch-date reference lines |
 | `components/recurring-items-table.tsx` | `GET /api/forecast/recurring`: kind, payee key, category, typical amount, usual day, last seen, next dates; stopped items greyed |
+| `app/(console)/investing/page.tsx` | `/investing`: owns five loads (profile, holdings, latest plan, plan history, assumptions), the goal inputs and which plan is shown (opened from the history or just generated, else the latest); permanent disclaimer banner |
+| `lib/investing.ts` | Plain words for the investing codes: asset classes, limiting factor, rebalance actions, SIP limits, warning codes |
+| `components/risk-profile-card.tsx` | Questionnaire (tolerance) + facts (capacity) form (`PUT /api/investing/profile`); scores, categories, emergency months and the limiting factor in plain words, with the cap that applies |
+| `components/holdings-editor.tsx` | One row per asset class plus "Add another" for more labelled holdings in a class (`PUT /api/investing/holdings` replaces the list); current weights |
+| `components/investment-plan-result.tsx` | One `InvestmentPlan`: badges, warnings, allocation + rebalance table, SIP card and what it was sized from, projection, instrument types, `AssumptionsPanel`, explanation with `ExplanationBadge` |
+| `components/allocation-chart.tsx`, `components/projection-chart.tsx` | Recharts grouped bars: target vs current %; bad / typical / good (p10 / p50 / p90) per SIP with a dashed goal line |
+| `components/plan-history-list.tsx` | `GET /api/investing/plans`; a click opens the full plan with `GET /api/investing/plans/{id}` |
+| `components/what-if-simulator.tsx` | `POST /api/investing/simulate` (nothing stored); category defaults to the profile's; shows the assumptions in force |
 
 ## Common mistakes
 - Calling `fetch` directly from a page (use `lib/api.ts`).
@@ -117,6 +126,44 @@ and a readable "Network error" with it stopped.
 5. Type `12.345` → a readable error before any call (nothing new in the raw panel).
 6. With an LLM key: badge "explanation: AI · guard passed"; without one: "explanation: template".
 7. The recurring table fills only after 3+ similar monthly payments (the fixtures are too short, by design).
+
+## Investing page notes (F11)
+- `GET /api/investing/profile` and `GET /api/investing/plan/latest` answer **404 until the first save**. The page
+  shows "No risk profile yet" / "No plan yet", not an error (the 404s still appear in the raw panel, as expected).
+- **Generate** is disabled until a profile exists; a 409 from the backend (profile missing) is still shown with a
+  pointer to section 1. Goal years without a goal amount, or bad numbers, are caught before any call.
+- The **holdings editor** sends every row with an amount (an empty amount removes that holding), because the PUT
+  replaces the whole list. Two rows of one class need different labels (the backend's unique rule).
+- **Badge:** "AI-written · guards passed" only when `explanation_source == "llm"` (LLM used AND the numeric and
+  claims guards passed); "Template (AI text rejected by a guard)" when the LLM ran but failed a guard; otherwise
+  "Template". The explanation already ends with the disclaimer (added by code); every section also prints the
+  `disclaimer` field of its response.
+- The **assumptions panel** of a plan shows the assumptions stored WITH that plan (an old plan keeps its own); the
+  simulator shows the ones in force now (`GET /api/investing/assumptions`).
+- **Projections start from ₹0**: they cover the monthly SIP only, not the current holdings (the page says so).
+- Chart colours are the console's grayscale chart tokens (the neutral Shadcn theme, like every other chart):
+  "Current / Existing" is `--chart-2`, "Target / Recommended" is `--chart-5` in light mode and `--chart-1` in dark
+  mode (a per-theme `ChartConfig`). The dataviz palette validator passes them on colour-blind separation,
+  normal-vision separation and contrast in both modes; a legend names both series and the tables / tiles carry
+  the exact numbers.
+
+## How to test (/investing)
+`npm run lint` and `npm run build` must pass. Manual, as a fresh synthetic user at http://localhost:3000/investing:
+1. Before anything: the banner is shown; sections 1, 2, 4 show their empty states with no red error; Generate is
+   disabled with "Save your risk profile (section 1) first"; the history says "No saved plans yet".
+2. Save a profile with answers 5/5/5 and liquid savings 10000, income stability 4, 0 dependents, 10 years: category moderate (not aggressive), limiting
+   factor "Your finances, not your comfort with risk, are the limit right now", and (no spending data yet) the
+   hint that essential spending is unknown.
+3. Holdings: equity 50000 "index", Add another, equity 20000 "flexi", debt 30000. Save: weights 70% / 30% / 0% / 0%.
+   Give both equity rows the same label: a readable error before any call.
+4. Generate with goal 500000 in 5 years: warnings `forecast_missing` (and `surplus_unknown` / `essentials_unknown`
+   for a user with no data), chart + rebalance table, SIP card, projection tiles with the chance of the goal.
+   Upload `backend/tests/fixtures/statements/messy.csv`, generate a 30-day forecast on /forecast, then generate
+   again: `forecast_missing` disappears and the surplus says "low end of your 30-day forecast".
+5. History: two plans; click the older one: it is shown in full (the goal of 500000 comes back) and highlighted.
+6. Simulator: 10000 a month, 10 years, moderate, goal 2000000 → p10 ≤ p50 ≤ p90, chance of the goal, and the
+   history does NOT grow (nothing stored).
+7. Narrow the window to phone width: grids collapse to one or two columns, tables scroll inside their card.
 
 ## Transactions, review, summary and rules notes (F3-F6)
 - **Editing a category** (pencil) opens an editor row under the transaction. The dropdown offers only labels that
