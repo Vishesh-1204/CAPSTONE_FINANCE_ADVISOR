@@ -154,6 +154,7 @@ class SipOut(BaseModel):
     change_vs_existing: float
     emergency_topup: float                # monthly amount reserved to fill the emergency fund
     limited_by: SipLimitedBy
+    emergency_topup_capped: bool = False  # the whole surplus goes to the fund, which fills slower than planned
 
 
 class ProjectionOut(BaseModel):

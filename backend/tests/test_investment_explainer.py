@@ -121,7 +121,7 @@ VARIANTS = {
              "emergency_topup": 0.0, "limited_by": "capacity"},
         projection_recommended={**RESULT["projection_recommended"], "monthly_sip": 0.0, "p10": 0.0, "p50": 0.0,
                                 "p90": 0.0, "probability_of_goal": 0.0, "months_to_goal": None},
-        warnings=["forecast_missing", "surplus_unknown", "essentials_unknown", "forecast_stale"],
+        warnings=["forecast_missing", "surplus_unknown", "essentials_unknown", "forecast_stale", "emergency_fill_slow"],
     ),
 }
 

@@ -46,7 +46,9 @@ from app.services.investing.sip_planner import months_to_reach, recommend_sip, r
 
 logger = logging.getLogger(__name__)
 
-ENGINE_VERSION = "6.0"            # bump when the maths changes, so stored plans stay comparable
+# Bump when the maths changes, so stored plans stay comparable.
+# 6.1: emergency top-up capped at the surplus; fragile-household capacity cap (both found by the 6B evaluation)
+ENGINE_VERSION = "6.1"
 FORECAST_HORIZON_DAYS = 30        # one month: the SIP must be affordable EVERY month (spec 14.1)
 DAYS_PER_MONTH = Decimal("30.44")
 
@@ -56,6 +58,7 @@ WARNING_FORECAST_STALE = "forecast_stale"
 WARNING_SURPLUS_UNKNOWN = "surplus_unknown"
 WARNING_ESSENTIALS_UNKNOWN = "essentials_unknown"
 WARNING_NO_HOLDINGS = "no_holdings"
+WARNING_EMERGENCY_FILL_SLOW = "emergency_fill_slow"   # the surplus is smaller than the top-up the fill period needs
 
 SURPLUS_FROM_FORECAST = "forecast"
 SURPLUS_FROM_BUDGET = "budget"
@@ -306,6 +309,8 @@ def generate_plan(
         months_to_fill_emergency=settings.INVEST_EMERGENCY_FILL_MONTHS,
         safety_factor=assumptions.sip_safety_factor, target_total=needed,
     )
+    if sip.emergency_topup_capped:
+        warnings.append(WARNING_EMERGENCY_FILL_SLOW)
 
     # 7. Ranges at the current and the recommended SIP
     current = _projection(float(profile.existing_monthly_sip), years, mean, volatility, goal, assumptions)

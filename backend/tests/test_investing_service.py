@@ -372,3 +372,24 @@ def test_assumptions_come_from_settings(monkeypatch):
     assumptions = svc.get_assumptions()
     equity = next(a for a in assumptions["assets"] if a["asset_class"] == "equity")
     assert equity["expected_return"] == 0.09 and "placeholder" in assumptions["note"].lower()
+
+
+# --- Fixes found by the Phase 6B evaluation (engine 6.1) ---
+
+def test_small_surplus_goes_entirely_to_the_emergency_fund_with_a_warning(db):
+    essentials_20000(db)
+    add_forecast(db, income=22000, fixed=10000, variable=8000, variable_upper=10000)   # low surplus 2,029.33
+    save_profile(db, liquid="0")
+    plan = svc.generate_plan(db, 1, AS_OF)
+    assert plan["sip"]["emergency_topup"] == pytest.approx(2029.33, abs=0.01)         # not the 10,000 the gap needs
+    assert plan["sip"]["recommended_total"] == 0 and plan["sip"]["emergency_topup_capped"] is True
+    assert "emergency_fill_slow" in plan["warnings"] and plan["engine_version"] == "6.1"
+
+
+def test_fragile_household_is_conservative_even_with_strong_other_facts(db):
+    essentials_20000(db)
+    add_forecast(db)
+    save_profile(db, answers=BRAVE, liquid="400000", stability=2, dependents=3, horizon=25)
+    risk = svc.generate_plan(db, 1, AS_OF)["risk_profile"]
+    assert risk["capacity_score"] <= 34 and risk["category"] == "conservative"
+    assert risk["limiting_factor"] == "capacity"

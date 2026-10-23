@@ -15,6 +15,9 @@ class SipRecommendation:
     change_vs_existing: float      # +increase / -decrease versus current SIPs
     emergency_topup: float         # part of the surplus reserved to fill the emergency fund
     limited_by: str                # 'capacity' | 'target' | 'none'
+    # True when the surplus is smaller than the top-up the fill period needs: all of the
+    # surplus goes to the emergency fund, which then takes longer than months_to_fill to fill
+    emergency_topup_capped: bool = False
 
 
 def recommend_sip(
@@ -24,11 +27,14 @@ def recommend_sip(
     """
     surplus_before_investing_low: lower-band monthly surplus BEFORE any investing (from the forecast).
     emergency_gap: rupees still missing from the emergency fund (0 if complete).
-    The emergency fund is topped up first, then a safety factor keeps a buffer.
+    The emergency fund is topped up first, then a safety factor keeps a buffer. The top-up is
+    never more than the surplus itself (a plan must not ask for money the month does not leave;
+    found by the Phase 6B evaluation, rule R4).
     """
     if months_to_fill_emergency <= 0 or not 0 < safety_factor <= 1:
         raise ValueError("months_to_fill_emergency must be > 0 and safety_factor in (0, 1]")
-    topup = emergency_gap / months_to_fill_emergency if emergency_gap > 0 else 0.0
+    needed_topup = emergency_gap / months_to_fill_emergency if emergency_gap > 0 else 0.0
+    topup = min(needed_topup, max(0.0, surplus_before_investing_low))
     capacity = max(0.0, surplus_before_investing_low * safety_factor - topup)
 
     if target_total is not None and target_total < capacity:
@@ -38,7 +44,7 @@ def recommend_sip(
     return SipRecommendation(
         capacity_total=round(capacity, 2), recommended_total=round(recommended, 2),
         change_vs_existing=round(recommended - existing_sip, 2), emergency_topup=round(topup, 2),
-        limited_by=limited_by,
+        limited_by=limited_by, emergency_topup_capped=needed_topup - topup > 0.005,
     )
 
 

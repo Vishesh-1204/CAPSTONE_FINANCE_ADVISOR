@@ -65,6 +65,8 @@ WARNING_TEXT: dict[str, str] = {
     "surplus_unknown": "There is no forecast or budget to size a SIP from, so no SIP is suggested yet.",
     "essentials_unknown": "Your essential spending is unknown, so your emergency fund is treated as empty.",
     "no_holdings": "No holdings were entered, so there is nothing to rebalance yet.",
+    "emergency_fill_slow": "Your surplus is smaller than the emergency top-up needed, so all of it goes to the "
+                           "emergency fund for now, and filling it will take longer than planned.",
 }
 
 

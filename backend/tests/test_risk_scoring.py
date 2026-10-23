@@ -54,3 +54,16 @@ def test_cautious_person_with_strong_finances_is_limited_by_tolerance():
 
 def test_brave_and_strong_is_aggressive():
     assert build_risk_profile(BRAVE, STRONG).category == AGGRESSIVE
+
+
+# --- Added after the Phase 6B evaluation (rule R5): fragile-household cap ---
+
+def test_fragile_household_is_capped_to_conservative_even_with_a_long_horizon_and_full_fund():
+    facts = CapacityFacts(emergency_fund_months=12, income_stability=2, dependents=2, horizon_years=25)
+    assert capacity_score(facts) <= 34
+    assert build_risk_profile(BRAVE, facts).category == CONSERVATIVE
+
+
+def test_cap_needs_both_irregular_income_and_two_dependents():
+    assert capacity_score(CapacityFacts(12, 3, 2, 25)) > 34      # stable enough
+    assert capacity_score(CapacityFacts(12, 2, 1, 25)) > 34      # one dependent

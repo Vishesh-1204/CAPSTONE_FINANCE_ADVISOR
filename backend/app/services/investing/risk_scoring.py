@@ -25,6 +25,13 @@ EMERGENCY_FULL_SCORE_MONTHS = 6.0
 HORIZON_FULL_SCORE_YEARS = 10.0
 PER_DEPENDENT_PENALTY = 20.0
 
+# A fragile household (irregular income AND several dependents) caps capacity too: in an
+# average, a long horizon and a big emergency fund could hide it. 34 maps to conservative.
+# Added after the Phase 6B evaluation (rule R5 found it; see docs/phase6-spec.md section 14.8).
+FRAGILE_MAX_INCOME_STABILITY = 2
+FRAGILE_MIN_DEPENDENTS = 2
+CAPACITY_CAP_FRAGILE_HOUSEHOLD = 34.0
+
 
 @dataclass(frozen=True)
 class ToleranceAnswers:
@@ -69,7 +76,8 @@ def tolerance_score(answers: ToleranceAnswers) -> float:
 def capacity_score(facts: CapacityFacts) -> float:
     """
     Average of four 0-100 parts. If the emergency fund is below the floor the whole score
-    is capped, because investing before having a safety net is the classic mistake.
+    is capped, because investing before having a safety net is the classic mistake. A
+    fragile household (irregular income with several dependents) is capped the same way.
     """
     _check_scale("income_stability", facts.income_stability)
     if facts.emergency_fund_months < 0 or facts.dependents < 0 or facts.horizon_years < 0:
@@ -83,6 +91,8 @@ def capacity_score(facts: CapacityFacts) -> float:
     score = (emergency + stability + dependents + horizon) / 4
     if facts.emergency_fund_months < EMERGENCY_FLOOR_MONTHS:
         score = min(score, CAPACITY_CAP_WITHOUT_EMERGENCY_FUND)
+    if facts.income_stability <= FRAGILE_MAX_INCOME_STABILITY and facts.dependents >= FRAGILE_MIN_DEPENDENTS:
+        score = min(score, CAPACITY_CAP_FRAGILE_HOUSEHOLD)
     return score
 
 

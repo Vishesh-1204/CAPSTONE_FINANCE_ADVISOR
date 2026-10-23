@@ -60,3 +60,20 @@ def test_bigger_sip_reaches_goal_sooner_and_zero_sip_never():
     from app.services.investing.sip_planner import months_to_reach
     assert months_to_reach(500_000, 7000, 0.10) < months_to_reach(500_000, 5000, 0.10)
     assert months_to_reach(500_000, 0, 0.10) is None
+
+
+# --- Added after the Phase 6B evaluation (rule R4): the top-up never exceeds the surplus ---
+
+def test_surplus_smaller_than_the_top_up_all_goes_to_the_emergency_fund():
+    rec = recommend_sip(surplus_before_investing_low=4000, existing_sip=0, emergency_gap=120000)
+    assert rec.emergency_topup == 4000 and rec.recommended_total == 0 and rec.emergency_topup_capped
+
+
+def test_negative_surplus_reserves_nothing_and_flags_the_slow_fill():
+    rec = recommend_sip(surplus_before_investing_low=-2000, existing_sip=0, emergency_gap=60000)
+    assert rec.emergency_topup == 0 and rec.recommended_total == 0 and rec.emergency_topup_capped
+
+
+def test_enough_surplus_is_not_flagged():
+    rec = recommend_sip(surplus_before_investing_low=20000, existing_sip=0, emergency_gap=60000)
+    assert rec.emergency_topup == 5000 and not rec.emergency_topup_capped
