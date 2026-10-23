@@ -12,8 +12,12 @@
 # method's own scores or categories, so they cannot simply copy P's design.
 #
 # Honesty labels (column "design"):
-#   enforced     P is BUILT to satisfy the rule (R1, R2, R3a, R4). P scoring 0% there
+#   enforced     P is BUILT to satisfy the rule (R1, R2, R4). P scoring 0% there
 #                proves little; it only checks the implementation.
+#   trade_off    P is built to satisfy the rule, but NOT at the cost of R4 (R3a). When even the
+#                whole low-band surplus cannot fill the emergency fund in time, meeting R3a would
+#                ask for more money than the month leaves; engine 6.1 keeps R4. The report splits
+#                its violations into "avoidable" and "infeasible given the surplus".
 #   independent  judgement P was NOT tuned for (R5, R6, R7). These carry more weight.
 #   secondary    a stricter reading P fails BY DESIGN (R3b), reported to show the trade-off.
 #   fixed_after_evaluation  an independent rule that found a weakness, after which P was CHANGED to
@@ -28,6 +32,10 @@
 #       Engine 6.1 adds CAPACITY_CAP_FRAGILE_HOUSEHOLD; relabelled independent -> fixed_after_evaluation.
 #   R7  applies to 1 persona in the main run: reported as "not evaluated"; see the separate
 #       stratified run for a real R7 result.
+#   R3a P went from 0.0% to 18.2% (22 of 121 applicable personas) as the direct cost of the R4 fix.
+#       All 22 have SIP = 0 and none break R4: their low-band surplus x 12 cannot fill the
+#       emergency fund to 3 months, so no plan can satisfy both R3a and R4 for them.
+#       Relabelled enforced -> trade_off AFTER seeing the engine 6.1 results, for that reason.
 #
 # Rule kinds: "allocation" (R1, R2, R5, R6, R7) and "sip" (R3a, R3b, R4) are reported
 # separately, so a reader can see whether a method wins on allocation or on SIP sizing.
@@ -49,6 +57,7 @@ EMERGENCY_FILL_MONTHS = 12
 ALLOCATION, SIP = "allocation", "sip"
 ENFORCED, INDEPENDENT, SECONDARY = "enforced", "independent", "secondary"
 FIXED_AFTER_EVALUATION = "fixed_after_evaluation"
+TRADE_OFF = "trade_off"          # R3a: relabelled after seeing the engine 6.1 results (see the header)
 
 
 @dataclass(frozen=True)
@@ -77,7 +86,7 @@ class Recommendation:
 class Rule:
     rule_id: str
     kind: str                        # ALLOCATION | SIP
-    design: str                      # ENFORCED | INDEPENDENT | SECONDARY
+    design: str                      # ENFORCED | TRADE_OFF | INDEPENDENT | SECONDARY | FIXED_AFTER_EVALUATION
     author: str
     description: str
     applies: Callable[[PersonaFacts], bool]
@@ -100,7 +109,7 @@ RULES: tuple[Rule, ...] = (
          "Horizon under 3 years: equity at most 20%.",
          lambda f: f.horizon_years < 3,
          lambda f, r: r.equity <= 0.20 + EPSILON),
-    Rule("R3a", SIP, ENFORCED, _TEAM,
+    Rule("R3a", SIP, TRADE_OFF, _TEAM,
          "Under 3 months of emergency fund: the monthly top-up must reach 3 months within 12 months "
          "(reserved before any SIP).",
          lambda f: f.emergency_months < EMERGENCY_FLOOR_MONTHS,

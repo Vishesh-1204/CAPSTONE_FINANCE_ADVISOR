@@ -29,10 +29,16 @@ history is the evidence. Rules read only raw persona facts and what a method rec
 | R6 | allocation | independent | every answer ≤ 2: equity ≤ 30% |
 | R7 | allocation | independent | long horizon, ≥ 6 months fund, stable, ≤ 1 dependent, every answer ≥ 4: equity ≥ 50% (not over-cautious) |
 
-**How to weigh them.** `enforced` rules are what P is *built* to satisfy, so 0% there only checks the code.
-`independent` rules test judgement P was not tuned for and carry more weight, together with the panel replay.
-R3b is reported to show the trade-off P makes (it invests what is left after the emergency top-up).
-No teammate-written rules yet; they go in a later, separate commit marked `author="teammate:<name>"`.
+The table shows the labels **as pre-registered**. Two labels changed AFTER seeing results (the conditions did
+not): R5 `independent` → `fixed_after_evaluation`, and R3a `enforced` → `trade_off`. See
+[Changes after seeing results](#changes-after-seeing-results-engine-61-one-round-only).
+
+**How to weigh them.** `enforced` rules (R1, R2, R4) are what P is *built* to satisfy, so 0% there only checks the
+code. `trade_off` (R3a) is built in too, but not at the cost of R4: when the surplus cannot fill the emergency fund
+in 12 months, P keeps R4. `independent` rules test judgement P was not tuned for and carry more weight, together
+with the panel replay. R3b is reported to show the trade-off P makes (it invests what is left after the emergency
+top-up). All rules were written by the method's author: no teammate-written rules or independent labelling
+(decision 2026-10-23), stated as a limitation.
 
 ## Data
 
@@ -84,10 +90,52 @@ Monte Carlo: seeded per persona with **common random numbers** (every method see
 persona), so method differences are not sampling noise. Development runs used 500 paths; the committed tables use
 **2,000 paths**. Metrics 1, 4 and 5 and the SIP sizes do not depend on the path count.
 
-## Results (offline, seed 42, 2,000 paths)
+## Changes after seeing results (engine 6.1, one round only)
 
-Full tables (per rule, per segment, every ablation, the guard's misses and false alarms):
-`backend/evaluation/investing_metrics.md`. Return assumptions are the illustrative placeholders.
+The first run (engine 6.0, tables in the next section) found two weaknesses. Both were fixed in ONE round
+(spec section 14.8); there is no second round of tuning against these rules. Current numbers: 500 personas,
+seed 42, 2,000 paths; full tables in `backend/evaluation/investing_metrics.md`.
+
+| Change | Metric (P proposed) | Engine 6.0 | Engine 6.1 |
+|---|---|---|---|
+| Fix 1: cap the emergency top-up at the low-band surplus | R4 (SIP + top-up ≤ low surplus) | 15.6% | **0.0%** (by design: a regression test, not evidence) |
+| | R3a (fund reaches 3 months within 12 months) | 0.0% | **18.2%** (22 of 121; the trade-off below) |
+| Fix 2: fragile household caps capacity (`CAPACITY_CAP_FRAGILE_HOUSEHOLD`) | R5 (irregular income + ≥ 2 dependents: equity ≤ 40%) | 58.5% | **0.0%** (relabelled `fixed_after_evaluation`) |
+| Both | Allocation rules broken (R1, R2, R5-R7) | 16.6% | 0.0% |
+| | SIP rules broken (R3a, R4) | 15.6% | 4.4% |
+| | Mean equity | 45.5% | 40.1% |
+| | Shortfall risk / mean goal probability | 5.9% / 17.3% | 6.1% / 16.6% |
+| | Mean SIP | ₹11,004 | ₹11,155 |
+| Claims guard v2 (surely, locked in, fully protected, …) | Recall / precision on the 60 sentences | 66.7% / 66.7% (v1) | 96.7% / 74.4% (v2; NOT evidence: the phrases were added after seeing v1's misses on the same sentences) |
+
+Reporting only (no method change): R7 is "not evaluated (n=1)" in the main run; the goal gap; the spending
+variability sensitivity (primary 5-30% range unchanged).
+
+**R3a: the direct cost of Fix 1.** P went from 0.0% to 18.2% on R3a: 22 of the 121 personas with under 3 months of
+emergency fund. All 22 have SIP = 0 (the whole low-band surplus already goes to the fund) and none break R4. Their
+surplus × 12 cannot fill the fund to 3 months, so **no plan can satisfy both R3a and R4 for them**: meeting R3a would
+ask for more money than the month leaves. Engine 6.1 keeps R4 and warns `emergency_fill_slow` instead.
+
+- **Re-label, made after seeing these results:** R3a `enforced` → `trade_off`. "Enforced" claimed P always meets
+  it, which engine 6.1 no longer does on purpose. The rule's condition and every number are unchanged.
+- **Split of the violations** (computed from the same per-persona results, no re-run; the personas are rebuilt
+  from seed 42 and checked against the saved rows). *Infeasible* = even the whole low-band surplus × 12 cannot
+  fill the fund to 3 months; *avoidable* = the surplus was enough:
+
+| Method | R3a broken | Avoidable | Infeasible given the surplus |
+|---|---|---|---|
+| B0 / B1 / B2 (naive SIP) | 100.0% | 99 | 22 |
+| P allocation + naive SIP | 100.0% | 99 | 22 |
+| **P proposed** | **18.2%** | **0** | **22** |
+| B2 allocation + P's SIP | 18.2% | 0 | 22 |
+
+  The same 22 people are infeasible for every method; the baselines' other 99 violations are avoidable.
+
+## Results before the fixes (engine 6.0; offline, seed 42, 2,000 paths)
+
+These are the numbers that motivated the one round of fixes above. They are kept as the "before" record; the
+current (engine 6.1) results are in `backend/evaluation/investing_metrics.md` and the table above.
+Return assumptions are the illustrative placeholders.
 
 ### Main comparison (500 personas)
 
@@ -148,6 +196,9 @@ Per rule (violation rate over the personas the rule applies to; path-independent
 
 ## How to read these numbers
 
+Written for the engine 6.0 run above. After the one round of fixes, P's R4 and R5 are 0%, R3a is 18.2% (all
+infeasible given the surplus) and allocation violations are 0%; the trade-offs below still hold.
+
 - **The core trade-off.** The baselines put the whole mean surplus into a SIP, so they reach goals (~98%) but break
   the affordability rule for every persona and, on real cash flows, ask for more than the month leaves 47% of the
   time. P invests about a third as much (₹11k vs ₹36k), breaks R4 for 15.6%, and fails the panel replay 28.4% of the
@@ -162,12 +213,12 @@ Per rule (violation rate over the personas the rule applies to; path-independent
 - **Goal probability is low by construction**: the goal's SIP is sized at the expected return (≈50% chance), and
   for most personas the affordable SIP is below even that.
 
-## Findings to act on (not fixed yet; each needs a decision)
+## Findings from the engine 6.0 run
 
-1. **Cap the emergency top-up at the available surplus.** All of P's R4 violations come from reserving a top-up
-   when the low surplus is too small (or ≤ 0). Capping it would make R4 0% by design.
-2. **R5 weakness.** Consider a hard rule in the capacity score (irregular income + dependents caps the category),
-   or report it as a limitation of averaging.
+1. **Cap the emergency top-up at the available surplus.** All of P's R4 violations came from reserving a top-up
+   when the low surplus was too small (or ≤ 0). **Done in engine 6.1** (R4 0%; cost: R3a 18.2%, see above).
+2. **R5 weakness.** A hard rule in the capacity score (irregular income + dependents caps the category).
+   **Done in engine 6.1** (R5 0%, relabelled `fixed_after_evaluation`).
 3. **Irregular earners.** Freelancer and high-spender SIPs fail the replay 47-48% of the time at P's low band × 0.8
    and still 45-48% at low band × 0.6:
    the forecast treats income as known (a Phase 5 gap), so no safety factor on spending fixes it.
@@ -179,8 +230,9 @@ Per rule (violation rate over the personas the rule applies to; path-independent
 - Synthetic personas with independently drawn attributes (unrealistic combinations; R7 almost never applies).
   The spending-variability range (5-30%) is a modelling choice that drives the gap between low and mean surplus
   (median low/mean = 0.61; 12.6% of personas have a low surplus ≤ 0).
-- No ground truth: the rules are the team's pre-registered judgement; four of eight are enforced by P's design.
-  No teammate-written rules yet.
+- No ground truth: the rules are the team's pre-registered judgement; three of eight (R1, R2, R4) are enforced
+  by P's design, and R3a is a trade-off with R4 (relabelled after seeing the engine 6.1 results). All rules were
+  written by the method's author (no independent labelling).
 - Normal monthly returns understate fat tails; return assumptions are placeholders; no tax, fees or inflation.
 - The panel replay has no savings data, so it tests surplus sizing only (no emergency fund, no goal).
 - The 60 guard sentences were written by the same side as the regex; recall is optimistic.

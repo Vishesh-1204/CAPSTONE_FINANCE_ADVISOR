@@ -17,7 +17,8 @@ from evaluation.evaluate_forecast import default_origins
 from evaluation.investing_methods import ABLATIONS, METHODS, ablation_plan, method_plan
 from evaluation.investing_personas import generate_personas, make_persona
 from evaluation.investing_rules import (
-    ENFORCED, FIXED_AFTER_EVALUATION, INDEPENDENT, RULES, SECONDARY, PersonaFacts, Recommendation, check,
+    ENFORCED, FIXED_AFTER_EVALUATION, INDEPENDENT, RULES, SECONDARY, TRADE_OFF, PersonaFacts, Recommendation,
+    check,
 )
 
 ASSUMPTIONS = load_assumptions()
@@ -45,7 +46,8 @@ def persona_like(**changes):
 
 def test_rules_carry_their_honesty_labels():
     design = {rule.rule_id: rule.design for rule in RULES}
-    assert [i for i, d in design.items() if d == ENFORCED] == ["R1", "R2", "R3a", "R4"]
+    assert [i for i, d in design.items() if d == ENFORCED] == ["R1", "R2", "R4"]
+    assert [i for i, d in design.items() if d == TRADE_OFF] == ["R3a"]      # relabelled after the 6.1 results
     assert [i for i, d in design.items() if d == INDEPENDENT] == ["R6", "R7"]
     assert [i for i, d in design.items() if d == FIXED_AFTER_EVALUATION] == ["R5"]
     assert [i for i, d in design.items() if d == SECONDARY] == ["R3b"]
@@ -64,6 +66,23 @@ def test_p_fails_the_strict_r3b_by_design_but_meets_r3a():
                         mean_surplus=50000.0)
     rules = check(weak.facts(), method_plan("P", weak, ASSUMPTIONS).recommendation())
     assert rules["R3a"] is True and rules["R3b"] is False
+
+
+def test_r3a_split_separates_avoidable_from_infeasible_violations():
+    # Gap to 3 months = 30,000. 12 x 4,000 covers it (feasible); 12 x 1,000 does not (infeasible).
+    feasible = persona_like(persona_id=900, essential_monthly=10000.0, liquid_savings=0.0, emergency_months=0.0,
+                            low_surplus=4000.0)
+    infeasible = replace(feasible, persona_id=901, low_surplus=1000.0)
+    assert ev.r3a_feasible(feasible.facts()) and not ev.r3a_feasible(infeasible.facts())
+
+    def row(person, method, satisfied):
+        return ev.PersonaRow(person.persona_id, method, ev.DEFAULT_CONFIG, ev.BASE, (), {"R3a": satisfied},
+                             0.5, 0.0, 0.0, 0.0, 0.0, 0.0)
+
+    rows = [row(feasible, "B0", False), row(infeasible, "B0", False), row(infeasible, "P", False),
+            row(feasible, "P", True)]
+    assert ev.r3a_split(rows, [feasible, infeasible]) == {
+        "B0": {"avoidable": 1, "infeasible": 1}, "P": {"avoidable": 0, "infeasible": 1}}
 
 
 # --- Personas ---

@@ -85,7 +85,9 @@ from evaluation.investing_methods import ABLATIONS, METHODS, MethodPlan, ablatio
 from evaluation.investing_personas import (
     DEFAULT_COUNT, DEFAULT_SEED, SEGMENTS, VARIABILITY_RANGES, Persona, generate_personas, generate_stratified_personas,
 )
-from evaluation.investing_rules import ALLOCATION, RULES, SIP, check
+from evaluation.investing_rules import (
+    ALLOCATION, EMERGENCY_FILL_MONTHS, RULES, RUPEE_SLACK, SIP, PersonaFacts, check, gap_to_floor,
+)
 from scripts.make_synthetic_panel import generate_panel, panel_sha256
 
 logger = logging.getLogger(__name__)
@@ -270,6 +272,30 @@ def aggregate_personas(rows: list[PersonaRow], experiment: str = "personas") -> 
                 add("goal_gap:share_already_there", _rate([e <= 0.01 for e in extra]), len(gaps))
                 add("goal_gap:goal_probability_at_needed", _mean([r.goal_prob_at_needed for r in gaps]), len(gaps))
     return records
+
+
+def r3a_feasible(facts: PersonaFacts) -> bool:
+    """
+    Could ANY plan meet R3a without breaking R4? Only if the whole low-band surplus, set aside for
+    EMERGENCY_FILL_MONTHS, covers the emergency gap. Reporting only: no method uses this.
+    """
+    return max(0.0, facts.low_surplus) * EMERGENCY_FILL_MONTHS >= gap_to_floor(facts) - RUPEE_SLACK
+
+
+def r3a_split(rows: list[PersonaRow], people: list[Persona]) -> dict[str, dict[str, int]]:
+    """
+    R3a violations per method (shipped config, base returns) split into "avoidable" (the surplus could
+    have filled the fund in time) and "infeasible" (it could not, so meeting R3a would break R4).
+    Added after seeing the engine 6.1 results, when R3a was relabelled enforced -> trade_off.
+    """
+    feasible = {person.persona_id: r3a_feasible(person.facts()) for person in people}
+    split: dict[str, dict[str, int]] = {}
+    for row in rows:
+        if row.config != DEFAULT_CONFIG or row.assumption != BASE or row.rules["R3a"] is not False:
+            continue
+        counts = split.setdefault(row.method, {"avoidable": 0, "infeasible": 0})
+        counts["avoidable" if feasible[row.persona_id] else "infeasible"] += 1
+    return split
 
 
 # ------------------------------------------------------------------ 3. panel affordability
@@ -551,7 +577,7 @@ def run_evaluation(
         record["llm_mode"], record["paths"] = llm_mode, paths
     info = {"personas": len(people), "seed": seed, "paths": paths, "llm_mode": llm_mode,
             "sample": len(pipeline_people), "assumptions": assumptions.to_dict(), "stratified": stratified,
-            "engine_version": investment_service.ENGINE_VERSION}
+            "engine_version": investment_service.ENGINE_VERSION, "r3a_split": r3a_split(persona_rows, people)}
     return EvaluationResult(records, persona_rows, panel_info, cases, info)
 
 
@@ -676,6 +702,10 @@ def markdown_report(result: EvaluationResult) -> str:
         "## 2. Violation rate per rule",
         "",
         "`enforced` rules are ones P is BUILT to satisfy, so P scoring 0% there only checks the implementation. "
+        "`trade_off` (R3a) is built in too, but not at the cost of R4: when even the whole low-band surplus cannot "
+        "fill the emergency fund in 12 months, P keeps R4 (it never asks for more than the month leaves). R3a was "
+        "relabelled from `enforced` AFTER seeing the engine 6.1 results; its cells split the violations into "
+        "avoidable and infeasible given the surplus. "
         "`independent` rules test judgement P was not designed to satisfy (they are still written by the method's "
         "author) and carry more weight. `secondary` (R3b) is a "
         "stricter reading P fails by design: P invests what is left after the emergency top-up. "
@@ -689,9 +719,21 @@ def markdown_report(result: EvaluationResult) -> str:
         n = n_applies["n"] if n_applies else 0
         cells = ([f"not evaluated (n={n})"] * len(METHODS) if n < MIN_RULE_N
                  else [_pct(index.value("personas", m, f"violation_rate:{rule.rule_id}")) for m in METHODS])
+        split = info.get("r3a_split")
+        if rule.rule_id == "R3a" and split is not None and n >= MIN_RULE_N:
+            cells = [f"{cell} ({split.get(m, {}).get('avoidable', 0)} avoidable, "
+                     f"{split.get(m, {}).get('infeasible', 0)} infeasible)" for cell, m in zip(cells, METHODS)]
         rule_rows.append([rule.rule_id, rule.kind, rule.design, str(n)] + cells)
     lines += _table(["Rule", "Kind", "Design", "Applies (n)"] + [METHOD_LABELS[m] for m in METHODS], rule_rows)
-    lines += ["", *[f"- **{r.rule_id}** {r.description}" for r in RULES], "", "## 3. By segment", ""]
+    lines += ["", *[f"- **{r.rule_id}** {r.description}" for r in RULES], ""]
+    if info.get("r3a_split") is not None:
+        lines += [
+            "R3a counts are personas. **Infeasible** = even the whole low-band surplus x 12 cannot fill the "
+            "emergency fund to 3 months, so meeting R3a would break R4; **avoidable** = the surplus was enough. "
+            "Computed from the same per-persona results (no re-run).",
+            "",
+        ]
+    lines += ["## 3. By segment", ""]
     segment_rows = []
     for segment in SEGMENTS[1:]:
         for method in ("B0", "B2", "P"):
@@ -832,9 +874,11 @@ def markdown_report(result: EvaluationResult) -> str:
         "- Synthetic personas; every attribute is drawn independently, so unrealistic combinations occur "
         "(for example age 60 with a 25-year horizon).",
         "- There is no ground truth for a suitable allocation: the rules are the team's pre-registered judgement. "
-        "R1, R2, R3a and R4 are enforced by P's design (R4 only since engine 6.1: a regression test now); R5 was "
-        "fixed after the evaluation found it; the remaining independent rules (R6, R7) and the panel replay carry "
-        "the weight.",
+        "R1, R2 and R4 are enforced by P's design (R4 only since engine 6.1: a regression test now). R3a is a "
+        "trade-off with R4, relabelled after seeing the engine 6.1 results: capping the top-up at the surplus "
+        "means P breaks R3a whenever the surplus cannot fill the emergency fund in time (the per-rule table "
+        "splits these violations into avoidable and infeasible). R5 was fixed after the evaluation found it; the "
+        "remaining independent rules (R6, R7) and the panel replay carry the weight.",
         "- All rules and guard sentences were written by the same author as the method (no independent labelling).",
         "- One round of fixes after seeing results (engine 6.1), logged with before/after numbers in "
         "docs/modules/investing-evaluation.md. No further tuning against these rules.",

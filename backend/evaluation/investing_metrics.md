@@ -23,13 +23,13 @@ Shortfall risk is over personas with a SIP > 0. Goal probability counts a person
 
 ## 2. Violation rate per rule
 
-`enforced` rules are ones P is BUILT to satisfy, so P scoring 0% there only checks the implementation. `independent` rules test judgement P was not designed to satisfy (they are still written by the method's author) and carry more weight. `secondary` (R3b) is a stricter reading P fails by design: P invests what is left after the emergency top-up. `fixed_after_evaluation` (R5) found a weakness that engine 6.1 fixed, so its score is no longer evidence. A rule that applies to fewer than 10 personas is not evaluated.
+`enforced` rules are ones P is BUILT to satisfy, so P scoring 0% there only checks the implementation. `trade_off` (R3a) is built in too, but not at the cost of R4: when even the whole low-band surplus cannot fill the emergency fund in 12 months, P keeps R4 (it never asks for more than the month leaves). R3a was relabelled from `enforced` AFTER seeing the engine 6.1 results; its cells split the violations into avoidable and infeasible given the surplus. `independent` rules test judgement P was not designed to satisfy (they are still written by the method's author) and carry more weight. `secondary` (R3b) is a stricter reading P fails by design: P invests what is left after the emergency top-up. `fixed_after_evaluation` (R5) found a weakness that engine 6.1 fixed, so its score is no longer evidence. A rule that applies to fewer than 10 personas is not evaluated.
 
 | Rule | Kind | Design | Applies (n) | B0 fixed 60/40 | B1 100 minus age | B2 questionnaire only | **P proposed** | B2 allocation + P's SIP | P allocation + naive SIP |
 |---|---|---|---|---|---|---|---|---|---|
 | R1 | allocation | enforced | 16 | 100.0% | 100.0% | 100.0% | 0.0% | 100.0% | 0.0% |
 | R2 | allocation | enforced | 46 | 100.0% | 100.0% | 100.0% | 0.0% | 100.0% | 0.0% |
-| R3a | sip | enforced | 121 | 100.0% | 100.0% | 100.0% | 18.2% | 18.2% | 100.0% |
+| R3a | sip | trade_off | 121 | 100.0% (99 avoidable, 22 infeasible) | 100.0% (99 avoidable, 22 infeasible) | 100.0% (99 avoidable, 22 infeasible) | 18.2% (0 avoidable, 22 infeasible) | 18.2% (0 avoidable, 22 infeasible) | 100.0% (99 avoidable, 22 infeasible) |
 | R3b | sip | secondary | 121 | 100.0% | 100.0% | 100.0% | 51.2% | 51.2% | 100.0% |
 | R4 | sip | enforced | 500 | 100.0% | 100.0% | 100.0% | 0.0% | 0.0% | 100.0% |
 | R5 | allocation | fixed_after_evaluation | 142 | 100.0% | 96.5% | 67.6% | 0.0% | 67.6% | 0.0% |
@@ -44,6 +44,8 @@ Shortfall risk is over personas with a SIP > 0. Goal probability counts a person
 - **R5** Irregular income (stability <= 2) and 2 or more dependents: equity at most 40%.
 - **R6** Every questionnaire answer <= 2 (a cautious person): equity at most 30%.
 - **R7** Not over-cautious: horizon >= 10 years, emergency fund >= 6 months, stability >= 4, dependents <= 1 and every answer >= 4: equity at least 50%.
+
+R3a counts are personas. **Infeasible** = even the whole low-band surplus x 12 cannot fill the emergency fund to 3 months, so meeting R3a would break R4; **avoidable** = the surplus was enough. Computed from the same per-persona results (no re-run).
 
 ## 3. By segment
 
@@ -170,7 +172,7 @@ Safe sentences the guard FLAGGED (10):
 ## 9. Limitations
 
 - Synthetic personas; every attribute is drawn independently, so unrealistic combinations occur (for example age 60 with a 25-year horizon).
-- There is no ground truth for a suitable allocation: the rules are the team's pre-registered judgement. R1, R2, R3a and R4 are enforced by P's design (R4 only since engine 6.1: a regression test now); R5 was fixed after the evaluation found it; the remaining independent rules (R6, R7) and the panel replay carry the weight.
+- There is no ground truth for a suitable allocation: the rules are the team's pre-registered judgement. R1, R2 and R4 are enforced by P's design (R4 only since engine 6.1: a regression test now). R3a is a trade-off with R4, relabelled after seeing the engine 6.1 results: capping the top-up at the surplus means P breaks R3a whenever the surplus cannot fill the emergency fund in time (the per-rule table splits these violations into avoidable and infeasible). R5 was fixed after the evaluation found it; the remaining independent rules (R6, R7) and the panel replay carry the weight.
 - All rules and guard sentences were written by the same author as the method (no independent labelling).
 - One round of fixes after seeing results (engine 6.1), logged with before/after numbers in docs/modules/investing-evaluation.md. No further tuning against these rules.
 - Normal monthly returns understate fat tails; the return assumptions are placeholders; no tax, fees or inflation.

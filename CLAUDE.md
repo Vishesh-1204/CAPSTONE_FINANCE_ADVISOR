@@ -78,10 +78,12 @@ research value, explainability and maintainability over quick fixes.
   claims guards, claims checker injected by the service, disclaimer from core/disclaimers.py added after the
   guards), /api/investing/* (9 routes). 6B: evaluation/investing_rules.py (pre-registered, committed alone first),
   investing_personas.py (500, seed 42), investing_methods.py (B0, B1, B2, P, two mixed variants, 7 ablations),
-  evaluate_investing.py -> backend/evaluation/investing_metrics.csv + .md (2,000 paths, committed). Findings:
-  P breaks R4 for 15.6% (top-up not capped at the surplus) vs 100% for the naive-SIP baselines; independent rule
-  R5 shows P gives >40% equity to 58.5% of irregular-income people with 2+ dependents; panel replay: SIP from low
-  band x 0.8 exceeds the actual next-month surplus in 28.4% of 450 forecasts vs 47.3% for the mean surplus.
+  evaluate_investing.py -> backend/evaluation/investing_metrics.csv + .md (2,000 paths, committed). Engine 6.1
+  (one round of fixes after the 6.0 run, logged in docs/modules/investing-evaluation.md): P breaks R4 0.0% (was
+  15.6%; top-up now capped at the surplus) and R5 0.0% (was 58.5%; fragile-household cap), allocation rules broken
+  0.0% (was 16.6%), vs 100% R4 for the naive-SIP baselines. R3a 18.2% is a trade-off (relabelled from enforced
+  after seeing results): all 22 violations are infeasible given the surplus (0 avoidable). Panel replay: SIP from
+  low band x 0.8 exceeds the actual next-month surplus in 28.4% of 450 forecasts vs 47.3% for the mean surplus.
   Docs: docs/modules/investing.md, investing-evaluation.md; api/database/testing/architecture updated.
 - Done: Phase 6C frontend /investing page (F11, docs/modules/frontend-console.md) + GET /api/investing/plans/{plan_id}
   for the plan history, 771 tests passing, smoke 16/16.
