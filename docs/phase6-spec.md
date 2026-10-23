@@ -1010,3 +1010,55 @@ Add frontend/app/investing/page.tsx in the existing console style (Tailwind, Sha
 
 ## 13. Next steps
 Phase 7 (Stock Intelligence Agent) adds market data, FinBERT news sentiment and PyTorch models, and plugs into this phase as an optional satellite slice and as real historical returns for a bootstrap Monte Carlo. Phase 8 (Goal Planning) reuses `required_sip`, `months_to_reach` and `simulate_sip`, which is why they were written as pure, reusable functions.
+
+## 14. Audit decisions (post 6A-0)
+
+Agreed after the 6A-0 audit of the Phase 5 code (541 tests passing on `feature/vishesh-investing`, cut from DEV at `f802e20`). Where these decisions differ from an earlier section, **these win**.
+
+### 14.1 Forecast surplus (replaces "lower band surplus" in sections 4 and 8)
+- `forecast_runs` stores horizon TOTALS, not monthly figures, and `net_cashflow` has no band and is AFTER existing investments. So the service derives the number itself.
+- Use the user's latest **30-day** run (`horizon_days == 30`): a 90-day sum interval divided by 3 is narrower per month than a one-month interval, and the SIP must be affordable every month.
+- `low_surplus_monthly = (expected_income - expected_fixed_expenses - expected_variable_expenses_upper) * 30.44 / horizon_days`
+  (equivalent to `projected_end_balance_lower - opening_balance + expected_investments`, scaled).
+- The run id used goes into `inputs_json` (`forecast_run_id`), so a plan can be traced to its forecast.
+- Warnings: `forecast_missing` (no 30-day run: fall back to income minus budgeted spending, as in section 8) and `forecast_stale` (the run's `as_of` is too old; threshold is a setting).
+- Limitation to state: income has no band, so for irregular earners the lower surplus is optimistic. The 0.8 safety factor partly covers this.
+- `forecast_service` gets a small public helper that returns the latest run row (optionally of one horizon) or `None`, because `latest_run()` raises 404 and returns a float dict.
+
+### 14.2 Essential spending (replaces "active Phase 4 budget" in sections 4 and 8)
+- There is no "active budget": `budgets` holds one row per (user, month, category).
+- New public `budget_service.average_essential_spending(db, user_id, month)`:
+  if that month has budgets, sum `limit_amount` of the essential categories (`budget_calculator.is_essential`), so user overrides count;
+  otherwise the essential categories of the transaction history average over `BUDGET_LOOKBACK_MONTHS` (3).
+  It reports which source was used and how many months.
+
+### 14.3 Explanation guards (extends section 8, `investment_explainer.py`)
+- `facts` carries PRE-FORMATTED display strings for every number, and the prompt tells the model to copy them exactly.
+- The rupee format is chosen so `explanation_guard.is_faithful` parses it correctly, including Indian digit grouping (`₹12,34,567`); this is covered by a test.
+- On top of `is_faithful` and `claims_guard.is_compliant`, the explainer rejects:
+  any percentage not in `facts` (1 percentage point tolerance), and
+  any text containing `lakh`, `crore`, or `k` / `L` amount suffixes (they would be mis-parsed by the rupee guard).
+- Any rejection -> deterministic template.
+
+### 14.4 Research logging (replaces `explanation_source` alone in section 4)
+- `investment_plans` stores `llm_used`, `explanation_faithful`, `claims_compliant`, `llm_calls` and `raw_prohibited_claims` (count found in the RAW LLM text, before the guard).
+- `explanation_source` (`llm` | `template`) is DERIVED from these, not stored separately.
+- "One LLM call" means one call per provider attempt: the provider fallback chain (as in Phases 4 and 5) can make more after a provider error. The 6A-4 "exactly 1 call" test uses a single stub.
+
+### 14.5 Smaller fixes (items 5-9 of the audit)
+- `holdings.label` is NOT NULL with default `''`: NULLs are distinct in a UNIQUE constraint on both Postgres and SQLite, so (user_id, asset_class, NULL) would allow duplicates.
+- "409-style domain error" = `HTTPException(409)` raised in the service, the existing codebase convention.
+- Pure modules use float; the service converts to `Decimal` (`core/money.py`) before saving or returning money.
+- The `capacity_score` saved by PUT /profile can go stale as essential spending changes; POST /plan always recomputes it.
+- The forecast's `expected_investments` (detected SIPs) can pre-fill or cross-check the user-entered existing SIP.
+- Phase 5 interval coverage is 61-65% (not 63%) against 80% nominal.
+
+### 14.6 Conventions (replaces paths in sections 3, 10 and 12)
+- Docs: `docs/modules/investing.md` and `docs/modules/investing-evaluation.md`.
+- Evaluation: flat `backend/evaluation/evaluate_investing.py` writing `backend/evaluation/investing_metrics.csv` and `.md`
+  (run with `python -m evaluation.evaluate_investing`), like `evaluate_budget.py` and `evaluate_forecast.py`.
+- Test files keep the reference names from section 6 (`test_risk_scoring.py` and so on); later files may use `test_investing_*.py`.
+
+### 14.7 Change to the reference code (6A-1)
+- `claims_guard.py`: `can'?t lose` became `can[’']?t lose`, so the curly apostrophe that LLMs often produce is caught too.
+  New test `test_curly_straight_and_missing_apostrophes_are_all_caught` (3 cases). 6A-1 total: 68 new tests.
