@@ -147,6 +147,8 @@ def test_llm_sample_measures_raw_output():
 def test_panel_replay_on_one_origin_is_monotonic_in_the_sip_size():
     records, info = ev.panel_affordability([default_origins()[0]])
     assert info.forecasts == 30
+    reference = [r for r in records if r["experiment"] == "panel_variability" and r["group"] == "all"]
+    assert {r["metric"] for r in reference} == {"cv_median", "cv_min", "cv_max"} and reference[0]["n"] == 30
     failure = {r["method"]: r["value"] for r in records if r["metric"] == "failure_rate" and r["group"] == "all"}
     assert all(0 <= rate <= 1 for rate in failure.values())
     # A smaller SIP from the same surplus can never fail more often
@@ -172,7 +174,7 @@ def test_small_run_is_deterministic_and_reports_every_experiment():
     assert as_written(first) == as_written(second)
     assert ev.markdown_report(first) == ev.markdown_report(second)
     experiments = {r["experiment"] for r in first.records}
-    assert experiments == {"personas", "claims_guard", "pipeline"}
+    assert experiments == {"personas", "variability", "claims_guard", "pipeline"}
     methods = {r["method"] for r in first.records if r["experiment"] == "personas"}
     assert methods == set(METHODS)
     configs = {r["config"] for r in first.records if r["method"] == "P" and r["experiment"] == "personas"}
@@ -182,3 +184,46 @@ def test_small_run_is_deterministic_and_reports_every_experiment():
                     "## 7. Claims guard", "## 8. Real pipeline sample", "## 9. Limitations"):
         assert heading in report
     assert "50 paths" in report
+
+
+# --- Added with the post-results round (engine 6.1) ---
+
+def test_main_personas_are_unchanged_by_the_variability_parameter():
+    from evaluation.investing_personas import VARIABILITY_RANGES
+    assert generate_personas(20, variability=VARIABILITY_RANGES["base"]) == generate_personas(20)
+    high = generate_personas(20, variability=VARIABILITY_RANGES["high"])
+    assert [p.spending_sd for p in high] != [p.spending_sd for p in generate_personas(20)]
+
+
+def test_fixes_make_r4_and_r5_hold_for_p():
+    for persona in PERSONAS:
+        rules = check(persona.facts(), method_plan("P", persona, ASSUMPTIONS).recommendation())
+        assert rules["R4"] is not False and rules["R5"] is not False
+
+
+def test_goal_gap_is_reported_for_p():
+    result = ev.run_evaluation(personas=15, paths=50, panel=False, sample=1, variability=False)
+    gap = {r["metric"]: r["value"] for r in result.records
+           if r["experiment"] == "personas" and r["method"] == "P" and r["config"] == "default"
+           and r["assumption"] == "base" and r["group"] == "all" and r["metric"].startswith("goal_gap:")}
+    assert set(gap) == {"goal_gap:mean_needed_sip", "goal_gap:mean_extra_sip", "goal_gap:median_extra_sip",
+                        "goal_gap:share_already_there", "goal_gap:goal_probability_at_needed"}
+    assert 0 <= gap["goal_gap:goal_probability_at_needed"] <= 1 and gap["goal_gap:mean_extra_sip"] >= 0
+
+
+def test_stratified_run_evaluates_r7_and_stays_separate():
+    from evaluation.investing_personas import STRATIFIED_ID_OFFSET, generate_stratified_personas
+    people = generate_stratified_personas()
+    assert len(people) == 100 and min(p.persona_id for p in people) >= STRATIFIED_ID_OFFSET
+    assert sum(1 for p in people if "strong" in p.segments) == 25
+    result = ev.run_evaluation(paths=50, sample=4, stratified=True)
+    r7 = next(r for r in result.records if r["experiment"] == "personas" and r["method"] == "P"
+              and r["config"] == "default" and r["group"] == "all" and r["metric"] == "violation_rate:R7")
+    assert r7["n"] >= ev.MIN_RULE_N
+    assert {r["experiment"] for r in result.records} == {"personas", "claims_guard", "pipeline"}
+    assert "STRATIFIED" in ev.markdown_report(result)
+
+
+def test_a_rule_with_too_few_personas_is_not_evaluated():
+    report = ev.markdown_report(ev.run_evaluation(personas=15, paths=50, panel=False, sample=1, variability=False))
+    assert "not evaluated (n=" in report

@@ -22,14 +22,24 @@
 #   5. pipeline    30 personas through the REAL generate_plan (SQLite): P here must
 #                  equal the service, and the template must pass every guard.
 #                  --llm real: the same 30 through the configured LLM (synthetic data).
+#   6. variability B0, B2 and P on personas whose spending variability is drawn from a low and
+#                  a high range (the primary 5-30% range is unchanged), with the Phase 5 panel's
+#                  measured variability as a reference (the panel is synthetic too).
+#   7. goal gap    how much more than P's SIP the goal needs at the expected return (about 50%).
+#
+#   --stratified   a SEPARATE run on ~100 personas that oversample rare corners (R7's strong
+#                  households, fragile households, cautious people, short horizons). Never mixed
+#                  into the main tables.
 #
 # Run (inside Docker):
 #   docker compose exec backend python -m evaluation.evaluate_investing                 (final: 2,000 paths)
 #   docker compose exec backend python -m evaluation.evaluate_investing --paths 500     (development)
 #   docker compose exec backend python -m evaluation.evaluate_investing --llm real      (synthetic data only)
+#   docker compose exec backend python -m evaluation.evaluate_investing --stratified    (separate rare-corner run)
 #
 # Output (long format, see FIELDS):
 #   --paths 2000 --llm none  evaluation/investing_metrics.csv + .md (committed; deterministic)
+#   ... --stratified         evaluation/investing_metrics_stratified.csv + .md (committed)
 #   anything else            evaluation/results/investing_metrics_<label>.csv + .md (gitignored)
 #   always                   evaluation/results/investing_persona_rows_<label>.csv (one row per
 #                            persona x method x config x assumption, for significance tests)
@@ -39,11 +49,11 @@ import csv
 import logging
 from collections.abc import Callable, Iterator
 from contextlib import contextmanager
-from dataclasses import dataclass, field
+from dataclasses import dataclass, field, replace
 from datetime import date, datetime, timedelta, timezone
 from decimal import Decimal
 from pathlib import Path
-from statistics import mean
+from statistics import mean, median, pstdev
 
 from sqlalchemy import create_engine
 from sqlalchemy.orm import Session, sessionmaker
@@ -53,6 +63,7 @@ import app.models  # noqa: F401  (registers every table)
 from app.agents.forecast_explainer import ForecastExplainer
 from app.agents.investment_explainer import InvestmentExplainer, build_facts, build_facts_payload, template_text
 from app.core.money import to_money
+from app.core.transaction_types import TXN_EXPENSE
 from app.db.base_class import Base
 from app.models.budget import Budget
 from app.models.forecast import ForecastRun
@@ -65,11 +76,14 @@ from app.services.investing.assumptions import InvestingAssumptions, load_assump
 from app.services.investing.claims_guard import find_prohibited_claims, is_compliant
 from app.services.investing.monte_carlo import simulate_sip
 from app.services.investing.portfolio_stats import AssetAssumption, portfolio_return_and_volatility
+from app.services.investing.sip_planner import required_sip
 from evaluation.evaluate_categorizer import overridden_settings
 from evaluation.evaluate_forecast import Ledger, default_origins, load_db, set_profile_income, window_actuals
 from evaluation.evaluate_forecast import explainer as forecast_explainer
 from evaluation.investing_methods import ABLATIONS, METHODS, MethodPlan, ablation_plan, method_plan
-from evaluation.investing_personas import DEFAULT_COUNT, DEFAULT_SEED, SEGMENTS, Persona, generate_personas
+from evaluation.investing_personas import (
+    DEFAULT_COUNT, DEFAULT_SEED, SEGMENTS, VARIABILITY_RANGES, Persona, generate_personas, generate_stratified_personas,
+)
 from evaluation.investing_rules import ALLOCATION, RULES, SIP, check
 from scripts.make_synthetic_panel import generate_panel, panel_sha256
 
@@ -95,6 +109,9 @@ RETURN_SHIFTS: dict[str, dict[str, float]] = {
     "high": {"equity": 0.03, "debt": 0.01, "gold": 0.02, "cash": 0.005},
 }
 SENSITIVITY_METHODS = ("P", "B0")
+VARIABILITY_METHODS = ("B0", "B2", "P")
+MIN_RULE_N = 10                       # a rule that applies to fewer personas is reported as not evaluated
+GUARD_VERSION = "v2"                  # claims_guard phrase list (v2 added words after seeing v1's misses)
 
 # Panel replay: SIP = max(0, surplus band x factor), compared with the actual next-30-day surplus
 PANEL_RULES: dict[str, tuple[str, float]] = {
@@ -161,6 +178,8 @@ class PersonaRow:
     invested: float                   # SIP x months: what the person puts in
     p10: float
     goal_probability: float
+    goal_sip_needed: float = float("nan")      # P only: the goal's SIP at the expected return (about 50%)
+    goal_prob_at_needed: float = float("nan")  # P only: the probability that SIP really achieves
 
 
 def shifted_assumptions(base: InvestingAssumptions, label: str) -> dict[str, AssetAssumption]:
@@ -170,30 +189,40 @@ def shifted_assumptions(base: InvestingAssumptions, label: str) -> dict[str, Ass
     return {name: AssetAssumption(a.expected_return + shifts[name], a.volatility) for name, a in base.assets.items()}
 
 
-def evaluate_personas(personas: list[Persona], assumptions: InvestingAssumptions, paths: int) -> list[PersonaRow]:
+def evaluate_personas(
+    personas: list[Persona], assumptions: InvestingAssumptions, paths: int, methods: tuple[str, ...] = METHODS,
+    ablations: bool = True, sensitivity: bool = True, goal_gap: bool = True,
+) -> list[PersonaRow]:
     simulator = Simulator(paths)
     rows: list[PersonaRow] = []
     for persona in personas:
         facts = persona.facts()
         months = round(persona.horizon_years * 12)
         variants: list[tuple[str, str, MethodPlan]] = [
-            (name, DEFAULT_CONFIG, method_plan(name, persona, assumptions)) for name in METHODS
-        ] + [("P", label, ablation_plan(label, persona, assumptions)) for label in ABLATIONS]
+            (name, DEFAULT_CONFIG, method_plan(name, persona, assumptions)) for name in methods
+        ] + ([("P", label, ablation_plan(label, persona, assumptions)) for label in ABLATIONS] if ablations else [])
         defaults = {name: plan for name, config, plan in variants if config == DEFAULT_CONFIG}
 
         def add(method: str, config: str, assumption: str, plan: MethodPlan, mean_return: float,
-                volatility: float) -> None:
+                volatility: float, **extra: float) -> None:
             p10, probability = simulator.run(plan.monthly_sip, persona.horizon_years, mean_return, volatility,
                                              persona.goal_amount, persona.seed)
             rows.append(PersonaRow(
                 persona.persona_id, method, config, assumption, tuple(persona.segments),
                 check(facts, plan.recommendation()), plan.weights.get("equity", 0.0), plan.monthly_sip,
-                plan.emergency_topup, plan.monthly_sip * months, p10, probability,
+                plan.emergency_topup, plan.monthly_sip * months, p10, probability, **extra,
             ))
 
         for method, config, plan in variants:
-            add(method, config, BASE, plan, plan.expected_return, plan.volatility)
-        for method in SENSITIVITY_METHODS:
+            extra: dict[str, float] = {}
+            if goal_gap and method == "P" and config == DEFAULT_CONFIG and months >= 1:
+                # The SIP the goal needs at the expected return, and what it really achieves
+                needed = round(required_sip(persona.goal_amount, plan.expected_return, persona.horizon_years), 2)
+                _, at_needed = simulator.run(needed, persona.horizon_years, plan.expected_return, plan.volatility,
+                                             persona.goal_amount, persona.seed)
+                extra = {"goal_sip_needed": needed, "goal_prob_at_needed": at_needed}
+            add(method, config, BASE, plan, plan.expected_return, plan.volatility, **extra)
+        for method in (SENSITIVITY_METHODS if sensitivity else ()):
             plan = defaults[method]
             for label in RETURN_SHIFTS:
                 mean_return, volatility = portfolio_return_and_volatility(
@@ -202,7 +231,7 @@ def evaluate_personas(personas: list[Persona], assumptions: InvestingAssumptions
     return rows
 
 
-def aggregate_personas(rows: list[PersonaRow]) -> list[dict]:
+def aggregate_personas(rows: list[PersonaRow], experiment: str = "personas") -> list[dict]:
     records: list[dict] = []
     groups: dict[tuple[str, str, str], list[PersonaRow]] = {}
     for row in rows:
@@ -215,7 +244,7 @@ def aggregate_personas(rows: list[PersonaRow]) -> list[dict]:
             n = len(subset)
 
             def add(metric: str, value: float, count: int = n) -> None:
-                records.append(_record("personas", method, config, assumption, segment, metric, value, count))
+                records.append(_record(experiment, method, config, assumption, segment, metric, value, count))
 
             investing = [r for r in subset if r.monthly_sip > 0]
             add("shortfall_rate", _rate([r.p10 < r.invested for r in investing]), len(investing))
@@ -231,6 +260,14 @@ def aggregate_personas(rows: list[PersonaRow]) -> list[dict]:
             add("mean_sip", _mean([r.monthly_sip for r in subset]))
             add("mean_topup", _mean([r.emergency_topup for r in subset]))
             add("mean_equity", _mean([r.equity for r in subset]))
+            gaps = [r for r in subset if r.goal_sip_needed == r.goal_sip_needed]   # not NaN: P default only
+            if gaps:
+                extra = [max(0.0, r.goal_sip_needed - r.monthly_sip) for r in gaps]
+                add("goal_gap:mean_needed_sip", _mean([r.goal_sip_needed for r in gaps]), len(gaps))
+                add("goal_gap:mean_extra_sip", _mean(extra), len(gaps))
+                add("goal_gap:median_extra_sip", median(extra), len(gaps))
+                add("goal_gap:share_already_there", _rate([e <= 0.01 for e in extra]), len(gaps))
+                add("goal_gap:goal_probability_at_needed", _mean([r.goal_prob_at_needed for r in gaps]), len(gaps))
     return records
 
 
@@ -290,8 +327,33 @@ def panel_affordability(origins: list[date] | None = None) -> tuple[list[dict], 
                 ("mean_excess_when_failing", _mean(failures)),
             ):
                 records.append(_record("affordability", rule, DEFAULT_CONFIG, BASE, persona, metric, value, len(subset)))
+    records += panel_variability(by_user)
     info = PanelInfo(len(users), len(panel), panel_sha256(panel), origins, len(outcomes) // len(PANEL_RULES))
     return records, info
+
+
+def panel_variability(by_user: dict[str, list]) -> list[dict]:
+    """
+    Reference for the persona variability ranges: each panel user's month-to-month spending
+    variability (sd / mean of monthly expense totals over the 24 months). The panel is synthetic
+    too, so this is a reference point, not ground truth. It includes festival seasonality and
+    drift, which the persona cv (one month's uncertainty) does not separate out.
+    """
+    cvs: dict[str, list[float]] = {}
+    for rows in by_user.values():
+        monthly: dict[str, float] = {}
+        for row in rows:
+            if row.txn_type == TXN_EXPENSE:
+                key = f"{row.day:%Y-%m}"
+                monthly[key] = monthly.get(key, 0.0) + float(row.amount)
+        values = list(monthly.values())
+        cvs.setdefault(rows[0].persona, []).append(pstdev(values) / mean(values))
+    records: list[dict] = []
+    for group in ["all", *sorted(cvs)]:
+        values = [v for persona, vs in cvs.items() for v in vs if group in ("all", persona)]
+        for metric, value in (("cv_median", median(values)), ("cv_min", min(values)), ("cv_max", max(values))):
+            records.append(_record("panel_variability", "panel", DEFAULT_CONFIG, BASE, group, metric, value, len(values)))
+    return records
 
 
 # ------------------------------------------------------------------ 4. claims guard
@@ -456,13 +518,30 @@ class EvaluationResult:
 def run_evaluation(
     personas: int = DEFAULT_COUNT, seed: int = DEFAULT_SEED, paths: int = FINAL_PATHS, llm_mode: str = "none",
     llm_factory: Callable[[], InvestmentExplainer] | None = None, panel: bool = True,
-    panel_origins: list[date] | None = None, sample: int = SERVICE_SAMPLE,
+    panel_origins: list[date] | None = None, sample: int = SERVICE_SAMPLE, stratified: bool = False,
+    variability: bool = True,
 ) -> EvaluationResult:
-    """Every experiment. `panel=False` skips the slow replay; tests pass small numbers everywhere."""
+    """
+    Every experiment. `panel=False` skips the slow replay; tests pass small numbers everywhere.
+    `stratified=True` runs the separate rare-corner set instead of the main personas (no panel,
+    no variability sensitivity: those belong to the main run).
+    """
     assumptions = load_assumptions()
-    people = generate_personas(personas, seed)
+    if stratified:
+        people = generate_stratified_personas(seed=seed)
+        panel = variability = False
+        pipeline_people = people[::max(1, len(people) // sample)][:sample]     # spread over the strata
+    else:
+        people = generate_personas(personas, seed)
+        pipeline_people = people[:sample]
     persona_rows = evaluate_personas(people, assumptions, paths)
     records = aggregate_personas(persona_rows)
+    if variability:
+        for label in ("low", "high"):
+            varied = generate_personas(personas, seed, VARIABILITY_RANGES[label])
+            rows = evaluate_personas(varied, assumptions, paths, methods=VARIABILITY_METHODS, ablations=False,
+                                     sensitivity=False, goal_gap=False)
+            records += aggregate_personas([replace(r, config=f"variability={label}") for r in rows], "variability")
     panel_info = PanelInfo()
     if panel:
         panel_records, panel_info = panel_affordability(panel_origins)
@@ -471,11 +550,12 @@ def run_evaluation(
     records += guard_metrics(cases)
     if llm_mode == "real" and llm_factory is None:
         llm_factory = lambda: InvestmentExplainer.from_settings(find_prohibited_claims)   # noqa: E731
-    records += pipeline_sample(people[:sample], assumptions, paths, llm_factory)
+    records += pipeline_sample(pipeline_people, assumptions, paths, llm_factory)
     for record in records:
         record["llm_mode"], record["paths"] = llm_mode, paths
-    info = {"personas": personas, "seed": seed, "paths": paths, "llm_mode": llm_mode, "sample": min(sample, personas),
-            "assumptions": assumptions.to_dict()}
+    info = {"personas": len(people), "seed": seed, "paths": paths, "llm_mode": llm_mode,
+            "sample": len(pipeline_people), "assumptions": assumptions.to_dict(), "stratified": stratified,
+            "engine_version": investment_service.ENGINE_VERSION}
     return EvaluationResult(records, persona_rows, panel_info, cases, info)
 
 
@@ -554,10 +634,19 @@ def markdown_report(result: EvaluationResult) -> str:
     index = _Index(result.records)
     info = result.info
     independent_cases = sum(1 for c in result.guard_cases if c.independent)
+    if info["stratified"]:
+        title = "# Investment Advisor Agent: STRATIFIED evaluation (rare corners, separate from the main results)"
+        population = (f"Stratified personas: {info['personas']} (seed {info['seed']}), 25 per rare corner "
+                      f"(R7's strong households, fragile households, cautious people, short horizons). They "
+                      f"OVERSAMPLE rare cases, so the pooled rates below are not population rates; read them per rule "
+                      f"and per segment.")
+    else:
+        title = "# Investment Advisor Agent: evaluation results"
+        population = f"Synthetic personas: {info['personas']} (seed {info['seed']}, each attribute drawn independently)."
     lines = [
-        "# Investment Advisor Agent: evaluation results",
+        title,
         "",
-        f"Synthetic personas: {info['personas']} (seed {info['seed']}, each attribute drawn independently). "
+        f"{population} Engine {info['engine_version']}. "
         f"Monte Carlo: **{info['paths']:,} paths** per projection, seeded per persona, common random numbers "
         f"across methods. LLM mode: {info['llm_mode']}. Suitability rules R1-R7 were committed before the "
         f"methods were written (see evaluation/investing_rules.py and its git history).",
@@ -578,18 +667,33 @@ def markdown_report(result: EvaluationResult) -> str:
         "",
         "Shortfall risk is over personas with a SIP > 0. Goal probability counts a persona with no SIP as 0%.",
         "",
+    ]
+    gap = lambda metric: index.value("personas", "P", f"goal_gap:{metric}")   # noqa: E731
+    if gap("mean_needed_sip") == gap("mean_needed_sip"):
+        lines += [
+            f"**Goal gap (P).** At the expected return a goal needs on average {_rupees(gap('mean_needed_sip'))} a "
+            f"month, which reaches it in {_pct(gap('goal_probability_at_needed'))} of paths. P's SIP is on average "
+            f"{_rupees(gap('mean_extra_sip'))} short of that (median {_rupees(gap('median_extra_sip'))}); "
+            f"{_pct(gap('share_already_there'))} of personas already invest enough.",
+            "",
+        ]
+    lines += [
         "## 2. Violation rate per rule",
         "",
         "`enforced` rules are ones P is BUILT to satisfy, so P scoring 0% there only checks the implementation. "
         "`independent` rules test judgement P was not tuned for and carry more weight. `secondary` (R3b) is a "
-        "stricter reading P fails by design: P invests what is left after the emergency top-up.",
+        "stricter reading P fails by design: P invests what is left after the emergency top-up. "
+        "`fixed_after_evaluation` (R5) found a weakness that engine 6.1 fixed, so its score is no longer evidence. "
+        f"A rule that applies to fewer than {MIN_RULE_N} personas is not evaluated.",
         "",
     ]
     rule_rows = []
     for rule in RULES:
         n_applies = index.get("personas", "P", f"violation_rate:{rule.rule_id}")
-        rule_rows.append([rule.rule_id, rule.kind, rule.design, str(n_applies["n"] if n_applies else 0)]
-                         + [_pct(index.value("personas", m, f"violation_rate:{rule.rule_id}")) for m in METHODS])
+        n = n_applies["n"] if n_applies else 0
+        cells = ([f"not evaluated (n={n})"] * len(METHODS) if n < MIN_RULE_N
+                 else [_pct(index.value("personas", m, f"violation_rate:{rule.rule_id}")) for m in METHODS])
+        rule_rows.append([rule.rule_id, rule.kind, rule.design, str(n)] + cells)
     lines += _table(["Rule", "Kind", "Design", "Applies (n)"] + [METHOD_LABELS[m] for m in METHODS], rule_rows)
     lines += ["", *[f"- **{r.rule_id}** {r.description}" for r in RULES], "", "## 3. By segment", ""]
     segment_rows = []
@@ -626,6 +730,42 @@ def markdown_report(result: EvaluationResult) -> str:
                        for label, s in RETURN_SHIFTS.items())
     lines += ["", f"Shifts from the base returns ({shifts}); volatilities unchanged.", ""]
 
+    if any(r["experiment"] == "variability" for r in result.records):
+        lines += [
+            "## 5b. Sensitivity to the persona spending variability",
+            "",
+            "The primary run draws spending variability (sd / spending) from the base range; it was NOT changed "
+            "after seeing results. The same personas redrawn with a low and a high range:",
+            "",
+        ]
+        variability_rows = []
+        for method in VARIABILITY_METHODS:
+            for label, (low, high) in VARIABILITY_RANGES.items():
+                experiment, config = ("personas", DEFAULT_CONFIG) if label == BASE else ("variability", f"variability={label}")
+                v = lambda metric: index.value(experiment, method, metric, config=config)   # noqa: E731
+                variability_rows.append([
+                    METHOD_LABELS[method], f"{label} ({low * 100:.0f}-{high * 100:.0f}%)",
+                    _pct(v("violation_any:sip")), _pct(v("violation_rate:R4")), _pct(v("share_investing")),
+                    _rupees(v("mean_sip")), _pct(v("goal_probability_mean")), _pct(v("shortfall_rate")),
+                ])
+        lines += _table(["Method", "Variability", "SIP rules broken", "R4", "Investing", "Mean SIP",
+                         "Mean goal probability", "Shortfall risk"], variability_rows)
+        reference = index.get("panel_variability", "panel", "cv_median")
+        if reference is not None:
+            by_persona = sorted({r["group"] for r in result.records if r["experiment"] == "panel_variability"} - {"all"})
+            lines += [
+                "",
+                f"Reference: the Phase 5 panel's month-to-month spending variability (sd / mean of 24 monthly expense "
+                f"totals) has a median of {_pct(reference['value'])} over {reference['n']} users (range "
+                f"{_pct(index.value('panel_variability', 'panel', 'cv_min'))}-"
+                f"{_pct(index.value('panel_variability', 'panel', 'cv_max'))}; "
+                + ", ".join(f"{g} {_pct(index.value('panel_variability', 'panel', 'cv_median', group=g))}"
+                            for g in by_persona)
+                + "). The panel is synthetic too, so it is a reference point, not ground truth, and it mixes "
+                  "seasonality and drift into the variability.",
+            ]
+        lines += [""]
+
     lines += ["## 6. SIP affordability on the Phase 5 panel (replay through the real forecast)", ""]
     if result.panel.forecasts:
         p = result.panel
@@ -646,15 +786,18 @@ def markdown_report(result: EvaluationResult) -> str:
         lines += _table(["SIP rule", "Failure rate (all)"] + panel_personas + ["Mean SIP", "Mean excess when failing"],
                         panel_rows)
     else:
-        lines += ["Not run (--skip-panel)."]
+        lines += ["Not part of this run (the panel replay belongs to the main run; see investing_metrics.md)."
+                  if info["stratified"] else "Not run (--skip-panel)."]
 
     lines += [
         "",
         "## 7. Claims guard on hand-labelled sentences",
         "",
-        f"{len(result.guard_cases)} synthetic sentences in evaluation/investing_guard_cases.csv, "
-        f"**{independent_cases} written independently** of the regex (the rest by the same side that wrote it, so "
-        f"recall is optimistic). The real-LLM run gives the true prohibited-claims rate.",
+        f"Claims guard **{GUARD_VERSION}**. {len(result.guard_cases)} synthetic sentences in "
+        f"evaluation/investing_guard_cases.csv, **{independent_cases} written independently** of the regex. "
+        f"The v2 phrases were added AFTER seeing v1's misses on these same sentences, so the numbers below are "
+        f"NOT evidence of recall (the v1 numbers are logged in docs/modules/investing-evaluation.md). Evidence must "
+        f"come from independently written sentences (the `independent` group, when there are any) and the real-LLM run.",
         "",
     ]
     guard_rows = [[metric.replace("_", " "), _pct(index.value("claims_guard", "claims_guard", metric)),
@@ -681,7 +824,7 @@ def markdown_report(result: EvaluationResult) -> str:
                                     "raw_prohibited_claims_per_plan", "llm_text_used_rate")
                      if (rec := sample(metric)) is not None]
     lines += [
-        f"The first {info['sample']} personas through the REAL generate_plan (SQLite, budget and forecast rows "
+        f"{info['sample']} personas through the REAL generate_plan (SQLite, budget and forecast rows "
         f"stubbed from the persona). `matches evaluation p` = same allocation and SIP as P in this script.",
         "",
     ]
@@ -693,8 +836,11 @@ def markdown_report(result: EvaluationResult) -> str:
         "- Synthetic personas; every attribute is drawn independently, so unrealistic combinations occur "
         "(for example age 60 with a 25-year horizon).",
         "- There is no ground truth for a suitable allocation: the rules are the team's pre-registered judgement. "
-        "R1, R2, R3a and R4 are enforced by P's design; the independent rules R5-R7 and the panel replay carry "
-        "more weight. No teammate-written rules yet.",
+        "R1, R2, R3a and R4 are enforced by P's design (R4 only since engine 6.1: a regression test now); R5 was "
+        "fixed after the evaluation found it; the remaining independent rules (R6, R7) and the panel replay carry "
+        "the weight. No teammate-written rules yet.",
+        "- One round of fixes after seeing results (engine 6.1), logged with before/after numbers in "
+        "docs/modules/investing-evaluation.md. No further tuning against these rules.",
         "- Normal monthly returns understate fat tails; the return assumptions are placeholders; no tax, fees or "
         "inflation.",
         "- The low surplus of a persona is modelled (mean - 1.28 sd); the panel replay uses the real forecast "
@@ -712,18 +858,22 @@ def main() -> None:
     parser.add_argument("--llm", choices=("none", "real"), default="none",
                         help="real = the configured LLM on the pipeline sample (synthetic data only)")
     parser.add_argument("--skip-panel", action="store_true", help="skip the Phase 5 panel replay")
+    parser.add_argument("--skip-variability", action="store_true", help="skip the variability sensitivity")
+    parser.add_argument("--stratified", action="store_true", help="the separate rare-corner set (~100 personas)")
     args = parser.parse_args()
     logging.basicConfig(level=logging.WARNING)
 
-    result = run_evaluation(args.personas, args.seed, args.paths, args.llm, panel=not args.skip_panel)
-    final = args.paths == FINAL_PATHS and args.llm == "none" and args.personas == DEFAULT_COUNT \
-        and args.seed == DEFAULT_SEED and not args.skip_panel
+    result = run_evaluation(args.personas, args.seed, args.paths, args.llm, panel=not args.skip_panel,
+                            stratified=args.stratified, variability=not args.skip_variability)
+    suffix = "_stratified" if args.stratified else ""
+    final = args.paths == FINAL_PATHS and args.llm == "none" and args.seed == DEFAULT_SEED and (
+        args.stratified or (args.personas == DEFAULT_COUNT and not args.skip_panel and not args.skip_variability))
     if final:
-        out_csv, out_md = EVAL_DIR / "investing_metrics.csv", EVAL_DIR / "investing_metrics.md"
-        label = f"paths{args.paths}"
+        out_csv, out_md = EVAL_DIR / f"investing_metrics{suffix}.csv", EVAL_DIR / f"investing_metrics{suffix}.md"
+        label = f"paths{args.paths}{suffix}"
     else:
         stamp = datetime.now(timezone.utc).strftime("%Y%m%d_%H%M%S") if args.llm == "real" else ""
-        label = f"paths{args.paths}" + (f"_llm_{stamp}" if stamp else "")
+        label = f"paths{args.paths}{suffix}" + (f"_llm_{stamp}" if stamp else "")
         out_csv, out_md = RESULTS_DIR / f"investing_metrics_{label}.csv", RESULTS_DIR / f"investing_metrics_{label}.md"
     write_csv(out_csv, result.records)
     out_md.parent.mkdir(parents=True, exist_ok=True)

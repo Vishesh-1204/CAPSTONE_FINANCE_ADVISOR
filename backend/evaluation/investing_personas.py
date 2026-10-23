@@ -15,11 +15,19 @@
 # the upper end of an 80% two-sided spending interval (the 90th percentile), so
 # low = mean - 1.2816 x sd.
 #
+# Spending variability (cv) is drawn from VARIABILITY_RANGES["base"] (5-30%) in the main run. The
+# "low" and "high" ranges exist only for the variability sensitivity table; the primary setting was
+# NOT changed after seeing results.
+#
+# generate_stratified_personas() is a SEPARATE, clearly labelled set (about 100) that oversamples
+# rare corners (rule R7's strong households, fragile households, cautious people, short horizons),
+# because independent draws almost never produce them. It is never mixed into the main run.
+#
 # Pure Python plus the pure sip_planner (for goal sizes). No database.
 
 import math
 import random
-from dataclasses import dataclass
+from dataclasses import dataclass, replace
 from decimal import Decimal
 
 from app.services.investing.sip_planner import future_value_sip
@@ -31,8 +39,17 @@ Z_90 = 1.2816                       # one-sided 90th percentile of the standard 
 GOAL_RETURN = 0.08                  # the return a persona has in mind when setting a goal (not P's assumption)
 SHORT_HORIZON_SHARE = 0.05          # share of personas with a 6-month horizon (so rule R1 is exercised)
 
+# Spending standard deviation as a share of spending (cv)
+VARIABILITY_RANGES: dict[str, tuple[float, float]] = {
+    "low": (0.02, 0.12), "base": (0.05, 0.30), "high": (0.10, 0.50),
+}
+
 # Segments reported separately (raw facts only, like the rules)
-SEGMENTS = ("all", "weak_emergency_fund", "short_horizon", "cautious", "strong")
+SEGMENTS = ("all", "weak_emergency_fund", "short_horizon", "cautious", "fragile_household", "strong")
+
+# Stratified set: persona ids start here so they never collide with the main personas
+STRATIFIED_ID_OFFSET = 100_000
+STRATA = ("strong", "fragile_household", "cautious", "short_horizon")
 
 
 @dataclass(frozen=True)
@@ -72,6 +89,8 @@ class Persona:
             groups.append("short_horizon")
         if max(self.answers) <= 2:
             groups.append("cautious")
+        if self.income_stability <= 2 and self.dependents >= 2:
+            groups.append("fragile_household")
         if (self.horizon_years >= 10 and self.emergency_months >= 6 and self.income_stability >= 4
                 and self.dependents <= 1 and min(self.answers) >= 4):
             groups.append("strong")
@@ -89,14 +108,15 @@ def emergency_months(liquid_savings: float, essential_monthly: float) -> float:
     return round(float(Decimal(str(liquid_savings)) / Decimal(str(essential_monthly))), 2)
 
 
-def make_persona(persona_id: int, seed: int = DEFAULT_SEED) -> Persona:
+def make_persona(persona_id: int, seed: int = DEFAULT_SEED,
+                 variability: tuple[float, float] = VARIABILITY_RANGES["base"]) -> Persona:
     persona_seed = seed * 1000 + persona_id
     rng = random.Random(persona_seed)
     income = _round(math.exp(rng.uniform(math.log(20_000), math.log(300_000))), 500)
     essentials = _round(income * rng.uniform(0.30, 0.60), 100)
     discretionary = _round(income * rng.uniform(0.05, 0.35), 100)
     spending = essentials + discretionary
-    sd = round(spending * rng.uniform(0.05, 0.30), 2)
+    sd = round(spending * rng.uniform(*variability), 2)
     mean_surplus = round(income - spending, 2)
     low_surplus = round(mean_surplus - Z_90 * sd, 2)
     savings = _round(rng.uniform(0, 12) * essentials, 100)
@@ -115,5 +135,43 @@ def make_persona(persona_id: int, seed: int = DEFAULT_SEED) -> Persona:
     )
 
 
-def generate_personas(count: int = DEFAULT_COUNT, seed: int = DEFAULT_SEED) -> list[Persona]:
-    return [make_persona(i, seed) for i in range(count)]
+def _goal(mean_surplus: float, horizon: float, rng: random.Random) -> float:
+    share = rng.uniform(0.2, 0.8)
+    return max(10_000.0, _round(future_value_sip(max(1.0, mean_surplus * share), GOAL_RETURN, horizon), 1000))
+
+
+def generate_personas(count: int = DEFAULT_COUNT, seed: int = DEFAULT_SEED,
+                      variability: tuple[float, float] = VARIABILITY_RANGES["base"]) -> list[Persona]:
+    return [make_persona(i, seed, variability) for i in range(count)]
+
+
+def _stratify(persona: Persona, stratum: str, rng: random.Random) -> Persona:
+    """Forces the facts that define `stratum`; everything else stays as drawn."""
+    changes: dict = {}
+    if stratum == "strong":                       # rule R7's condition
+        savings = _round(rng.uniform(6.1, 12) * persona.essential_monthly, 100)   # 6.1: rounding stays >= 6 months
+        changes = {"horizon_years": float(rng.randint(10, 25)), "liquid_savings": savings,
+                   "income_stability": rng.randint(4, 5), "dependents": rng.randint(0, 1),
+                   "answers": (rng.randint(4, 5), rng.randint(4, 5), rng.randint(4, 5))}
+    elif stratum == "fragile_household":          # rule R5's condition
+        changes = {"income_stability": rng.randint(1, 2), "dependents": rng.randint(2, 4)}
+    elif stratum == "cautious":                   # rule R6's condition
+        changes = {"answers": (rng.randint(1, 2), rng.randint(1, 2), rng.randint(1, 2))}
+    elif stratum == "short_horizon":              # rules R1 and R2
+        changes = {"horizon_years": rng.choice((0.5, 1.0, 2.0))}
+    persona = replace(persona, **changes)
+    return replace(
+        persona, emergency_months=emergency_months(persona.liquid_savings, persona.essential_monthly),
+        goal_amount=_goal(persona.mean_surplus, persona.horizon_years, rng),
+    )
+
+
+def generate_stratified_personas(per_stratum: int = 25, seed: int = DEFAULT_SEED) -> list[Persona]:
+    """About 100 personas, `per_stratum` per rare corner (STRATA). A separate, labelled set."""
+    personas: list[Persona] = []
+    for index, stratum in enumerate(STRATA):
+        for k in range(per_stratum):
+            persona_id = STRATIFIED_ID_OFFSET + index * per_stratum + k
+            rng = random.Random(seed * 1000 + persona_id + 1)        # +1: not the draw stream of make_persona
+            personas.append(_stratify(make_persona(persona_id, seed), stratum, rng))
+    return personas
