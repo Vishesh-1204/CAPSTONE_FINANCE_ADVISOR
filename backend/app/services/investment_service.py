@@ -404,6 +404,18 @@ def latest_plan(db: Session, user_id: int) -> dict:
     return plan_to_response(plan)
 
 
+def get_plan(db: Session, user_id: int, plan_id: int) -> dict:
+    """One of the user's plans. Someone else's id is a 404, so we never reveal that it exists."""
+    plan = (
+        db.query(InvestmentPlan)
+        .filter(InvestmentPlan.id == plan_id, InvestmentPlan.user_id == user_id)
+        .first()
+    )
+    if plan is None:
+        raise HTTPException(status.HTTP_404_NOT_FOUND, "Plan not found.")
+    return plan_to_response(plan)
+
+
 def list_plans(db: Session, user_id: int, limit: int) -> dict:
     plans = _plans_newest_first(db, user_id).limit(limit).all()
     return {"plans": [

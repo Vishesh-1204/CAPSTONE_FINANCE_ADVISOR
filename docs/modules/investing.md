@@ -104,7 +104,7 @@ A real plan from the live smoke test (synthetic user, goal ₹5,00,000 in 5 year
 ## API
 
 All under `/api/investing`, JWT required: `PUT|GET /profile`, `PUT|GET /holdings`, `POST /plan`, `GET /plan/latest`,
-`GET /plans`, `POST /simulate` (what-if, not stored, paths fixed by settings), `GET /assumptions`. Details and
+`GET /plans`, `GET /plans/{plan_id}`, `POST /simulate` (what-if, not stored, paths fixed by settings), `GET /assumptions`. Details and
 validation rules: [../api.md](../api.md#investing).
 
 ## LLM, guards and privacy

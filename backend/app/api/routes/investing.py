@@ -108,6 +108,12 @@ def plan_history(
     return svc.list_plans(db, current_user.id, limit)
 
 
+@router.get("/plans/{plan_id}", response_model=InvestmentPlanResponse)
+def plan_by_id(plan_id: int, db: Session = Depends(get_db), current_user: User = Depends(get_current_user)):
+    """One of your saved plans in full (404 if it does not exist or is not yours)."""
+    return svc.get_plan(db, current_user.id, plan_id)
+
+
 # --- What-if and assumptions (nothing stored) ---
 
 @router.post("/simulate", response_model=SimulateResponse)

@@ -58,6 +58,7 @@ The Pydantic shapes live in `backend/app/schemas/`; the TypeScript mirror is `fr
 | POST | `/api/investing/plan` | Generate and save an investment plan (409 without a profile) |
 | GET | `/api/investing/plan/latest` | Your newest plan |
 | GET | `/api/investing/plans` | Your plans (summary), newest first |
+| GET | `/api/investing/plans/{plan_id}` | One of your plans in full (404 if missing or not yours) |
 | POST | `/api/investing/simulate` | What-if projection (not saved) |
 | GET | `/api/investing/assumptions` | The return/volatility assumptions in force |
 
@@ -331,6 +332,10 @@ Warnings: `forecast_missing`, `forecast_stale`, `surplus_unknown`, `essentials_u
 ### `GET /api/investing/plan/latest` · `GET /api/investing/plans?limit=20`
 `latest`: the newest `InvestmentPlanResponse`; **404** before the first. `plans`: `{plans [{id, created_at,
 category, recommended_sip, explanation_source}], disclaimer}`, newest first; `limit` 1–100.
+
+### `GET /api/investing/plans/{plan_id}`
+One saved plan as a full `InvestmentPlanResponse` (the frontend history list opens older plans with it).
+**404** when the id does not exist or belongs to another user (the same answer, so ids are not revealed).
 
 ### `POST /api/investing/simulate`
 Body `{"monthly_sip": 10000, "years": 10, "category": "moderate", "goal_amount": null, "annual_step_up": 0}`:

@@ -178,6 +178,29 @@ def test_latest_plan_is_404_before_the_first_one(client):
     call(client, "GET", "/api/investing/plan/latest", status=404)
 
 
+# --- One plan by id (the frontend's history list opens older plans with it) ---
+
+def test_plan_by_id_returns_an_older_plan_in_full(client, db):
+    full_setup(client, db)
+    first = call(client, "POST", "/api/investing/plan", {"goal_amount": 1000000, "goal_years": 8}, as_of=AS_OF)
+    second = call(client, "POST", "/api/investing/plan", {}, as_of=AS_OF)
+    assert call(client, "GET", "/api/investing/plan/latest")["id"] == second["id"]
+    assert call(client, "GET", f"/api/investing/plans/{first['id']}") == first
+    call(client, "GET", "/api/investing/plans/999999", status=404)
+
+
+def test_plan_by_id_is_404_for_another_users_plan(client, db, current):
+    full_setup(client, db)
+    plan_a = call(client, "POST", "/api/investing/plan", {}, as_of=AS_OF)
+    current["user_id"] = 2
+    body = call(client, "GET", f"/api/investing/plans/{plan_a['id']}", status=404)
+    assert body["detail"] == "Plan not found."                        # same answer as a missing id
+
+
+def test_plan_by_id_needs_a_login(anonymous):
+    call(anonymous, "GET", "/api/investing/plans/1", status=401)
+
+
 # --- Validation ---
 
 @pytest.mark.parametrize("method, path, body", [
