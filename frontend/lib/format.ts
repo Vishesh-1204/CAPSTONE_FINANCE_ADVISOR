@@ -9,6 +9,18 @@ export function formatMoney(value: number | null | undefined): string {
   return value == null ? "—" : inr.format(value);
 }
 
+const compactInr = new Intl.NumberFormat("en-IN", {
+  style: "currency",
+  currency: "INR",
+  notation: "compact",
+  maximumFractionDigits: 1,
+});
+
+/** Short rupee amounts for chart axes, Indian style (₹12.5L, ₹1.2Cr). */
+export function formatMoneyCompact(value: number): string {
+  return compactInr.format(value);
+}
+
 export function formatDate(iso: string): string {
   return new Date(iso).toLocaleDateString("en-IN", { day: "2-digit", month: "short", year: "numeric" });
 }
