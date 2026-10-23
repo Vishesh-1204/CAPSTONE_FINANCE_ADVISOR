@@ -83,8 +83,10 @@ research value, explainability and maintainability over quick fixes.
   R5 shows P gives >40% equity to 58.5% of irregular-income people with 2+ dependents; panel replay: SIP from low
   band x 0.8 exceeds the actual next-month surplus in 28.4% of 450 forecasts vs 47.3% for the mean surplus.
   Docs: docs/modules/investing.md, investing-evaluation.md; api/database/testing/architecture updated.
-- Next: Phase 6C frontend /investing page. Pending for 6B: teammate-written rules and >= 20 independent guard
-  sentences (separate, marked commits); --llm real on 30 personas (approved in principle, synthetic data only).
+- Done: Phase 6C frontend /investing page (F11, docs/modules/frontend-console.md) + GET /api/investing/plans/{plan_id}
+  for the plan history, 771 tests passing, smoke 16/16.
+- Next: Phase 7 (Stock Intelligence). No teammate rules or guard sentences (decided 2026-10-23): all rules
+  and guard sentences are written by the method's author, stated as a limitation.
 - Known gaps: no HuggingFace/Llama provider in llm/factory.py yet (approved stack); person guard recall 0.857
   (1 person-like string reached the LLM stage in the offline eval); budget guard only checks amounts with a
   currency marker; B2 (--llm real) faithfulness not measured yet; synthetic personas do not react to budgets.
