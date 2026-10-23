@@ -7,6 +7,7 @@
 #     save limits (keeping the user's overrides) -> log a budget_runs row
 #   * override / reset one limit
 #   * status: actual spending of a month vs its limits
+#   * average essential spending (for the Investment Advisor's emergency fund)
 #
 # Spending rule (same as summary_service): only EXPENSES count. A row counts as
 # an expense when txn_type='expense', or when txn_type is still NULL (a pre-v3
@@ -17,6 +18,7 @@
 # budget id is a 404 (we never reveal that it exists).
 
 import logging
+from dataclasses import dataclass
 from datetime import datetime, timezone
 from decimal import Decimal
 
@@ -224,6 +226,39 @@ def list_budgets(db: Session, user_id: int, month: str) -> list[Budget]:
         .order_by(Budget.limit_amount.desc(), Budget.category)
         .all()
     )
+
+
+# --- Essential spending (read by the Investment Advisor, Phase 6) ---
+
+ESSENTIALS_FROM_BUDGET = "budget"     # the month's essential limits (the user's overrides count)
+ESSENTIALS_FROM_HISTORY = "history"   # essential-category average over the lookback months
+ESSENTIALS_NONE = "none"              # no essential budget and no history: unknown
+
+
+@dataclass(frozen=True)
+class EssentialSpending:
+    amount: Decimal       # average monthly essential spending (0 when unknown)
+    source: str           # ESSENTIALS_FROM_BUDGET | ESSENTIALS_FROM_HISTORY | ESSENTIALS_NONE
+    months_used: int      # history months behind the number (0 for the budget source)
+
+
+def average_essential_spending(db: Session, user_id: int, month: str) -> EssentialSpending:
+    """
+    Monthly must-pay spending (rent, groceries, ...; see budget_calculator.is_essential),
+    used to size the emergency fund. If `month` has essential budget limits, their sum
+    (an agent limit for an essential IS the history average, and a user override is
+    newer information). Otherwise the essential categories of the history average over
+    BUDGET_LOOKBACK_MONTHS full months before `month`. Read-only.
+    """
+    essential_limits = [b.limit_amount for b in list_budgets(db, user_id, month) if is_essential(b.category)]
+    if essential_limits:
+        return EssentialSpending(to_money(sum(essential_limits, _ZERO)), ESSENTIALS_FROM_BUDGET, 0)
+
+    averages, months_used = _history_averages(db, user_id, month, settings.BUDGET_LOOKBACK_MONTHS)
+    essentials = [amount for category, amount in averages.items() if is_essential(category)]
+    if not essentials:
+        return EssentialSpending(_ZERO, ESSENTIALS_NONE, months_used)
+    return EssentialSpending(to_money(sum(essentials, _ZERO)), ESSENTIALS_FROM_HISTORY, months_used)
 
 
 def _budget_to_dict(budget: Budget) -> dict:

@@ -190,6 +190,31 @@ class AssumptionsResponse(_WithDisclaimer):
     note: str                             # "illustrative placeholders, not cited market data"
 
 
+class PortfolioStatsOut(BaseModel):
+    expected_return: float                # of the TARGET split, from the assumptions
+    volatility: float
+
+
+class EmergencyFundOut(BaseModel):
+    essential_monthly_spend: float
+    essentials_source: Literal["budget", "history", "none"]
+    months_covered: float                 # liquid savings / essential monthly spend (0 when unknown)
+    target_months: float
+    gap: float                            # rupees still missing to reach target_months
+
+
+class SurplusOut(BaseModel):
+    monthly_low: float                    # lower-band monthly surplus BEFORE investing
+    source: Literal["forecast", "budget", "none"]
+    forecast_as_of: date | None
+
+
+class GoalOut(BaseModel):
+    amount: float | None
+    years: float                          # the horizon used for the allocation and projections
+    required_sip: float | None            # flat SIP that reaches the goal at the expected return
+
+
 class InvestmentPlanResponse(_WithDisclaimer):
     id: int
     created_at: datetime | None
@@ -200,6 +225,10 @@ class InvestmentPlanResponse(_WithDisclaimer):
     sip: SipOut
     projection_current: ProjectionOut     # at the existing SIP
     projection_recommended: ProjectionOut
+    portfolio: PortfolioStatsOut
+    emergency_fund: EmergencyFundOut
+    surplus: SurplusOut
+    goal: GoalOut
     instruments: list[InstrumentTypesOut]
     assumptions: AssumptionsResponse
     warnings: list[str]                   # codes such as "forecast_missing", "forecast_stale"

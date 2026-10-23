@@ -9,6 +9,12 @@
 #   sip_planner.py      affordable SIP from the lower-band surplus, future value, months to a goal
 #   monte_carlo.py      seeded p10 / p50 / p90 corpus range and probability of reaching a goal
 #   claims_guard.py     rejects LLM text that promises returns ("guaranteed", "risk-free")
+#   instrument_catalog.py  static: asset class -> instrument TYPES (never named funds)
+#
+# Configuration module:
+#   assumptions.py      return / volatility / Monte Carlo assumptions from the INVEST_* settings
+#
+# Orchestration (DB, forecast, budget -> plan) lives in services/investment_service.py.
 #
 # Money is float inside these modules, and is converted to exact Decimal
 # (core/money.py) by the service before it is saved or returned.

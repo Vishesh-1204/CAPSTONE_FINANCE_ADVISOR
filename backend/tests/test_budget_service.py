@@ -379,3 +379,37 @@ def test_suggestion_never_saves_the_profile(db):
     credit(db, 50000, "2026-09")
     svc.suggest_income(db, 1, TARGET)
     assert svc.get_profile(db, 1) is None
+
+
+# --- average essential spending (read by the Investment Advisor, Phase 6) ---
+
+def add_limit(db, category, limit, agent_limit=None, user_id=1, month=TARGET):
+    agent = Decimal(str(agent_limit if agent_limit is not None else limit))
+    db.add(Budget(user_id=user_id, month=month, category=category, limit_amount=Decimal(str(limit)),
+                  agent_limit_amount=agent, source=SOURCE_USER if agent_limit is not None else SOURCE_AGENT))
+    db.commit()
+
+
+def test_essentials_come_from_the_months_budget_and_user_overrides_count(db):
+    add_limit(db, "Housing & Rent", 16000, agent_limit=15000)   # the user raised the rent limit
+    add_limit(db, "Groceries", 5000)
+    add_limit(db, "Shopping", 8000)                             # discretionary: not essential
+    monthly(db, "Groceries", 9999)                              # history is ignored when budgets exist
+    essentials = svc.average_essential_spending(db, 1, TARGET)
+    assert (essentials.amount, essentials.source, essentials.months_used) == (Decimal("21000.00"), "budget", 0)
+
+
+def test_essentials_fall_back_to_history_without_essential_budgets(db):
+    add_limit(db, "Shopping", 8000)                             # a budget, but no essential limits in it
+    monthly(db, "Groceries", 6000)
+    monthly(db, "Housing & Rent", 15000)
+    monthly(db, "Food & Dining", 3000)                          # discretionary history is ignored
+    add_expense(db, "Groceries", 6000, month=TARGET, user_id=2) # someone else's spending is invisible
+    essentials = svc.average_essential_spending(db, 1, TARGET)
+    assert (essentials.amount, essentials.source, essentials.months_used) == (Decimal("21000.00"), "history", 3)
+
+
+def test_essentials_unknown_without_budget_or_history(db):
+    monthly(db, "Shopping", 2000)                               # spending, but nothing essential
+    essentials = svc.average_essential_spending(db, 1, TARGET)
+    assert (essentials.amount, essentials.source) == (Decimal("0.00"), "none")

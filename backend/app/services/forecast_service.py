@@ -302,14 +302,23 @@ def _check_horizon(horizon_days: int) -> None:
         raise HTTPException(status.HTTP_422_UNPROCESSABLE_ENTITY, f"horizon_days must be one of {HORIZON_CHOICES}.")
 
 
-def latest_run(db: Session, user_id: int, horizon_days: int | None = None) -> dict:
-    """The newest run (of one horizon, if given)."""
+def latest_run_row(db: Session, user_id: int, horizon_days: int | None = None) -> ForecastRun | None:
+    """
+    The newest saved run row (of one horizon, if given), or None. For other
+    services (the Investment Advisor reads the latest 30-day run), which must
+    not get an HTTP 404 or the float response dict.
+    """
     if horizon_days is not None:
         _check_horizon(horizon_days)
     query = db.query(ForecastRun).filter(ForecastRun.user_id == user_id)
     if horizon_days is not None:
         query = query.filter(ForecastRun.horizon_days == horizon_days)
-    run = query.order_by(ForecastRun.id.desc()).first()
+    return query.order_by(ForecastRun.id.desc()).first()
+
+
+def latest_run(db: Session, user_id: int, horizon_days: int | None = None) -> dict:
+    """The newest run (of one horizon, if given)."""
+    run = latest_run_row(db, user_id, horizon_days)
     if run is None:
         raise HTTPException(status.HTTP_404_NOT_FOUND, "No forecast yet. Generate one with POST /api/forecast/generate.")
     return run_to_response(run)
