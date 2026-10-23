@@ -1,7 +1,7 @@
 # Documentation
 
-Docs for the backend as of **Phase 5** (Financial Forecast Agent) on top of **Phase 4** (Budget Planning
-Agent) and **Phase 3B v3** (Expense Intelligence Agent: statement ingestion, investment flows, manual
+Docs for the backend as of **Phase 6** (Investment Advisor Agent) on top of **Phase 5** (Financial Forecast
+Agent), **Phase 4** (Budget Planning Agent) and **Phase 3B v3** (Expense Intelligence Agent: statement ingestion, investment flows, manual
 override, evaluation), plus the frontend Test Console (every page built).
 
 Read in this order if you are new to the project:
@@ -9,7 +9,7 @@ Read in this order if you are new to the project:
 | # | Document | What you learn |
 |---|---|---|
 | 1 | [architecture.md](architecture.md) | The layers, the folder map, and two flow diagrams (upload → categorize → review) |
-| 2 | [database.md](database.md) | Every table and column, indexes, migrations 0001-0004 |
+| 2 | [database.md](database.md) | Every table and column, indexes, migrations 0001-0005 |
 | 3 | [api.md](api.md) | Every endpoint: request, response, errors, examples |
 | 4 | [testing.md](testing.md) | How to run tests, what each test file covers, manual test checklist |
 | 5 | `modules/` | One page per module (below) |
@@ -29,10 +29,12 @@ Read in this order if you are new to the project:
 | Budget evaluation (research) | [modules/budget-evaluation.md](modules/budget-evaluation.md) | `evaluation/evaluate_budget.py`, `scripts/make_synthetic_history.py` |
 | Financial Forecast Agent | [modules/forecasting.md](modules/forecasting.md) | `services/forecast_service.py`, `services/forecasting/`, `agents/forecast_explainer.py` |
 | Forecast evaluation (research) | [modules/forecast-evaluation.md](modules/forecast-evaluation.md) | `evaluation/evaluate_forecast.py`, `scripts/make_synthetic_panel.py` |
+| Investment Advisor Agent | [modules/investing.md](modules/investing.md) | `services/investment_service.py`, `services/investing/`, `agents/investment_explainer.py` |
+| Investment evaluation (research) | [modules/investing-evaluation.md](modules/investing-evaluation.md) | `evaluation/evaluate_investing.py`, `evaluation/investing_rules.py`, `investing_personas.py`, `investing_methods.py` |
 | Frontend Test Console | [modules/frontend-console.md](modules/frontend-console.md) | `frontend/` |
 
 Design sources: [phase3b-v3-spec.md](phase3b-v3-spec.md) (Phase 3B v3), [phase4-spec.md](phase4-spec.md) (Phase 4)
-and [phase5-spec.md](phase5-spec.md) (Phase 5).
+[phase5-spec.md](phase5-spec.md) (Phase 5) and [phase6-spec.md](phase6-spec.md) (Phase 6).
 
 ## Conventions used in these docs
 

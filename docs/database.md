@@ -11,6 +11,7 @@ PostgreSQL 16 in Docker (`docker-compose.yml`, service `db`). Tables are defined
 | `0002` | `0002_statement_ingestion_and_overrides.py` | v3: new `transactions` columns, `amount` Float → `Numeric(14,2)`, new tables `import_batches` and `payee_rules`. Existing rows survive: every new column is nullable or has a server default |
 | `0003` | `0003_budget_planning.py` | Phase 4: new tables `financial_profiles`, `budgets`, `budget_runs` (no change to existing tables) |
 | `0004` | `0004_forecast_runs.py` | Phase 5: new table `forecast_runs` (no change to existing tables) |
+| `0005` | `0005_investing.py` | Phase 6: new tables `investment_profiles`, `holdings`, `investment_plans` (no change to existing tables). The first CHECK constraints in the schema |
 
 The backend container runs `alembic upgrade head` before starting uvicorn (`backend/Dockerfile`),
 so a normal `docker compose up --build` always brings the schema up to date. **You no longer need
@@ -39,6 +40,9 @@ erDiagram
     users ||--o{ budgets : "limits per month"
     users ||--o{ budget_runs : "generation log"
     users ||--o{ forecast_runs : "saved forecasts"
+    users ||--o| investment_profiles : has
+    users ||--o{ holdings : "rupees per asset class"
+    users ||--o{ investment_plans : "saved plans"
 ```
 
 ## `users`
@@ -198,6 +202,59 @@ Every money column is `numeric(14,2)`.
 | `recurring_items`, `budget_warnings`, `model_scores` | json | what the forecast used and found (see the API) |
 | `created_at` | timestamptz | |
 
+## `investment_profiles`
+
+Phase 6: one row per user (`uq_investment_profiles_user_id`): the risk questionnaire, the finance facts and the
+risk profile computed from them when saved (POST /api/investing/plan always recomputes it).
+
+| Column | Type | Notes |
+|---|---|---|
+| `id`, `user_id` | | UNIQUE `user_id` |
+| `tolerance_answers` | json | `{reaction_to_20pct_drop, investing_experience, return_vs_safety}`, each 1-5 |
+| `capacity_facts` | json | non-money facts: `{income_stability, dependents, horizon_years, emergency_fund_months}` |
+| `liquid_savings`, `existing_monthly_sip` | numeric(14,2) | money gets real columns, never JSON |
+| `tolerance_score`, `capacity_score` | numeric(5,1) | 0-100 |
+| `category` | varchar(20) | `conservative`, `moderate` or `aggressive` (the safer of the two) |
+| `limiting_factor` | varchar(10) | `tolerance`, `capacity` or `both` |
+| `updated_at` | timestamptz | refreshed on every change |
+
+## `holdings`
+
+Phase 6: what the user holds, typed in by hand (there is no broker integration).
+
+| Column | Type | Notes |
+|---|---|---|
+| `id`, `user_id` | | |
+| `asset_class` | varchar(10) | CHECK `ck_holdings_asset_class`: `equity`, `debt`, `gold` or `cash` (a string + CHECK, not a Postgres ENUM, which is awkward to migrate) |
+| `amount` | numeric(14,2) | CHECK `ck_holdings_amount_non_negative` (>= 0) |
+| `label` | varchar(100) | NOT NULL, default `''` (no label) |
+| `as_of` | date | |
+
+UNIQUE `uq_holdings_user_class_label` on `(user_id, asset_class, label)`; its index also serves user lookups.
+Why `label` is NOT NULL: NULLs never collide in a UNIQUE constraint (Postgres and SQLite), so a nullable label
+would allow two unlabelled rows of the same class.
+
+## `investment_plans`
+
+Phase 6: one row per generated plan, also the research log of how its explanation was produced.
+
+| Column | Type | Notes |
+|---|---|---|
+| `id`, `user_id` | | index `ix_investment_plans_user_id_created_at` on `(user_id, created_at DESC)`, used by `/plan/latest` and `/plans` |
+| `created_at` | timestamptz | |
+| `inputs_json` | json | profile and holdings snapshot, goal, `forecast_run_id`, surplus and essentials sources |
+| `result_json` | json | everything the API returns about the plan (allocation, SIP, projections, warnings, ...) |
+| `assumptions_json` | json | the return/volatility assumptions and the Monte Carlo seed (reproducible) |
+| `engine_version` | varchar(20) | bumped when the maths changes |
+| `explanation` | text, nullable | template or guarded LLM text, disclaimer included |
+| `llm_used` | bool | default false |
+| `explanation_faithful` | bool, nullable | amounts, percentages and units passed; NULL = no LLM text |
+| `claims_compliant` | bool, nullable | no "guaranteed" / "risk-free" claims; NULL = no LLM text |
+| `llm_calls` | int | default 0 |
+| `raw_prohibited_claims` | int | default 0; counted in the RAW LLM text, before the guard |
+
+`explanation_source` (`llm` / `template`) is derived, not stored: `llm` only when `llm_used` and both guards passed.
+
 ## Inspecting the data
 
 ```powershell
@@ -206,7 +263,8 @@ docker compose exec db psql -U finance_user -d finance_db
 ```sql
 \dt
 SELECT txn_type, category_source, count(*) FROM transactions GROUP BY 1, 2 ORDER BY 1, 2;
-SELECT version_num FROM alembic_version;   -- should be 0004
+SELECT version_num FROM alembic_version;   -- should be 0005
 SELECT method, feasible, llm_used, explanation_faithful, count(*) FROM budget_runs GROUP BY 1, 2, 3, 4;
 SELECT horizon_days, model_name, low_confidence, count(*) FROM forecast_runs GROUP BY 1, 2, 3;
+SELECT llm_used, explanation_faithful, claims_compliant, count(*) FROM investment_plans GROUP BY 1, 2, 3;
 ```

@@ -3,7 +3,7 @@
 ## Run the tests
 
 ```powershell
-docker compose exec backend python -m pytest tests -q                                  # everything (541)
+docker compose exec backend python -m pytest tests -q                                  # everything (745)
 docker compose exec backend python -m pytest tests/test_statement_parsers.py -q        # one file
 docker compose exec backend python -m pytest tests -q -k "password"                    # by name
 ```
@@ -16,14 +16,14 @@ Tests need **no Postgres, no network and no API key**:
 `tests/test_migrations.py` is the exception that touches Alembic: it applies all migrations to an empty
 database and compares the result with the models (drift check).
 
-Last full run: **541 passed** (Phase 5 F0-F7, on `feature/vishesh-forecast`), plus the live smoke
-test below: 15/15 steps passed.
+Last full run: **745 passed** (Phase 6A + 6B, on `feature/vishesh-investing`), plus the live smoke
+test below: 16/16 steps passed.
 
 ## What each test file covers
 
 | Module | File | Tests | Covers |
 |---|---|---|---|
-| Migrations | `test_migrations.py` | 6 | migrations 0001-0004 apply on an empty DB, 0004 keeps existing data; models and migrations match |
+| Migrations | `test_migrations.py` | 7 | migrations 0001-0005 apply on an empty DB, 0004 and 0005 keep existing data, 0005 downgrades to 0004 cleanly and upgrades again; models and migrations match |
 | Ingestion | `test_statement_parsers.py` | 27 | XLSX, HDFC-like and SBI-like PDFs, password right/wrong/missing, password never in logs/errors, scanned → 422, balance check, cross-format duplicates |
 | Ingestion | `test_statement_import.py` | 22 | CSV through the shared pipeline: header detection, amount/date formats, credits imported, duplicates, import batches |
 | Ingestion (HTTP) | `test_statements_api.py` | 6 | upload summary, import batches, deprecated `/upload-csv` alias |
@@ -41,9 +41,9 @@ test below: 15/15 steps passed.
 | Evaluation | `test_evaluation.py` | 9 | harness runs offline, CSV written, known values, metric formulas |
 | Budgets | `test_budget_calculator.py` | 15 | baseline weights sum to 1, spendable, trim, scale-down, infeasible, never above spendable, savings never budgeted |
 | Budgets | `test_month_utils.py` | 12 | month bounds, December rollover, lookback window, bad months |
-| Budgets | `test_explanation_guard.py` | 10 | ₹ / Rs. / INR extraction, tolerance, invented amounts |
+| Budgets | `test_explanation_guard.py` | 21 | ₹ / Rs. / INR extraction, tolerance, invented amounts; Indian digit grouping, percentages, lakh / crore / k / L detection |
 | Budgets | `test_budget_planner.py` | 23 | templates, JSON parsing, guard replacement, provider fallback, payload has plan facts only |
-| Budgets | `test_budget_service.py` | 30 | expenses only, window, isolation, overrides survive regeneration, reset, data quality, LLM down/unfaithful, privacy, status, income suggestion |
+| Budgets | `test_budget_service.py` | 33 | expenses only, window, isolation, overrides survive regeneration, reset, data quality, LLM down/unfaithful, privacy, status, income suggestion, average essential spending (budget / history / none) |
 | Budgets (HTTP) | `test_budgets_api.py` | 30 | every profile/budget endpoint, 404 on another user's budget, 422 validation |
 | Budget evaluation | `test_synthetic_history.py` | 6 | same seed → same rows, real labels, 3 personas x 6 months, non-spending rows, no names |
 | Budget evaluation | `test_budget_evaluation.py` | 13 | harness runs offline, every config reported, B1 beats B0 on MAE, distortion > 0, guard catches a fake LLM, metric formulas |
@@ -58,6 +58,17 @@ test below: 15/15 steps passed.
 | Forecast | `test_forecast_explainer.py` | 15 | template, one LLM call, guard replacement, provider fallback, payload privacy |
 | Forecast (HTTP) | `test_forecast_api.py` | 32 | every endpoint, 404 on another user's run, 400/422 cases, LLM down/unfaithful, same `as_of` gives the same forecast |
 | Forecast evaluation | `test_synthetic_panel.py` | 12 | same seed gives same rows, 30 users x 24 months, running balance, recurring ground truth, salary hike, festival, medical bill, crunch events, no names |
+| Investing (pure) | `test_risk_scoring.py` | 9 | tolerance and capacity scores, emergency-fund cap, the safer category wins, limiting factor |
+| Investing (pure) | `test_allocation.py` | 25 | splits sum to 1, horizon equity cap, drift threshold, rebalance amounts balance |
+| Investing (pure) | `test_portfolio_stats.py` | 4 | weighted return, diversification lowers volatility |
+| Investing (pure) | `test_sip_planner.py` | 11 | future value, required SIP, emergency top-up, safety factor, months to goal |
+| Investing (pure) | `test_monte_carlo.py` | 6 | same seed same result, ordered percentiles, zero volatility = closed form |
+| Investing (pure) | `test_claims_guard.py` | 13 | promises caught (incl. curly apostrophe), balanced text passes, negations flagged on purpose |
+| Investing | `test_investing_data_model.py` | 19 | schema Literals = the maths' lists, bounds, duplicate holdings, disclaimer on every response, CHECK and UNIQUE rules, plan defaults |
+| Investing | `test_investing_service.py` | 28 | lower-band surplus formula, 30-day run chosen, forecast_missing / stale, capacity vs tolerance limit, emergency top-up, goal cap, horizon cap, isolation, reproducible plans, LLM log |
+| Investing | `test_investment_explainer.py` | 25 | Indian-grouped formatting, template passes every guard, invented amount / percentage / lakh rejected, claims rejected and counted, one call, provider fallback |
+| Investing (HTTP) | `test_investing_api.py` | 34 | every route needs a login (real auth), 422 validation, 409 without a profile, user isolation, body `user_id` ignored, disclaimer everywhere, simulate not stored |
+| Investing evaluation | `test_investing_evaluation.py` | 15 | rule labels, personas reproducible, every method and ablation, evaluation P = the real service, panel replay monotonic, guard cases, deterministic report |
 | Forecast evaluation | `test_forecast_evaluation.py` | 14 | harness runs offline, every method x horizon, no leakage (future changed, no forecast changes), service = pure numbers, statement opening balance, guard catches a fake LLM, F6.1 ablations, metric formulas |
 
 Fixtures: `backend/tests/fixtures/statements/` (synthetic; regenerate with
@@ -83,7 +94,7 @@ docker compose exec backend python -m scripts.smoke_test
 docker compose exec backend python -m scripts.smoke_test --base-url http://127.0.0.1:8000   # explicit URL
 ```
 
-It runs 15 steps and prints one `PASS`/`FAIL` line per step. It stops at the first failure (later
+It runs 16 steps and prints one `PASS`/`FAIL` line per step. It stops at the first failure (later
 steps depend on earlier ones) and exits `1`. Exit `0` means every step passed:
 
 | # | Step | What it checks |
@@ -101,6 +112,7 @@ steps depend on earlier ones) and exits `1`. Exit `0` means every step passed:
 | 13 | forecast without a balance | **400** (the smoke CSV has no balance column) |
 | 14 | 30-day forecast | typed `opening_balance` used, 30 trajectory days, end = opening + net cash flow, end inside its band, the SIP is not a fixed expense |
 | 15 | forecast reads | `latest` is that run, `history` lists it, `recurring` answers |
+| 16 | investing | profile and holdings saved; the plan uses THIS user's 30-day forecast, its split sums to 1, SIP ≤ capacity, p10 ≤ p50 ≤ p90, disclaimer on every response, `latest` is that plan, `simulate` stores nothing |
 
 Notes: it uses the standard library only (`urllib`), so it needs no extra dependency. Each run leaves one
 synthetic user in the dev DB, which is harmless. With an LLM key in `.env`, the budget explanation makes
@@ -128,6 +140,13 @@ the template is used and the test still passes.
 17. `POST /api/forecast/generate?horizon_days=60` without a balance → 400 for a CSV without balances; with
     `opening_balance=45000` → 200, `trajectory` has 60 days, `low_confidence` true for a short history.
 18. `GET /api/forecast/recurring` → your salary and rent with their next dates; `GET /api/forecast/latest` → the same run.
+19. `POST /api/investing/plan` before a profile → 409. `PUT /api/investing/profile` with brave answers (all 5) and
+    `liquid_savings` under 3 months of your essentials → `category` not aggressive, `limiting_factor: "capacity"`.
+    Raise `liquid_savings` above 6 months and save again → the category rises.
+20. `POST /api/investing/plan` after a 30-day forecast → `surplus.source: "forecast"`, `forecast_run_id` set, a
+    `disclaimer`, `explanation_source` `llm` or `template`. Without the forecast → `warnings` has `forecast_missing`.
+21. `POST /api/investing/simulate` with `years: 41` → 422; with `years: 10` → a range, and `GET /api/investing/plans`
+    does not list it.
 
 ## Common mistakes
 - Running `pytest` on the host instead of in the container (different Python, missing deps).

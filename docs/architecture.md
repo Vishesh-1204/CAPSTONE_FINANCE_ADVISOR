@@ -7,7 +7,10 @@ frontend run on the host. Phase 3B delivers the **Expense Intelligence Agent**: 
 statements, works out what kind of money movement each line is (expense, income, investment,
 transfer), assigns a category, and learns from the user's corrections. Phase 4 adds the **Budget
 Planning Agent**: a rules engine turns the categorized expenses into monthly limits, and one LLM call
-explains them (see [modules/budget-planning.md](modules/budget-planning.md)).
+explains them (see [modules/budget-planning.md](modules/budget-planning.md)). Phase 5 adds the **Financial
+Forecast Agent** ([modules/forecasting.md](modules/forecasting.md)) and Phase 6 the **Investment Advisor Agent**
+([modules/investing.md](modules/investing.md)): a risk profile, a target allocation and an affordable SIP sized
+from the forecast's lower band, explained by one guarded LLM call. Educational, not financial advice.
 
 ```mermaid
 flowchart LR
@@ -16,7 +19,7 @@ flowchart LR
     subgraph Docker
         API["FastAPI backend :8000"] --> DB[("PostgreSQL 16")]
     end
-    API -- "cleaned merchant strings only;<br/>budgets: category names + aggregates only" --> LLM["LLM provider<br/>(Gemini dev / OpenAI)"]
+    API -- "cleaned merchant strings only;<br/>budgets, forecast, investing: aggregates only" --> LLM["LLM provider<br/>(Gemini dev / OpenAI)"]
 ```
 
 ## 2. Layers (each layer only calls the one below it)
@@ -46,23 +49,26 @@ id therefore looks exactly like a missing id (404), which reveals nothing.
 |---|---|
 | `app/main.py` | Creates the app, CORS middleware, registers routers, `/health` |
 | `app/api/deps.py` | `get_current_user` (JWT → `User`) |
-| `app/api/routes/` | `auth`, `statements`, `transactions`, `payee_rules`, `categories`, `profile`, `budgets`, `forecast` |
+| `app/api/routes/` | `auth`, `statements`, `transactions`, `payee_rules`, `categories`, `profile`, `budgets`, `forecast`, `investing` |
 | `app/services/` | All business logic (see the module pages) |
 | `app/services/statement_parsers/` | `base.py` (interface), `csv_parser`, `xlsx_parser`, `pdf_parser`, `tabular.py` (shared) |
 | `app/agents/expense_categorizer.py` | The LLM layer of the categorizer |
 | `app/services/forecasting/` | Phase 5 forecast building blocks: pure maths (models, backtest, intervals, recurrence, horizon, cash-flow projector) plus `data_preparation.py`, the only one that reads the DB |
 | `app/agents/budget_planner.py`, `explanation_guard.py` | Budget explanations (one LLM call, template fallback) and the faithfulness guard |
 | `app/agents/forecast_explainer.py` | Forecast explanation (template, one LLM call, the same guard) |
+| `app/services/investing/` | Phase 6 building blocks, pure: risk scoring, allocation, portfolio stats, SIP planner, Monte Carlo, claims guard, instrument catalog; `assumptions.py` reads the `INVEST_*` settings |
+| `app/services/investment_service.py` | Phase 6 orchestration: profile, holdings, forecast surplus, essentials, plan, simulate |
+| `app/agents/investment_explainer.py` | Investment explanation: pre-formatted facts, one LLM call, rupee + percentage + lakh/crore + claims guards, disclaimer added by code |
 | `app/llm/` | `base.py`, `factory.py`, `gemini_provider.py`, `openai_provider.py` |
-| `app/core/` | `config.py`, `security.py`, `categories.py`, `transaction_types.py`, `merchant_dictionary.py`, `money.py`, `month_utils.py`, `logging_config.py` |
+| `app/core/` | `config.py`, `security.py`, `categories.py`, `transaction_types.py`, `merchant_dictionary.py`, `money.py`, `month_utils.py`, `disclaimers.py`, `logging_config.py` |
 | `app/models/`, `app/schemas/` | Tables and API shapes |
-| `migrations/` | Alembic: `0001_baseline`, `0002_statement_ingestion_and_overrides`, `0003_budget_planning`, `0004_forecast_runs` |
-| `evaluation/` | Research harnesses (`evaluate_categorizer.py`, `evaluate_budget.py`, `evaluate_forecast.py`), datasets, `budget_metrics.csv`, `forecast_metrics.csv`, `results/` (gitignored) |
+| `migrations/` | Alembic: `0001_baseline`, `0002_statement_ingestion_and_overrides`, `0003_budget_planning`, `0004_forecast_runs`, `0005_investing` |
+| `evaluation/` | Research harnesses (`evaluate_categorizer.py`, `evaluate_budget.py`, `evaluate_forecast.py`, `evaluate_investing.py` with `investing_rules.py`, `investing_personas.py`, `investing_methods.py`), datasets, `budget_metrics.csv`, `forecast_metrics.csv`, `investing_metrics.csv`, `results/` (gitignored) |
 | `scripts/make_synthetic_statements.py` | Generates the synthetic PDF/XLSX/CSV fixtures (dev only) |
 | `scripts/make_synthetic_history.py` | Generates the seeded 6-month, 3-persona history for the budget evaluation |
 | `scripts/make_synthetic_panel.py` | Generates the seeded 24-month, 30-user, 4-persona panel for the forecast evaluation |
-| `scripts/smoke_test.py` | Live end-to-end check of the running API (15 steps) |
-| `tests/` | 541 unit and HTTP tests (in-memory SQLite, fake LLM) |
+| `scripts/smoke_test.py` | Live end-to-end check of the running API (16 steps) |
+| `tests/` | 745 unit and HTTP tests (in-memory SQLite, fake LLM) |
 
 ## 4. Flow 1: upload a statement
 
@@ -131,6 +137,8 @@ Everything left of the LLM arrow in section 1 is local. Specifically:
 - Logs contain counts and ids, never narrations.
 - The budget planner sends only category names and aggregate numbers (limits, averages, income,
   savings, spendable). Never a description, payee or UPI ID (tested).
+- The investment explainer sends only pre-formatted aggregates (categories, percentages, SIP and range
+  amounts, instrument TYPES). Never holding labels or transactions (tested).
 - **Measured limitation:** the person guard is a heuristic. In the latest offline evaluation it had
   recall 0.857, and 1 person-like string out of the labeled set still reached the LLM stage (see
   [modules/evaluation.md](modules/evaluation.md)). Use synthetic data with the free Gemini tier.
@@ -152,13 +160,21 @@ Everything left of the LLM arrow in section 1 is local. Specifically:
 | Forecast = recurring items on their dates + a simple per-user model for the rest | Short histories overfit deep models; each part is explainable ("rent leaves on the 5th") and testable |
 | Per-user backtest selection, Student-t interval from the model's own errors, `low_confidence` flag | Honest uncertainty instead of a black box; measurable coverage for the paper |
 | Shared SQL filters (`transaction_filters.py`) for spending/income | The Budget and Forecast agents can never disagree on what counts as spending |
+| Investing: risk = the safer of tolerance (questionnaire) and capacity (finances) | A brave person with no emergency fund is not told to go aggressive; `limiting_factor` says why |
+| SIP sized from the forecast's LOWER band x 0.8, after an emergency top-up | One bad month should not break the plan; ties Phase 5 uncertainty to Phase 6 |
+| Numbers pre-formatted for the LLM, four guards, disclaimer added by code after them | The model copies instead of re-rounding; promises and invented numbers fall back to the template |
+| Claims checker injected into the explainer by the service | Agents must not import services; `claims_guard.py` stays with the other pure investing modules |
 
 ## 8. Known gaps (carry into later phases)
 
 - `LLM_PROVIDER` currently supports `gemini` and `openai` only. A HuggingFace/Llama provider is part
   of the approved stack but not yet in `llm/factory.py:PROVIDER_REGISTRY`.
 - Categorization is synchronous (a large batch with many LLM calls blocks the request). Phase 9 / optional S9 moves it to Celery.
-- Investment **returns** cannot be computed from a bank statement; only net cash flow (Phase 6).
+- Investment **returns** cannot be computed from a bank statement; holdings are typed in by hand (Phase 6).
+- Investing: return assumptions are illustrative placeholders (to be cited before publication); normal returns
+  understate fat tails; the claims guard misses promises worded without its trigger words and flags every
+  negation on purpose; on the Phase 5 panel a SIP from the lower band x 0.8 still exceeds the actual next-month
+  surplus about 28% of the time (see [modules/investing-evaluation.md](modules/investing-evaluation.md)).
 - Scanned PDFs are rejected (no OCR).
 - The budget guard only checks amounts with a currency marker (₹ / Rs. / INR); a bare "5000" is not checked.
 - The budget evaluation uses synthetic people who do not react to their budget (see [modules/budget-evaluation.md](modules/budget-evaluation.md)).
