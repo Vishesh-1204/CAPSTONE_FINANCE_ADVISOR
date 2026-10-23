@@ -29,3 +29,19 @@ def test_even_the_negated_word_guarantee_is_flagged_on_purpose():
 @pytest.mark.parametrize("text", ["You can\u2019t lose with this.", "You can't lose with this.", "You cant lose with this."])
 def test_curly_straight_and_missing_apostrophes_are_all_caught(text):
     assert not is_compliant(text)
+
+
+# --- v2 phrases (added after the Phase 6B evaluation; their recall needs independent sentences) ---
+
+@pytest.mark.parametrize("text", [
+    "You will surely double your money.", "Returns of 12% are locked in.", "Your capital is fully protected.",
+    "This SIP cannot fail.", "This SIP can’t fail.", "There is no chance of losing money.",
+    "You will reach your goal for sure.", "A liquid fund is completely safe.", "This mix carries no downside.",
+    "You will never be at a loss.",
+])
+def test_v2_phrases_are_caught(text):
+    assert not is_compliant(text)
+
+
+def test_v2_words_do_not_match_inside_other_words():
+    assert is_compliant("An ELSS fund has a three-year lock-in, and gold can be flat for years.")

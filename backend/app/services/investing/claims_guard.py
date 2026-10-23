@@ -10,7 +10,11 @@ import re
 
 _PROHIBITED = re.compile(
     r"\b(guarantee[sd]?|guaranteed|assured returns?|risk[- ]free|no risk|zero risk|without risk|"
-    r"sure[- ]?shot|can[’']?t lose|cannot lose|will definitely|100% safe|certain to (?:grow|earn|profit))\b",
+    r"sure[- ]?shot|can[’']?t lose|cannot lose|will definitely|100% safe|certain to (?:grow|earn|profit)|"
+    # v2 (after the Phase 6B evaluation): phrasings v1 missed on the labelled sentences. They were
+    # chosen AFTER seeing those misses, so recall on that set is no longer evidence (see the write-up).
+    r"surely|for sure|locked[- ]in|fully protected|completely safe|no downside|can(?:not|[’']?t) fail|"
+    r"no chance of los(?:s|ing)|never (?:be )?at a loss)\b",
     re.IGNORECASE,
 )
 
