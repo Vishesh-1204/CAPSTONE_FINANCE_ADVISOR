@@ -1062,3 +1062,18 @@ Agreed after the 6A-0 audit of the Phase 5 code (541 tests passing on `feature/v
 ### 14.7 Change to the reference code (6A-1)
 - `claims_guard.py`: `can'?t lose` became `can[’']?t lose`, so the curly apostrophe that LLMs often produce is caught too.
   New test `test_curly_straight_and_missing_apostrophes_are_all_caught` (3 cases). 6A-1 total: 68 new tests.
+
+### 14.8 Changes after the 6B evaluation (one round only)
+Rule for the whole phase: ONE round of fixes found by the evaluation, each logged with before/after numbers in
+`docs/modules/investing-evaluation.md` ("Changes after seeing results"). No second round of tuning against the rules.
+- **Fix 1 (rule R4):** `recommend_sip` caps the emergency top-up at the low-band surplus. When the surplus is smaller,
+  the SIP is 0, all of it goes to the fund, `emergency_topup_capped` is true and the plan warns `emergency_fill_slow`
+  (filling takes longer than 12 months). R4 becomes 0% by design: a regression test, not evidence.
+- **Fix 2 (rule R5):** `CAPACITY_CAP_FRAGILE_HOUSEHOLD = 34` (conservative) when income stability <= 2 and
+  dependents >= 2, the same pattern as the emergency-fund cap. R5 is relabelled `fixed_after_evaluation`.
+- Engine version 6.0 -> 6.1 (stored plans record it).
+- **Claims guard v2:** surely, for sure, locked in, fully protected, completely safe, no downside, cannot/can't fail,
+  no chance of losing, never at a loss. Chosen after seeing v1's misses, so v1 numbers stay labelled "v1, on the
+  original 60 sentences" and new recall must come from teammate-written sentences.
+- Reporting only (no method change): R7 "not evaluated (n=1)" in the main run plus a separate stratified run; goal
+  gap; variability sensitivity with the primary 5-30% range unchanged.
