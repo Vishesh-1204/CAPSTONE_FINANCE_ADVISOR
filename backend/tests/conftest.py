@@ -13,6 +13,7 @@ from sqlalchemy.orm import sessionmaker
 from sqlalchemy.pool import StaticPool
 
 from app.db.base_class import Base
+from app.models.forecast import ForecastRun
 from app.models.transaction import Transaction
 from app.models.user import User
 
@@ -124,3 +125,31 @@ def seed_forecast_persona(db, user_id: int = 1, groceries=(5000, 6000, 5500, 650
             description="IMPS/OWN ACCOUNT TRANSFER SELF", user_id=user_id)
     add_txn(db, date(2026, 7, 22), 6000, direction="credit", txn_type="investment_in",
             category="Investment Redemption", description="SYNTH MF REDEMPTION PAYOUT", user_id=user_id)
+
+
+# --- Phase 6 (investing) helpers ---
+
+def add_forecast_run(db, user_id: int = 1, as_of: date = date(2026, 10, 22), horizon: int = 30,
+                     income=60000, fixed=20000, variable=15000, variable_upper=20000,
+                     investments=3000) -> ForecastRun:
+    """
+    A saved forecast with chosen totals: the Investment Advisor only READS saved
+    runs, so this stubs the whole forecast. Only the totals it reads matter.
+    """
+    def money(value) -> Decimal:
+        return Decimal(str(value))
+    net = income - fixed - variable - investments
+    run = ForecastRun(
+        user_id=user_id, as_of=as_of, horizon_days=horizon, model_name="moving_average_3", history_months=4,
+        low_confidence=False, opening_balance=money(50000), opening_balance_source="statement",
+        income_source="recurring", expected_income=money(income), expected_fixed_expenses=money(fixed),
+        expected_variable_expenses=money(variable), expected_variable_expenses_lower=money(variable * 0.8),
+        expected_variable_expenses_upper=money(variable_upper), expected_investments=money(investments),
+        net_cashflow=money(net), projected_end_balance=money(50000 + net),
+        projected_end_balance_lower=money(50000 + net - (variable_upper - variable)),
+        projected_end_balance_upper=money(50000 + net + variable * 0.2), summary="stub", llm_used=False,
+        trajectory=[], recurring_items=[], budget_warnings=[], model_scores=[],
+    )
+    db.add(run)
+    db.commit()
+    return run

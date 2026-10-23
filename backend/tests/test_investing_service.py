@@ -16,7 +16,6 @@ from app.agents.investment_explainer import InvestmentExplainer
 from app.core.config import settings
 from app.core.disclaimers import INVESTING_DISCLAIMER
 from app.models.budget import Budget
-from app.models.forecast import ForecastRun
 from app.models.investment import InvestmentPlan
 from app.schemas.investment import HoldingIn, InvestmentProfileUpdate, SimulateRequest
 from app.services import budget_service
@@ -24,6 +23,7 @@ from app.services import investment_service as svc
 from app.services.forecast_service import latest_run_row
 from app.services.investing.claims_guard import find_prohibited_claims
 from app.services.investing.sip_planner import required_sip
+from tests.conftest import add_forecast_run
 
 AS_OF = date(2026, 10, 23)
 MONTH = "2026-10"
@@ -80,26 +80,7 @@ def essentials_20000(db, user_id=1):
     add_budget(db, "Groceries", 5000, user_id)
 
 
-def add_forecast(db, user_id=1, as_of=date(2026, 10, 22), horizon=30, income=60000, fixed=20000,
-                 variable=15000, variable_upper=20000, investments=3000) -> ForecastRun:
-    """A saved forecast with chosen totals (only the fields the advisor reads matter)."""
-    def money(value):
-        return Decimal(str(value))
-    net = income - fixed - variable - investments
-    run = ForecastRun(
-        user_id=user_id, as_of=as_of, horizon_days=horizon, model_name="moving_average_3", history_months=4,
-        low_confidence=False, opening_balance=money(50000), opening_balance_source="statement",
-        income_source="recurring", expected_income=money(income), expected_fixed_expenses=money(fixed),
-        expected_variable_expenses=money(variable), expected_variable_expenses_lower=money(variable * 0.8),
-        expected_variable_expenses_upper=money(variable_upper), expected_investments=money(investments),
-        net_cashflow=money(net), projected_end_balance=money(50000 + net),
-        projected_end_balance_lower=money(50000 + net - (variable_upper - variable)),
-        projected_end_balance_upper=money(50000 + net + variable * 0.2), summary="stub", llm_used=False,
-        trajectory=[], recurring_items=[], budget_warnings=[], model_scores=[],
-    )
-    db.add(run)
-    db.commit()
-    return run
+add_forecast = add_forecast_run       # stubs the forecast (see conftest)
 
 
 # The standard forecast's lower-band monthly surplus: (60,000 - 20,000 - 20,000) x 30.44 / 30
