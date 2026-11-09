@@ -131,6 +131,42 @@ class Settings(BaseSettings):
     # Ablation switch: False = template explanations only, no LLM call.
     INVEST_USE_LLM_EXPLANATIONS: bool = True
 
+    # --- Stock Intelligence Agent (Phase 7) ---
+    # Where daily prices come from. Only yfinance is built: the 7A-0 spike
+    # (docs/phase7-provider-spike.md) found Alpha Vantage's free tier gives 100 bars only.
+    MARKET_DATA_PROVIDER: Literal["yfinance"] = "yfinance"
+    # Where headlines come from: google_rss (30-46 per stock in the spike, standard library)
+    # or yfinance (at most 10 per stock).
+    NEWS_PROVIDER: Literal["google_rss", "yfinance"] = "google_rss"
+    # Cached prices/news younger than this are used without calling the provider
+    # (protects free quotas, makes the app fast, lets the demo run offline).
+    STOCK_CACHE_TTL_HOURS: float = Field(default=24.0, gt=0, le=24 * 30)
+    # Symbols one user may follow (protects the provider from many refreshes per user).
+    STOCK_WATCHLIST_LIMIT: int = Field(default=10, ge=1, le=50)
+    # Calendar days of history fetched per refresh (3650 = 10 years). Enough for the 200-day
+    # average, 1-year VaR and beta, and the 60 monthly returns Phase 7D's bootstrap needs.
+    STOCK_HISTORY_DAYS: int = Field(default=3650, ge=400, le=7300)
+    # Benchmark for beta/correlation and the seed script (Nifty 50 index on Yahoo).
+    STOCK_BENCHMARK_SYMBOL: str = "^NSEI"
+    # After a rate limit or outage, leave the provider alone this long and serve the stale cache
+    # (polite to the provider, and an offline demo does not wait through retries). 0 = off.
+    STOCK_PROVIDER_COOLDOWN_MINUTES: float = Field(default=15.0, ge=0, le=24 * 60)
+    # Ablation switch: False = template explanations only, no LLM call.
+    STOCK_USE_LLM_EXPLANATIONS: bool = True
+
+    # --- Headline sentiment (Phase 7A-4) ---
+    # lexicon = the small word-list scorer (default, no extra packages; also the paper's baseline).
+    # finbert = ProsusAI/finbert via HuggingFace; needs requirements-ml.txt (the "ml" Compose
+    # profile). If finbert is chosen but cannot load, the lexicon is used with the warning
+    # "finbert_unavailable".
+    SENTIMENT_SCORER: Literal["lexicon", "finbert"] = "lexicon"
+    FINBERT_MODEL_NAME: str = "ProsusAI/finbert"
+    # The model repo commit, pinned so paper results are reproducible even if the Hub repo changes
+    # (verified 2026-11-09; model card licence CC BY-NC-SA 4.0 = non-commercial use only).
+    FINBERT_MODEL_REVISION: str = "0bc2ac10dda6929bcb1f77ccc43c7ec5c424f031"
+    # Headlines per forward pass on the CPU.
+    FINBERT_BATCH_SIZE: int = Field(default=16, ge=1, le=256)
+
     model_config = SettingsConfigDict(env_file=".env", extra="ignore")
 
     @property

@@ -1,0 +1,16 @@
+{
+  "_comment": "SYNTHETIC fixture in the shape of yfinance Ticker.history(auto_adjust=False, actions=False): index = exchange-local timestamps (Asia/Kolkata), Open/High/Low/Close/Volume columns. Made-up symbol and numbers, no real market data. Rows 2026-11-02..06 are valid; 2026-10-30 has a missing close, 2026-10-29 a zero open, 2026-10-28 low above high (all three must be dropped); 2026-11-09 is today's unfinished session in the tests (kept only after 16:00 IST).",
+  "symbol": "SYNTH.NS",
+  "timezone": "Asia/Kolkata",
+  "rows": [
+    {"Date": "2026-10-28", "Open": 100.0, "High": 99.0, "Low": 101.0, "Close": 100.5, "Volume": 1000},
+    {"Date": "2026-10-29", "Open": 0.0, "High": 101.0, "Low": 99.0, "Close": 100.5, "Volume": 1000},
+    {"Date": "2026-10-30", "Open": 100.0, "High": 101.0, "Low": 99.0, "Close": null, "Volume": 1000},
+    {"Date": "2026-11-02", "Open": 100.0, "High": 102.5, "Low": 99.5, "Close": 101.123456, "Volume": 1500000},
+    {"Date": "2026-11-03", "Open": 101.2, "High": 103.0, "Low": 100.8, "Close": 102.4, "Volume": 1720000},
+    {"Date": "2026-11-04", "Open": 102.4, "High": 102.9, "Low": 99.1, "Close": 99.6, "Volume": 2010000},
+    {"Date": "2026-11-05", "Open": 99.6, "High": 100.7, "Low": 98.2, "Close": 100.1, "Volume": null},
+    {"Date": "2026-11-06", "Open": 100.1, "High": 101.9, "Low": 99.9, "Close": 101.5, "Volume": 1300000},
+    {"Date": "2026-11-09", "Open": 101.5, "High": 102.0, "Low": 101.0, "Close": 101.8, "Volume": 250000}
+  ]
+}

@@ -1,0 +1,44 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!-- SYNTHETIC fixture in the shape of a Google News RSS search feed. Made-up headlines and
+     example.com links, no real news. Expected: 3 valid items, newest first, the " - Publisher"
+     suffix removed from titles; the duplicate link, the item without pubDate and the
+     non-http link are skipped. -->
+<rss version="2.0" xmlns:media="http://search.yahoo.com/mrss/">
+  <channel>
+    <title>"SYNTH share" - Google News</title>
+    <link>https://news.google.com/search?q=SYNTH+share</link>
+    <item>
+      <title>Synthetic Corp shares rise after record profit - Example Times</title>
+      <link>https://news.google.com/rss/articles/synthetic-1</link>
+      <pubDate>Sun, 08 Nov 2026 10:15:00 GMT</pubDate>
+      <source url="https://example.com">Example Times</source>
+    </item>
+    <item>
+      <title>Synthetic Corp faces probe over   delayed filings - Example Wire</title>
+      <link>https://news.google.com/rss/articles/synthetic-2</link>
+      <pubDate>Fri, 06 Nov 2026 08:00:00 GMT</pubDate>
+      <source url="https://example.org">Example Wire</source>
+    </item>
+    <item>
+      <title>Synthetic Corp names a new chief financial officer</title>
+      <link>https://news.google.com/rss/articles/synthetic-3</link>
+      <pubDate>Sat, 07 Nov 2026 12:30:00 +0530</pubDate>
+    </item>
+    <item>
+      <title>Same story syndicated again - Example Daily</title>
+      <link>https://news.google.com/rss/articles/synthetic-1</link>
+      <pubDate>Sun, 08 Nov 2026 11:00:00 GMT</pubDate>
+      <source url="https://example.net">Example Daily</source>
+    </item>
+    <item>
+      <title>An item without a date - Example Daily</title>
+      <link>https://news.google.com/rss/articles/synthetic-4</link>
+      <source url="https://example.net">Example Daily</source>
+    </item>
+    <item>
+      <title>An item with a bad link - Example Daily</title>
+      <link>ftp://example.net/file</link>
+      <pubDate>Sun, 08 Nov 2026 09:00:00 GMT</pubDate>
+    </item>
+  </channel>
+</rss>
