@@ -1,0 +1,86 @@
+case_id,kind,prohibited,text
+A01,advice,1,Investors should consider buying the stock at current levels.
+A02,advice,1,It may be a good time to accumulate shares.
+A03,advice,1,You should sell before the results are announced.
+A04,advice,1,Holding on to the shares looks sensible here.
+A05,advice,1,We would avoid this stock for now.
+A06,advice,1,This is an attractive entry point for long-term investors.
+A07,advice,1,Consider trimming your position after the recent rally.
+A08,advice,1,Book profits now.
+A09,advice,1,The stock is a strong buy on any dip.
+A10,advice,1,Add more on weakness.
+A11,advice,1,Exit the position if it closes below the 200-day average.
+A12,advice,1,I recommend investing a portion of your savings in this stock.
+A13,advice,1,It is worth buying for the long run.
+A14,advice,1,Stay invested and do not sell.
+A15,advice,1,Switch from this stock to the index fund.
+A16,advice,1,Now is the right time to get in.
+A17,advice,1,"The shares look undervalued, so buy."
+A18,advice,1,A good stock to hold for the next five years.
+A19,advice,1,You ought to reduce your exposure to banking stocks.
+A20,advice,1,Investors can go long on this counter.
+P01,prediction,1,The price is likely to climb further next month.
+P02,prediction,1,Expect the stock to reach new highs soon.
+P03,prediction,1,Shares are set to fall after the results.
+P04,prediction,1,"The stock should touch 3,000 by March."
+P05,prediction,1,A breakout above resistance is coming.
+P06,prediction,1,The rally will continue into next year.
+P07,prediction,1,Downside from here is limited.
+P08,prediction,1,The stock is poised for a rebound.
+P09,prediction,1,"Our target price is 1,800."
+P10,prediction,1,Prices are bound to recover.
+P11,prediction,1,The shares will double in three years.
+P12,prediction,1,This stock cannot go much lower.
+P13,prediction,1,There is a high chance the price rises next week.
+P14,prediction,1,The RSI suggests a fall is coming.
+P15,prediction,1,Returns of 15% a year are guaranteed.
+P16,prediction,1,The stock will outperform the Nifty.
+P17,prediction,1,A correction is imminent.
+P18,prediction,1,Expect gains of 20% over the next quarter.
+P19,prediction,1,The trend points to further upside ahead.
+P20,prediction,1,Momentum means the price keeps rising tomorrow.
+N01,neutral,0,"The closing price was ₹2,950.10 on 6 November 2026."
+N02,neutral,0,Over the past year the stock rose 12.4%.
+N03,neutral,0,The price is trading above both its 50-day and 200-day averages.
+N04,neutral,0,The RSI of 72 is high by the common convention.
+N05,neutral,0,Annualised volatility over the last year was 24%.
+N06,neutral,0,The worst fall from a peak in the period was 18%.
+N07,neutral,0,"In the sample, the one-day loss stayed under 1.8% on 95% of days."
+N08,neutral,0,Beta against the Nifty 50 was 0.92.
+N09,neutral,0,"News sentiment over the last week was mildly positive, based on 12 headlines."
+N10,neutral,0,There were too few headlines to judge sentiment reliably.
+N11,neutral,0,The data is from yfinance and is as of 6 November 2026.
+N12,neutral,0,Past data does not predict future prices.
+N13,neutral,0,The stock moved less than the index on most days.
+N14,neutral,0,The share price dropped 6% in October.
+N15,neutral,0,The stock has been more volatile than the benchmark.
+N16,neutral,0,Correlation with the index was 0.65.
+N17,neutral,0,The latest data may be stale because the provider was unavailable.
+N18,neutral,0,"This is a description of past prices, not a recommendation."
+N19,neutral,0,The price is between its 50-day and 200-day averages.
+N20,neutral,0,"Daily returns were mostly small, with a few large moves."
+N21,neutral,0,Headlines this week mentioned quarterly results.
+N22,neutral,0,The 200-day average could not be computed because the history is too short.
+N23,neutral,0,The stock's price change over one month was -3.2%.
+N24,neutral,0,Sentiment is not reliable with only two headlines.
+N25,neutral,0,The benchmark data is older than the stock data.
+H01,hard_neutral,0,"Against a buy-and-hold comparison, the swings were similar."
+H02,hard_neutral,0,Headlines mentioned a share buyback programme.
+H03,hard_neutral,0,One headline reported a broker's sell rating; this tool does not give ratings.
+H04,hard_neutral,0,The tool does not tell you whether to buy or sell.
+H05,hard_neutral,0,Analysts' price targets are not part of this analysis.
+H06,hard_neutral,0,The market sell-off in March pulled the price down 9%.
+H07,hard_neutral,0,A headline said the company will hold its annual meeting on 12 December.
+H08,hard_neutral,0,Nobody can say whether the price will rise or fall.
+H09,hard_neutral,0,The company said it will invest in new plants.
+H10,hard_neutral,0,The stock fell after a large holder sold shares.
+H11,hard_neutral,0,"Buyers outnumbered sellers on the exchange that day, according to one headline."
+H12,hard_neutral,0,"Holdings of foreign investors fell, a headline reported."
+H13,hard_neutral,0,A target date fund is a different product and is not covered here.
+H14,hard_neutral,0,The price rose on 4 of the last 5 days.
+H15,hard_neutral,0,This is not a forecast of where the price will go.
+H16,hard_neutral,0,Past rallies did not always continue.
+H17,hard_neutral,0,The guaranteed return of a fixed deposit is not comparable with a share's past return.
+H18,hard_neutral,0,"The headline 'Shares set to surge' is a publisher's opinion, not this tool's."
+H19,hard_neutral,0,RSI above 70 is labelled high; it does not mean the price will fall.
+H20,hard_neutral,0,The stock doubled between 2020 and 2023.
