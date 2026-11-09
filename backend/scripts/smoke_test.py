@@ -1,7 +1,7 @@
 # backend/scripts/smoke_test.py
 #
 # Purpose: end-to-end SMOKE TEST of the running API (Phase 2 auth -> Phase 3
-# import/categorize -> Phase 4 budgets -> Phase 5 forecast -> Phase 6 investing). Unlike the pytest suite (SQLite + fake
+# import/categorize -> Phase 4 budgets -> Phase 5 forecast -> Phase 6 investing -> Phase 7 stocks). Unlike the pytest suite (SQLite + fake
 # LLM, in-process), this talks to the REAL server over HTTP, with the real
 # Postgres database and migrations, so it catches wiring problems the unit
 # tests cannot see (missing router, broken migration, CORS-free HTTP errors...).
@@ -11,7 +11,13 @@
 # budget for NEXT month -> status -> override one limit -> regenerate ->
 # confirm the override survived -> forecast without a balance (400, the CSV has
 # no balance column) -> 30-day forecast with a typed balance -> latest/history/recurring ->
-# investing: risk profile, holdings, plan (uses that forecast), simulate (not stored).
+# investing: risk profile, holdings, plan (uses that forecast), simulate (not stored) ->
+# stocks: watchlist, status, analysis, chart prices, headline scorer (from the SEEDED cache).
+#
+# The stocks step needs NO internet: it reads market data cached once by
+#   docker compose exec backend python -m scripts.seed_market_cache
+# If the cache is older than the TTL the server tries the provider; offline that fails and the
+# analysis uses the stale cache with the warning "data_stale", which this step accepts.
 #
 # Synthetic data only: every merchant and amount below is made up, and every
 # description matches a keyword rule, so categorization needs no LLM call.
@@ -52,6 +58,9 @@ INVEST_PROFILE = {                   # synthetic questionnaire and facts
 }
 INVEST_HOLDINGS = {"holdings": [{"asset_class": "equity", "amount": 80_000},
                                {"asset_class": "debt", "amount": 20_000}]}
+STOCK_SYMBOL = "RELIANCE.NS"         # in the seed script's default list
+STOCK_ACCEPTED_WARNINGS = {"data_stale", "benchmark_stale", "news_stale", "news_unavailable", "few_headlines",
+                           "finbert_unavailable"}   # all fine offline; anything else fails the step
 
 
 class StepFailed(Exception):
@@ -213,6 +222,7 @@ class SmokeTest:
             (f"generate {FORECAST_DAYS}-day forecast", self.generate_forecast),
             ("forecast latest, history, recurring", self.forecast_reads),
             ("investing: profile, holdings, plan, simulate", self.investing),
+            ("stocks: watchlist, status, analysis, prices, scorer (seeded cache)", self.stocks),
         ]
 
     # Each step returns a short detail string for the PASS line, or raises StepFailed.
@@ -396,6 +406,46 @@ class SmokeTest:
                 f"surplus_low={plan['surplus']['monthly_low']:.0f} sip={sip['recommended_total']:.0f} "
                 f"({sip['limited_by']}) p50={projection['p50']:.0f} warnings={plan['warnings']} "
                 f"explanation={plan['explanation_source']} simulate_p50={simulation['projection']['p50']:.0f}")
+
+    def stocks(self) -> str:
+        symbol = STOCK_SYMBOL
+        watchlist = expect(self.api.request("POST", "/api/stocks/watchlist", json_body={"symbol": symbol}), 201,
+                           "stocks add to watchlist")
+        if [item["symbol"] for item in watchlist["items"]] != [symbol]:
+            raise StepFailed(f"new user's watchlist should hold only {symbol}: {watchlist['items']}")
+        status = expect(self.api.request("GET", "/api/stocks/status"), 200, "stocks status")
+        cached = {row["symbol"]: row for row in status["cache"]}
+        if not cached.get(symbol, {}).get("latest_bar_date"):
+            raise StepFailed(f"{symbol} is not in the market-data cache. Run once while online: "
+                             f"docker compose exec backend python -m scripts.seed_market_cache")
+        analysis = expect(self.api.request("POST", f"/api/stocks/{symbol}/analysis"), 200, "stocks analysis")
+        indicators = analysis["indicators"]
+        if indicators["bars_used"] < 252 or indicators["sma_200"] is None or indicators["rsi_14"] is None:
+            raise StepFailed(f"the seeded cache should give a full analysis: {indicators}")
+        unexpected = set(analysis["warnings"]) - STOCK_ACCEPTED_WARNINGS
+        if unexpected:
+            raise StepFailed(f"unexpected warnings {sorted(unexpected)}")
+        if not analysis["explanation"] or not analysis["explanation"].endswith(analysis["disclaimer"]):
+            raise StepFailed("the explanation must end with the disclaimer")
+        latest = expect(self.api.request("GET", f"/api/stocks/{symbol}/analysis/latest"), 200, "stocks latest")
+        if latest["id"] != analysis["id"]:
+            raise StepFailed(f"latest analysis is {latest['id']}, expected {analysis['id']}")
+        prices = expect(self.api.request("GET", f"/api/stocks/{symbol}/prices", params={"days": "30"}), 200,
+                        "stocks prices")
+        if not prices["bars"] or prices["bars"][-1]["sma_50"] is None:
+            raise StepFailed("chart prices are empty or have no 50-day average")
+        scored = expect(self.api.request("POST", "/api/stocks/sentiment/score",
+                                         json_body={"headline": "Company reports record profit"}), 200, "stocks scorer")
+        for name, body in (("watchlist", watchlist), ("status", status), ("analysis", analysis),
+                           ("prices", prices), ("scorer", scored)):
+            if not body.get("disclaimer"):
+                raise StepFailed(f"stocks {name} response has no disclaimer")
+        expect(self.api.request("DELETE", f"/api/stocks/watchlist/{symbol}"), 200, "stocks remove")
+        return (f"{symbol} as_of={analysis['data_as_of']} bars={indicators['bars_used']} trend={indicators['trend']} "
+                f"cache={analysis['sources']['prices_cache']} sentiment="
+                f"{(analysis['sentiment'] or {}).get('label')} ({analysis['sources']['sentiment_scorer']}) "
+                f"warnings={analysis['warnings']} explanation={analysis['explanation_source']} "
+                f"scorer={scored['scorer']}:{scored['label']}")
 
     def run(self) -> int:
         """Prints one PASS/FAIL line per step; stops at the first failure (later steps depend on it)."""

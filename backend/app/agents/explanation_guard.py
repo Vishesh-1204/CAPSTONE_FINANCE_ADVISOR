@@ -81,3 +81,28 @@ def find_unsupported_percentages(
 def find_amount_shorthand(text: str) -> list[str]:
     """Every 'lakh' / 'crore' / '12k' / '5L' / '1.2 Cr' style amount, lower-cased."""
     return [match.group(0).lower() for match in _SHORTHAND_PATTERN.finditer(text)]
+
+
+# --- Any number (added for the Stock Intelligence Agent, Phase 7) ---
+# Stock text has many kinds of numbers: prices (₹2,950.10), index levels (24,350.50 points),
+# percentages, RSI (68.4), beta (0.92), counts (12 headlines), windows (50-day) and dates.
+# The stock explainer accepts LLM text only if EVERY number in it also appears in the facts,
+# exactly (no tolerance: the facts are pre-formatted, so the LLM only has to copy them).
+# Signs are ignored ("fell 4.2%" may describe the fact "-4.2%"); commas are digit grouping.
+_NUMBER_PATTERN = re.compile(r"\d[\d,]*(?:\.\d+)?")
+
+
+def extract_numbers(text: str) -> list[Decimal]:
+    """Every number in `text` as an exact Decimal (sign dropped, grouping commas removed)."""
+    numbers: list[Decimal] = []
+    for raw in _NUMBER_PATTERN.findall(text):
+        cleaned = raw.rstrip(",").replace(",", "")
+        if cleaned:
+            numbers.append(Decimal(cleaned))
+    return numbers
+
+
+def find_unsupported_numbers(text: str, facts_text: str) -> list[Decimal]:
+    """Numbers in `text` that do not appear (by value) anywhere in `facts_text`."""
+    allowed = set(extract_numbers(facts_text))
+    return [number for number in extract_numbers(text) if number not in allowed]

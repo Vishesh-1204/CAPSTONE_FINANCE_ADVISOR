@@ -87,8 +87,23 @@ research value, explainability and maintainability over quick fixes.
   Docs: docs/modules/investing.md, investing-evaluation.md; api/database/testing/architecture updated.
 - Done: Phase 6C frontend /investing page (F11, docs/modules/frontend-console.md) + GET /api/investing/plans/{plan_id}
   for the plan history, 771 tests passing, smoke 16/16.
-- Next: Phase 7 (Stock Intelligence). No teammate rules or guard sentences (decided 2026-10-23): all rules
-  and guard sentences are written by the method's author, stated as a limitation.
+- In progress: Phase 7 (Stock Intelligence, spec docs/phase7-spec.md) on branch feature/vishesh-stocks,
+  1123 tests passing + 1 skipped (real FinBERT, runs in the ml image), live smoke test 17/17 (also passes
+  with no internet from the seeded cache). Done: 7A-0 spike (docs/phase7-provider-spike.md: yfinance prices,
+  Google News RSS headlines, Alpha Vantage free tier = 100 bars only, not used), 7A-1 pure modules
+  (math.fsum fix for Python 3.11), 7A-2 migration 0006 (watchlist_items, price_bars Numeric(14,4), news_items,
+  stock_analyses, provider_calls) + strict symbol validator (core/stock_symbols.py), 7A-3 market_data/
+  (yfinance adapter = the ONLY yfinance import, approved 2026-11-09; RSS adapter; cache_service fallback chain
+  fresh -> provider -> stale + data_stale -> CSV hint; 15-min provider cooldown; seed_market_cache.py),
+  7A-4 sentiment/ (lexicon default, FinBERT lazy via requirements-ml.txt + `docker compose --profile ml up`
+  on port 8001; model card licence CC BY-NC-SA 4.0, revision pinned), 7A-5 stock_service, stock_explainer
+  (any-number guard + claims guard v3 + no headlines to the LLM), /api/stocks/* (12 routes).
+  Next: 7B evaluation + docs (docs/modules/stocks.md etc.), 7C frontend, 7D bootstrap in /investing.
+  No teammate rules or guard sentences (decided 2026-10-23): all rules and guard sentences are written by
+  the method's author, stated as a limitation.
+  Phase 7 gaps: offline, the Phase 4-6 LLM explanation calls hang until timeout (smoke needed the
+  *_USE_LLM_EXPLANATIONS=false switches); Gemini sometimes returns truncated JSON (template used);
+  uploaded CSV bars are shared by all users (insert-only); news search by ticker code has no relevance filter.
 - Known gaps: no HuggingFace/Llama provider in llm/factory.py yet (approved stack); person guard recall 0.857
   (1 person-like string reached the LLM stage in the offline eval); budget guard only checks amounts with a
   currency marker; B2 (--llm real) faithfulness not measured yet; synthetic personas do not react to budgets.
