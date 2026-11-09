@@ -18,6 +18,32 @@ services:
       db:
         condition: service_healthy
 
+  # Optional FinBERT backend (Phase 7A-4). Not started by a plain `docker compose up`:
+  #   docker compose --profile ml up --build      -> http://127.0.0.1:8001 (same database)
+  # Same code and database as `backend`, plus torch (CPU) + transformers, with the FinBERT
+  # scorer switched on. The model downloads on first use into the hf_cache volume.
+  backend-ml:
+    profiles: ["ml"]
+    build:
+      context: ./backend
+      args:
+        INSTALL_DEV: "true"
+        INSTALL_ML: "true"
+    image: capstone-finance-advisor-backend-ml
+    ports:
+      - "8001:8000"
+    env_file:
+      - ./backend/.env
+    environment:
+      SENTIMENT_SCORER: finbert
+      HF_HOME: /hf-cache          # keep the downloaded model across container rebuilds
+    volumes:
+      - ./backend:/app
+      - hf_cache:/hf-cache
+    depends_on:
+      db:
+        condition: service_healthy
+
   db:
     image: postgres:16
     restart: always
@@ -37,3 +63,4 @@ services:
 
 volumes:
   postgres_data:
+  hf_cache:

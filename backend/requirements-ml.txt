@@ -1,0 +1,15 @@
+# backend/requirements-ml.txt
+#
+# Purpose: OPTIONAL machine-learning extras for the FinBERT headline scorer (Phase 7A-4,
+# app/sentiment/finbert_scorer.py). NOT part of the default image: torch is large and slow to
+# download, and the app runs fully without it (the lexicon scorer is the default).
+# Installed only by the "ml" Docker Compose profile (INSTALL_ML=true):
+#   docker compose --profile ml up --build backend-ml        -> http://127.0.0.1:8001
+# Both packages are in the approved stack (PyTorch, HuggingFace).
+
+# CPU-only PyTorch wheel: no CUDA libraries, so the image is far smaller than the default wheel
+--extra-index-url https://download.pytorch.org/whl/cpu
+torch==2.6.0+cpu
+
+# Loads ProsusAI/finbert from the HuggingFace Hub (downloaded on first use, cached in a volume)
+transformers==4.51.3

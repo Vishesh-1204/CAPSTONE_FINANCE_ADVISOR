@@ -14,6 +14,13 @@ ENV PIP_DEFAULT_TIMEOUT=100 \
 RUN pip install --no-cache-dir -r requirements.txt \
     && if [ "$INSTALL_DEV" = "true" ]; then pip install --no-cache-dir -r requirements-dev.txt; fi
 
+# Optional FinBERT extras (torch CPU + transformers), only for the "ml" Compose profile.
+# A SEPARATE, later layer on purpose: the default image (INSTALL_ML=false) keeps every cached
+# layer above, and this step is a no-op for it.
+ARG INSTALL_ML=false
+COPY requirements-ml.txt ./
+RUN if [ "$INSTALL_ML" = "true" ]; then pip install --no-cache-dir -r requirements-ml.txt; fi
+
 # Copy application code
 COPY . .
 
