@@ -104,3 +104,64 @@ def test_matches_are_reported_in_order():
 def test_the_phase_6_guard_is_unchanged(text):
     """v3 is a separate function: the Phase 6 guard must still ignore stock advice wording."""
     assert is_compliant(text) and find_prohibited_claims(text) == []
+
+
+# --- v3.1 (engine 7.1, after the Phase 7B evaluation) ---
+# Each line exercises one pattern added from a v3 miss in evaluation/stocks_guard_cases.csv.
+V31_REJECTED = [
+    "Investors must trim their holdings.",                 # A19: wider action list after a modal
+    "We would avoid the shares this quarter.",             # A05
+    "Selling now seems prudent.",                          # A04
+    "This is a good entry level for new investors.",       # A06
+    "Consider reducing your stake.",                       # A07
+    "It is the best time to get in.",                      # A16
+    "A solid stock to own for a decade.",                  # A18
+    "Stay invested through the volatility.",               # A14
+    "Do not sell during the dip.",                         # A14
+    "Add on any weakness.",                                # A10 sentence-initial imperative
+    'Switch to a cheaper fund.',                           # A15
+    "Expect a sharp move higher.",                         # P02, P18
+    "The shares should hit 900 soon.",                     # P04
+    "A recovery is on the way.",                           # P05, P17
+    "The uptrend is likely to continue.",                  # P06
+    "Upside looks capped.",                                # P07
+    "The stock is primed for a breakout.",                 # P08
+    "This share cannot go much higher.",                   # P12
+    "There is a strong chance the stock climbs.",          # P13
+    "The price keeps falling next month.",                 # P20
+]
+
+V31_PASSES = [
+    "No one can tell whether the shares will rise.",       # H08 disclaiming frame
+    "A low RSI does not mean the price will rebound.",     # H19 disclaiming frame
+    "The stock fell soon after the results.",              # "soon after" is the past
+    "Holdings of mutual funds rose last month.",           # not a sentence-initial "Hold"
+    "The price changed by -3.2% over the last month.",
+]
+
+
+@pytest.mark.parametrize("text", V31_REJECTED)
+def test_v31_rejects_the_patterns_added_after_the_evaluation(text):
+    assert not is_stock_text_compliant(text), text
+
+
+@pytest.mark.parametrize("text", V31_PASSES)
+def test_v31_disclaiming_frames_and_past_tense_pass(text):
+    assert is_stock_text_compliant(text), find_prohibited_stock_claims(text)
+
+
+def test_v3_is_kept_unchanged_for_the_before_after_comparison():
+    from app.services.investing.claims_guard import STOCK_GUARD_VERSION, find_prohibited_stock_claims_v3
+    assert STOCK_GUARD_VERSION == "v3.1"
+    assert find_prohibited_stock_claims_v3("Stay invested through the volatility.") == []
+    assert find_prohibited_stock_claims_v3("You should buy now.") == ["you should buy"]   # matches cannot overlap
+
+
+def test_v31_reports_each_phrase_once():
+    found = find_prohibited_stock_claims("You should buy now.")
+    assert len(found) == len(set(found))
+
+
+def test_known_gap_negated_predictions_are_not_caught():
+    """Documented gap (docs/modules/stocks-evaluation.md): no set-A miss covered it, so v3.1 adds no pattern."""
+    assert is_stock_text_compliant("The price will not fall.")

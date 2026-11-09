@@ -43,7 +43,7 @@ from app.services.stocks.sentiment_aggregation import HeadlineSentiment, aggrega
 
 logger = logging.getLogger(__name__)
 
-ENGINE_VERSION = "7.0"
+ENGINE_VERSION = "7.1"                  # 7.1: claims guard v3.1 and provider backoff (Phase 7B fixes)
 
 # Analysis windows (descriptive conventions, stored in inputs_json for reproducibility)
 ANALYSIS_DAYS = 400                     # calendar days loaded: ~275 trading days, covers one year + averages

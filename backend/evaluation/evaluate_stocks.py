@@ -23,12 +23,14 @@
 #   docker compose exec backend python -m evaluation.evaluate_stocks                        (no FinBERT)
 #   ... --quick           development run (fewer symbols, replications and days)
 #   ... --llm real        adds G3: the configured LLM on 30 real analyses (public market aggregates only)
+#   ... --g3-only         ONLY G3 (30 real LLM calls), raw texts saved to results/ for review
 #
 # Output (long format, see FIELDS):
 #   full run, FinBERT available, --llm none -> evaluation/stocks_metrics.csv + .md (committed; deterministic)
 #   anything else                           -> evaluation/results/stocks_metrics_<label>.csv + .md (gitignored)
 
 import argparse
+import json
 import csv
 import logging
 import time
@@ -42,7 +44,9 @@ from app.db.session import SessionLocal
 from app.sentiment.base import ScorerUnavailable, SentimentProbabilities
 from app.sentiment.finbert_scorer import FinbertScorer, finbert_installed     # lazy: no torch import here
 from app.sentiment.lexicon_scorer import LexiconScorer
-from app.services.investing.claims_guard import find_prohibited_stock_claims
+from app.services.investing.claims_guard import (
+    STOCK_GUARD_VERSION, find_prohibited_stock_claims, find_prohibited_stock_claims_v3,
+)
 from app.services.stocks.walk_forward import binomial_p_value_greater
 from evaluation.evaluate_categorizer import overridden_settings
 from evaluation import stocks_direction as direction
@@ -59,7 +63,7 @@ from evaluation.stocks_rules import (
     RQ2_POWER_REPLICATIONS, RQ2_POWER_RHO, RQ3_COST_ABLATION_BPS, RQ3_COST_BPS, RQ3_POOLED_ALPHA,
     RQ3_SENTIMENT_MIN_DAYS, RQ3_SYMBOL_ALPHA, RQ4_BLOCKS, RQ4_GOAL_ANNUAL_RETURN, RQ4_MONTHLY_SIP, RQ4_PATHS,
     RQ4_PRIMARY_BLOCK, RQ4_YEARS, RQ5_COOLDOWN_ABLATION_MINUTES, RQ5_DAYS, RQ5_LLM_MONTH_ENDS,
-    RQ5_REQUESTS_PER_SYMBOL_DAY, RQ5_SCENARIOS, RQ5_SYMBOLS, RQ5_TTL_ABLATION_HOURS, SEED, UNIVERSE,
+    RQ5_REQUESTS_PER_SYMBOL_DAY, RQ5_SCENARIOS, RQ5_SYMBOLS, RQ5_TTL_ABLATION_HOURS, SEED, UNIVERSE, GUARD_CASES_FILE_B,
 )
 
 logger = logging.getLogger(__name__)
@@ -70,6 +74,7 @@ FIELDS = ("experiment", "method", "config", "group", "metric", "value", "n")
 PLACEBO_SEEDS = (1001, 1002, 1003)
 POWER_SEEDS = (2001, 2002, 2003)
 DEFAULT_TTL, DEFAULT_COOLDOWN = 24.0, 15.0
+DEFAULT_COOLDOWN_MAX = 240.0          # engine 7.1 backoff cap (STOCK_PROVIDER_COOLDOWN_MAX_MINUTES default)
 ALL = "all"
 
 Scorer = Callable[[Sequence[str]], list[SentimentProbabilities]]
@@ -321,17 +326,21 @@ def run_rq4(run: Run, benchmark: Series) -> None:
 
 def run_rq5(run: Run, bars: dict, benchmark_bars: list, llm_delay: float) -> None:
     days = 20 if run.quick else RQ5_DAYS
-    configs = [(s, DEFAULT_TTL, DEFAULT_COOLDOWN) for s in RQ5_SCENARIOS]
-    configs += [(s, ttl, DEFAULT_COOLDOWN) for s in ("S0_healthy", "S1_rate_limited")
+    cap = DEFAULT_COOLDOWN_MAX
+    configs = [(s, DEFAULT_TTL, DEFAULT_COOLDOWN, cap) for s in RQ5_SCENARIOS]
+    configs += [(s, ttl, DEFAULT_COOLDOWN, cap) for s in ("S0_healthy", "S1_rate_limited")
                 for ttl in RQ5_TTL_ABLATION_HOURS if ttl != DEFAULT_TTL]
-    configs += [(s, DEFAULT_TTL, cd) for s in ("S1_rate_limited", "S2_outage_5d")
+    configs += [(s, DEFAULT_TTL, cd, cap) for s in ("S1_rate_limited", "S2_outage_5d")
                 for cd in RQ5_COOLDOWN_ABLATION_MINUTES if cd != DEFAULT_COOLDOWN]
+    # Engine 7.0 (constant 15-minute cooldown, the pre-registered setting) for the before/after table
+    configs += [(s, DEFAULT_TTL, DEFAULT_COOLDOWN, DEFAULT_COOLDOWN) for s in RQ5_SCENARIOS if s != "S0_healthy"]
     sims = []
-    for scenario, ttl, cooldown in configs:
+    for scenario, ttl, cooldown, max_cooldown in configs:
         stats = robustness.simulate(scenario, n_symbols=RQ5_SYMBOLS, n_days=days,
-                                    per_day=RQ5_REQUESTS_PER_SYMBOL_DAY, ttl_hours=ttl, cooldown_minutes=cooldown)
+                                    per_day=RQ5_REQUESTS_PER_SYMBOL_DAY, ttl_hours=ttl, cooldown_minutes=cooldown,
+                                    cooldown_max_minutes=max_cooldown)
         sims.append(stats)
-        config = f"ttl{ttl:g}h_cooldown{cooldown:g}m"
+        config = f"ttl{ttl:g}h_cooldown{cooldown:g}m_cap{max_cooldown:g}m"
         n = stats.requests
         values = {
             "served_rate": stats.served_rate, "error_rate": stats.errors / n,
@@ -359,39 +368,67 @@ def run_rq5(run: Run, bars: dict, benchmark_bars: list, llm_delay: float) -> Non
             results.append((symbol, end, result))
     g1 = 1 - len(template_failures) / len(results)
     run.add("rq5_guards", "G1_template", "all_guards", ALL, "pass_rate", g1, len(results))
-    # G2: claims guard v3 on the held-out sentences
+    # G2: the claims guard on the held-out sentences. Pre-registered: v3 on set A. Added after the engine 7.0
+    # results (CHANGES_AFTER_RESULTS): set B, and v3.1, whose patterns were written from v3's set-A misses.
     cases = robustness.load_guard_cases()
-    g2, wrong = robustness.guard_metrics(cases, lambda text: bool(find_prohibited_stock_claims(text)))
-    for name, value in g2.items():
-        run.add("rq5_guards", "G2_claims_v3", "held_out_cases", ALL, name, value, len(cases))
-    # G3: the configured LLM (only with --llm real)
-    g3 = None
-    if run.llm == "real":
-        last_ends = set(ends[-RQ5_LLM_MONTH_ENDS:])
-        sample = [(s, e, r) for s, e, r in results if e in last_ends]
-        with overridden_settings({"STOCK_USE_LLM_EXPLANATIONS": True}):
-            real = StockExplainer.from_settings(find_prohibited_stock_claims)
-            outcomes = []
-            for i, (symbol, end, result) in enumerate(sample):
-                if i:
-                    time.sleep(llm_delay)
-                outcomes.append(real.explain(result))
-        n = len(outcomes)
-        answered = [o for o in outcomes if o.llm_used]
-        g3 = {
-            "analyses": n, "llm_answered": len(answered),
-            "raw_prohibited_claims_rate": sum(1 for o in answered if o.claims_compliant is False) / max(1, len(answered)),
-            "unsupported_number_rate": sum(1 for o in answered if o.explanation_faithful is False) / max(1, len(answered)),
-            "template_fallback_rate": sum(1 for o in outcomes if not (o.llm_used and o.claims_compliant
-                                                                    and o.explanation_faithful)) / n,
-            "llm_calls_per_analysis": sum(o.llm_calls for o in outcomes) / n,
-            "rejected_for": [list(o.rejected_for) for o in outcomes if o.rejected_for],
-        }
-        for name in ("raw_prohibited_claims_rate", "unsupported_number_rate", "template_fallback_rate",
-                     "llm_calls_per_analysis"):
-            run.add("rq5_guards", "G3_llm", "real", ALL, name, g3[name], n)
+    cases_b = robustness.load_guard_cases(robustness.EVAL_DIR / GUARD_CASES_FILE_B)
+    guards = {"v3": find_prohibited_stock_claims_v3, STOCK_GUARD_VERSION: find_prohibited_stock_claims}
+    g2: dict[tuple[str, str], tuple[dict, list[str]]] = {}
+    for version, guard in guards.items():
+        for set_name, set_cases in (("set_A", cases), ("set_B", cases_b)):
+            metrics, wrong = robustness.guard_metrics(set_cases, lambda text, g=guard: bool(g(text)))
+            g2[(version, set_name)] = (metrics, wrong)
+            for name, value in metrics.items():
+                run.add("rq5_guards", f"G2_claims_{version}", set_name, ALL, name, value, len(set_cases))
+    g3 = run_g3(run, results, ends, llm_delay) if run.llm == "real" else None
     run.info["rq5"] = {"sims": sims, "days": days, "g1": g1, "g1_n": len(results), "g1_failures": template_failures,
-                       "g2": g2, "g2_wrong": wrong, "g2_cases": cases, "g3": g3}
+                       "g2": g2, "g2_cases": {"set_A": cases, "set_B": cases_b}, "g3": g3}
+
+
+def run_g3(run: Run, results: list, ends: list, llm_delay: float) -> dict:
+    """
+    G3 (--llm real only): the configured LLM on UNIVERSE x the last RQ5_LLM_MONTH_ENDS month-ends. Public market
+    aggregates only (no personal data). The raw LLM answers are captured through the claims-checker hook (the
+    explainer calls it on every raw answer), so they can be scored by v3 AND v3.1 and reviewed by hand.
+    """
+    last_ends = set(ends[-RQ5_LLM_MONTH_ENDS:])
+    sample = [(s, e, r) for s, e, r in results if e in last_ends]
+    raw: list[str] = []
+
+    def recording_guard(text: str) -> list[str]:
+        raw.append(text)
+        return find_prohibited_stock_claims(text)
+
+    outcomes = []
+    with overridden_settings({"STOCK_USE_LLM_EXPLANATIONS": True}):
+        real = StockExplainer.from_settings(recording_guard)
+        for i, (symbol, end, result) in enumerate(sample):
+            if i:
+                time.sleep(llm_delay)
+            before = len(raw)
+            outcome = real.explain(result)
+            outcomes.append((symbol, end, outcome, raw[before] if len(raw) > before else None))
+    n = len(outcomes)
+    answered = [(s, e, o, t) for s, e, o, t in outcomes if t is not None]
+    k = max(1, len(answered))
+    g3 = {
+        "analyses": n, "llm_answered": len(answered),
+        "raw_claims_v31_rate": sum(1 for *_, t in answered if find_prohibited_stock_claims(t)) / k,
+        "raw_claims_v3_rate": sum(1 for *_, t in answered if find_prohibited_stock_claims_v3(t)) / k,
+        "unsupported_number_rate": sum(1 for _, _, o, _ in answered if o.explanation_faithful is False) / k,
+        "template_fallback_rate": sum(1 for _, _, o, _ in outcomes
+                                      if not (o.llm_used and o.claims_compliant and o.explanation_faithful)) / n,
+        "llm_calls_per_analysis": sum(o.llm_calls for _, _, o, _ in outcomes) / n,
+        "rejected_for": [list(o.rejected_for) for _, _, o, _ in outcomes if o.rejected_for],
+        "texts": [{"symbol": s, "as_of": e.isoformat(), "accepted": bool(o.llm_used and o.claims_compliant
+                                                                         and o.explanation_faithful),
+                   "rejected_for": list(o.rejected_for), "claims_v31": find_prohibited_stock_claims(t),
+                   "claims_v3": find_prohibited_stock_claims_v3(t), "text": t} for s, e, o, t in answered],
+    }
+    for name in ("raw_claims_v31_rate", "raw_claims_v3_rate", "unsupported_number_rate", "template_fallback_rate",
+                 "llm_calls_per_analysis"):
+        run.add("rq5_guards", "G3_llm", "real", ALL, name, g3[name], n)
+    return g3
 
 
 # ------------------------------------------------------------------ verdicts (pre-registered rules)
@@ -440,11 +477,14 @@ def verdicts(run: Run) -> list[tuple[str, str, str]]:
     out.append(("H4", "supported" if all_lower and gap < -0.01 else "not supported",
                 f"bootstrap p10 below normal in {sum(p10 < normal[y] for y, _, p10 in boot)} of {len(boot)} cells; "
                 f"block {RQ4_PRIMARY_BLOCK} / {max(RQ4_YEARS)} y gap {gap:+.1%}"))
-    sims = {(s.scenario, s.ttl_hours, s.cooldown_minutes): s for s in run.info["rq5"]["sims"]}
-    served = {k[0]: v.served_rate for k, v in sims.items() if k[1:] == (DEFAULT_TTL, DEFAULT_COOLDOWN)}
-    worst = min(served[s] for s in ("S1_rate_limited", "S2_outage_5d", "S3_bad_response", "S4_down_after_day1"))
-    out.append(("H5a", "supported" if worst >= 0.99 else "not supported", f"lowest served rate in S1-S4: {worst:.2%}"))
-    s0_24, s0_1 = sims[("S0_healthy", 24.0, DEFAULT_COOLDOWN)], sims[("S0_healthy", 1, DEFAULT_COOLDOWN)]
+    sims = {(s.scenario, s.ttl_hours, s.cooldown_minutes, s.cooldown_max_minutes): s for s in run.info["rq5"]["sims"]}
+    for engine, cap in (("engine 7.1", DEFAULT_COOLDOWN_MAX), ("engine 7.0", DEFAULT_COOLDOWN)):
+        served = {k[0]: v.served_rate for k, v in sims.items() if k[1:] == (DEFAULT_TTL, DEFAULT_COOLDOWN, cap)}
+        worst = min(served[s] for s in ("S1_rate_limited", "S2_outage_5d", "S3_bad_response", "S4_down_after_day1"))
+        out.append((f"H5a ({engine})", "supported" if worst >= 0.99 else "not supported",
+                    f"lowest served rate in S1-S4: {worst:.2%}"))
+    s0_24 = sims[("S0_healthy", 24.0, DEFAULT_COOLDOWN, DEFAULT_COOLDOWN_MAX)]
+    s0_1 = sims[("S0_healthy", 1, DEFAULT_COOLDOWN, DEFAULT_COOLDOWN_MAX)]
     ratio = s0_24.provider_calls / s0_1.provider_calls if s0_1.provider_calls else 0.0
     stale = sum(s0_24.staleness) / len(s0_24.staleness)
     out.append(("H5b", "supported" if ratio <= 0.25 and stale <= 1 else "not supported",
@@ -475,7 +515,8 @@ def markdown_report(run: Run) -> str:
              f"{BENCHMARK}; SHA-256 of (symbol, date, close) rows: `{info['fingerprint']}`",
              f"- Libraries: {info['versions']}", f"- Quick run: {'yes' if run.quick else 'no'}; LLM: {run.llm}", ""]
     if CHANGES_AFTER_RESULTS:
-        lines += ["Changes after seeing results: " + "; ".join(CHANGES_AFTER_RESULTS), ""]
+        lines += [f"Changes after seeing results: {len(CHANGES_AFTER_RESULTS)} entries in `evaluation/stocks_rules.py` "
+                  "(CHANGES_AFTER_RESULTS); before/after table in `docs/modules/stocks-evaluation.md`.", ""]
     for note in run.notes:
         lines.append(f"> Note: {note}")
     lines += ["", "## Verdicts (pre-registered decision rules)", ""]
@@ -574,9 +615,12 @@ def markdown_report(run: Run) -> str:
     lines += ["", "## RQ5 Robustness", "",
               f"Fallback chain: {RQ5_SYMBOLS} synthetic symbols, {rq5['days']} weekdays, "
               f"{RQ5_REQUESTS_PER_SYMBOL_DAY} requests per symbol per day, real cache_service on SQLite.", ""]
-    lines += _table(["Scenario", "TTL", "Cooldown", "Served", "Fresh", "Refreshed", "Stale", "Errors",
+    lines += ["Cooldown cap = the engine 7.1 backoff limit; a cap equal to the cooldown is engine 7.0's constant "
+              "cooldown (the pre-registered setting).", ""]
+    lines += _table(["Scenario", "TTL", "Cooldown", "Cap", "Served", "Fresh", "Refreshed", "Stale", "Errors",
                      "Staleness mean / max (days)", "Calls / 100", "Failed / 100"],
-                    [[s.scenario, f"{s.ttl_hours:g} h", f"{s.cooldown_minutes:g} min", _pct(s.served_rate, 2),
+                    [[s.scenario, f"{s.ttl_hours:g} h", f"{s.cooldown_minutes:g} min", f"{s.cooldown_max_minutes:g} min",
+                      _pct(s.served_rate, 2),
                       _pct(s.by_status.get("fresh", 0) / s.requests), _pct(s.by_status.get("refreshed", 0) / s.requests),
                       _pct(s.by_status.get("stale", 0) / s.requests), str(s.errors),
                       f"{sum(s.staleness) / max(1, len(s.staleness)):.2f} / {max(s.staleness, default=0)}",
@@ -584,23 +628,50 @@ def markdown_report(run: Run) -> str:
                      for s in rq5["sims"]])
     lines += ["", f"G1 template on real facts: pass rate {_pct(rq5['g1'])} of {rq5['g1_n']} "
               f"(failures: {rq5['g1_failures'] or 'none'}).", "",
-              f"G2 claims guard v3 on {len(rq5['g2_cases'])} held-out sentences (same author as the guard):", ""]
-    lines += _table(["Metric", "Value"], [[k, f"{v:.3f}"] for k, v in rq5["g2"].items()])
-    by_id = {c.case_id: c for c in rq5["g2_cases"]}
-    if rq5["g2_wrong"]:
-        lines += ["", "Wrong decisions:", ""]
+              f"G2 claims guard on held-out sentences, all written by the guard's author. Set A "
+              f"({len(rq5['g2_cases']['set_A'])}, pre-registered) and set B ({len(rq5['g2_cases']['set_B'])}, written "
+              f"after the engine 7.0 run, committed before v3.1). v3.1's patterns came from v3's set-A misses, so "
+              f"v3.1 on set A is NOT evidence; v3.1 on set B is the honest check.", ""]
+    metric_names = list(next(iter(rq5["g2"].values()))[0])
+    lines += _table(["Guard", "Set"] + metric_names,
+                    [[version, set_name] + [f"{metrics[m]:.3f}" for m in metric_names]
+                     for (version, set_name), (metrics, _) in rq5["g2"].items()])
+    for (version, set_name), (_, wrong) in rq5["g2"].items():
+        if version != STOCK_GUARD_VERSION or not wrong:
+            continue
+        by_id = {c.case_id: c for c in rq5["g2_cases"][set_name]}
+        lines += ["", f"Wrong decisions of {version} on {set_name}:", ""]
         lines += _table(["Case", "Kind", "Should flag", "Text"],
-                        [[i, by_id[i].kind, "yes" if by_id[i].prohibited else "no", by_id[i].text]
-                         for i in rq5["g2_wrong"]])
-    if rq5["g3"]:
-        g3 = rq5["g3"]
-        lines += ["", f"G3 configured LLM on {g3['analyses']} analyses ({g3['llm_answered']} answered): raw prohibited "
-                  f"claims {_pct(g3['raw_prohibited_claims_rate'])}, unsupported numbers "
-                  f"{_pct(g3['unsupported_number_rate'])}, template fallback {_pct(g3['template_fallback_rate'])}, "
-                  f"LLM calls per analysis {g3['llm_calls_per_analysis']:.2f}. Rejections: {g3['rejected_for']}"]
-    else:
-        lines += ["", "G3 (LLM outputs) not run: use --llm real."]
+                        [[i, by_id[i].kind, "yes" if by_id[i].prohibited else "no", by_id[i].text] for i in wrong])
+    lines += [""] + g3_lines(rq5["g3"])
     return "\n".join(lines) + "\n"
+
+
+def g3_lines(g3: dict | None) -> list[str]:
+    if not g3:
+        return ["G3 (LLM outputs) not run: use --llm real."]
+    return [f"G3 configured LLM on {g3['analyses']} analyses ({g3['llm_answered']} answered): raw text with a "
+            f"prohibited claim {_pct(g3['raw_claims_v31_rate'])} by v3.1 ({_pct(g3['raw_claims_v3_rate'])} by v3), "
+            f"unsupported numbers {_pct(g3['unsupported_number_rate'])}, template fallback "
+            f"{_pct(g3['template_fallback_rate'])}, LLM calls per analysis {g3['llm_calls_per_analysis']:.2f}. "
+            f"Rejections: {g3['rejected_for']}"]
+
+
+def run_g3_only(llm_delay: float) -> None:
+    """--g3-only: just G3 (30 real LLM calls), without re-running RQ1-RQ5. Output in results/ (gitignored)."""
+    run = Run(False, "real")
+    with SessionLocal() as db:
+        bars = load_universe(db, UNIVERSE)
+        benchmark_bars = load_universe(db, (BENCHMARK,))[BENCHMARK]
+    ends = robustness.month_ends([b.bar_date for b in benchmark_bars], 12)
+    results = [(s, e, robustness.analysis_result(s, b, BENCHMARK, benchmark_bars, e)) for s, b in bars.items() for e in ends]
+    g3 = run_g3(run, results, ends, llm_delay)
+    RESULTS_DIR.mkdir(parents=True, exist_ok=True)
+    write_csv(RESULTS_DIR / "stocks_g3_llm.csv", run.records)
+    (RESULTS_DIR / "stocks_g3_llm_texts.json").write_text(json.dumps(g3["texts"], ensure_ascii=False, indent=2),
+                                                         encoding="utf-8")
+    print("\n".join(g3_lines(g3)))
+    print(f"Raw texts: {RESULTS_DIR / 'stocks_g3_llm_texts.json'}")
 
 
 def _fmt(value) -> str:
@@ -658,10 +729,15 @@ def main() -> None:
     parser.add_argument("--llm", choices=("none", "real"), default="none",
                         help="real: G3, the configured LLM on 30 analyses (public market aggregates only)")
     parser.add_argument("--llm-delay", type=float, default=4.0, help="seconds between real LLM calls")
+    parser.add_argument("--g3-only", action="store_true",
+                        help="only G3: the configured LLM on 30 analyses (results/ only, nothing else re-run)")
     args = parser.parse_args()
     logging.basicConfig(level=logging.INFO, format="%(asctime)s %(levelname)s %(name)s: %(message)s")
     for noisy in ("app.market_data.cache_service", "httpx"):
         logging.getLogger(noisy).setLevel(logging.ERROR)
+    if args.g3_only:
+        run_g3_only(args.llm_delay)
+        return
     started = time.perf_counter()
     run = run_evaluation(args.quick, args.llm, args.llm_delay)
     has_finbert = "F_finbert" in next(iter(run.info["rq1"].values()), {}).get("rows", {})

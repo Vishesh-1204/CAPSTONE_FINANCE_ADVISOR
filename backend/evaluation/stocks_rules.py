@@ -239,6 +239,16 @@ CHANGES_AFTER_RESULTS: tuple[str, ...] = (
     "SECOND set (stocks_guard_cases_b.csv, 40 sentences) was written and committed BEFORE any guard change, to "
     "measure the fix on sentences the new patterns were not written from. Same author, who had seen v3's misses. "
     "v3 on set B: recall 10%, hard-neutral false positives 40%.",
+    "Fix 1 (engine 7.1): claims guard v3.1 (patterns written from v3's set-A misses only, plus a disclaiming-frame "
+    "rule). Set A recall 40% -> 97.5% (not evidence); set B recall 10% -> 20%, hard-neutral false positives "
+    "40% -> 0%, precision 33% -> 100%. G1 template pass rate stays 100%.",
+    "Fix 2 (engine 7.1): provider cooldown doubles per failure in a row up to 240 minutes "
+    "(STOCK_PROVIDER_COOLDOWN_MAX_MINUTES). Failed calls per 100 requests: S4 58.2 -> 9.5, S5 59.5 -> 9.7, "
+    "S2 4.6 -> 0.9; cost under S1: stale share 16.0% -> 21.4%, served 99.38% -> 99.33% (H5a still supported). "
+    "Engine 7.0 rows (cap = 15 min) stay in the report.",
+    "Not changed: H5b's 25% threshold was mis-specified (one call per symbol per trading day is the floor at any "
+    "TTL); reported as written. FinBERT's label rule (argmax beats the app's +/-0.15 rule on twitter_fin) needs a "
+    "threshold chosen on a training split, so the app was not changed.",
 )
 GUARD_CASES_FILE_B = "stocks_guard_cases_b.csv"     # added after results (see CHANGES_AFTER_RESULTS)
 

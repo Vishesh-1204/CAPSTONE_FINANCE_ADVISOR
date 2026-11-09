@@ -94,6 +94,7 @@ class SimulationStats:
     scenario: str
     ttl_hours: float
     cooldown_minutes: float
+    cooldown_max_minutes: float
     requests: int = 0
     served: int = 0
     errors: int = 0
@@ -129,7 +130,7 @@ def request_schedule(symbols: list[str], days: list[date], per_day: int, seed: i
 
 
 def simulate(scenario: str, *, n_symbols: int, n_days: int, per_day: int, ttl_hours: float,
-             cooldown_minutes: float, seed: int = SEED) -> SimulationStats:
+             cooldown_minutes: float, cooldown_max_minutes: float, seed: int = SEED) -> SimulationStats:
     """One scenario through the real cache_service, on a fresh in-memory database."""
     engine = create_engine("sqlite://", poolclass=StaticPool, connect_args={"check_same_thread": False})
     Base.metadata.create_all(engine)
@@ -139,14 +140,15 @@ def simulate(scenario: str, *, n_symbols: int, n_days: int, per_day: int, ttl_ho
     history = n_days + HISTORY_DAYS                           # weekdays of synthetic bars, ending EVAL_END
     bars = {s: series_bars(random_walk(s, history, seed + i)) for i, s in enumerate(symbols)}
     provider = ScriptedProvider(bars, SCRIPTS[scenario], days, seed)
-    stats = SimulationStats(scenario, ttl_hours, cooldown_minutes)
+    stats = SimulationStats(scenario, ttl_hours, cooldown_minutes, cooldown_max_minutes)
     try:
         for now, symbol in request_schedule(symbols, days, per_day, seed):
             provider.now = now
             stats.requests += 1
             try:
                 result = cache_service.get_prices(db, symbol, REQUEST_DAYS, provider, now=now, ttl_hours=ttl_hours,
-                                                  history_days=HISTORY_DAYS, cooldown_minutes=cooldown_minutes)
+                                                  history_days=HISTORY_DAYS, cooldown_minutes=cooldown_minutes,
+                                                  cooldown_max_minutes=cooldown_max_minutes)
             except cache_service.NoMarketDataError:
                 stats.errors += 1
                 continue

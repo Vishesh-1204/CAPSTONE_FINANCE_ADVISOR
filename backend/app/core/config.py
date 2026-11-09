@@ -151,6 +151,9 @@ class Settings(BaseSettings):
     # After a rate limit or outage, leave the provider alone this long and serve the stale cache
     # (polite to the provider, and an offline demo does not wait through retries). 0 = off.
     STOCK_PROVIDER_COOLDOWN_MINUTES: float = Field(default=15.0, ge=0, le=24 * 60)
+    # Engine 7.1 (after the Phase 7B evaluation): the cooldown doubles with each failure in a row,
+    # up to this cap. Set it equal to STOCK_PROVIDER_COOLDOWN_MINUTES for engine 7.0's constant cooldown.
+    STOCK_PROVIDER_COOLDOWN_MAX_MINUTES: float = Field(default=240.0, ge=0, le=24 * 60)
     # Ablation switch: False = template explanations only, no LLM call.
     STOCK_USE_LLM_EXPLANATIONS: bool = True
 

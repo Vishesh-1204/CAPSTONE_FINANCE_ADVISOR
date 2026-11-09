@@ -331,17 +331,19 @@ def test_weekdays_between_and_latest_final_date():
 
 
 def test_simulation_healthy_serves_everything_and_cold_outage_serves_nothing():
-    healthy = robustness.simulate("S0_healthy", n_symbols=2, n_days=3, per_day=2, ttl_hours=24, cooldown_minutes=15)
+    healthy = robustness.simulate("S0_healthy", n_symbols=2, n_days=3, per_day=2, ttl_hours=24, cooldown_minutes=15,
+                                  cooldown_max_minutes=240)
     assert healthy.requests == 12 and healthy.served == 12 and healthy.errors == 0
     assert healthy.provider_calls <= healthy.requests
     assert max(healthy.staleness) == 0
-    cold = robustness.simulate("S5_cold_outage", n_symbols=2, n_days=3, per_day=2, ttl_hours=24, cooldown_minutes=15)
+    cold = robustness.simulate("S5_cold_outage", n_symbols=2, n_days=3, per_day=2, ttl_hours=24, cooldown_minutes=15,
+                                  cooldown_max_minutes=240)
     assert cold.served == 0 and cold.errors == 12
 
 
 def test_simulation_outage_after_day_one_is_served_stale():
     stats = robustness.simulate("S4_down_after_day1", n_symbols=1, n_days=4, per_day=2, ttl_hours=24,
-                                cooldown_minutes=15)
+                                cooldown_minutes=15, cooldown_max_minutes=240)
     assert stats.served == stats.requests
     assert stats.by_status.get("stale", 0) > 0 and max(stats.staleness) >= 1
 
@@ -360,3 +362,32 @@ def test_analysis_result_matches_the_service_shape():
     result = robustness.analysis_result("SYNTH.NS", bars, "^NSEI", bench, bars[-1].bar_date)
     assert result["indicators"]["bars_used"] > 252 and result["sentiment"] is None
     assert result["indicators"]["beta"] is not None
+
+
+# ------------------------------------------------------------------ G3 harness (stub LLM, no network)
+
+def test_g3_captures_raw_llm_text_and_scores_it_with_both_guards(monkeypatch):
+    import json as _json
+    from app.agents.stock_explainer import StockExplainer
+    from evaluation import evaluate_stocks as ev
+
+    bars = series_bars(random_walk("SYNTH.NS", 400, 3))
+    bench = series_bars(random_walk("^NSEI", 400, 4))
+    ends = robustness.month_ends([b.bar_date for b in bench], 3)
+    results = [("SYNTH.NS", e, robustness.analysis_result("SYNTH.NS", bars, "^NSEI", bench, e)) for e in ends]
+
+    class Stub:
+        calls = 0
+
+        def invoke(self, inputs):
+            Stub.calls += 1
+            return _json.dumps({"summary": "Stay invested; the stock looks strong."})   # v3.1 flags it, v3 does not
+
+    monkeypatch.setattr(StockExplainer, "from_settings",
+                        classmethod(lambda cls, find_claims: cls(find_claims, chains=[("stub", Stub())])))
+    run = ev.Run(False, "real")
+    g3 = ev.run_g3(run, results, ends, llm_delay=0)
+    assert g3["analyses"] == 3 == Stub.calls and g3["llm_answered"] == 3
+    assert g3["raw_claims_v31_rate"] == 1.0 and g3["raw_claims_v3_rate"] == 0.0
+    assert g3["template_fallback_rate"] == 1.0 and g3["llm_calls_per_analysis"] == 1.0
+    assert all(t["text"].startswith("Stay invested") and not t["accepted"] for t in g3["texts"])

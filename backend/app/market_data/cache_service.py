@@ -43,7 +43,8 @@ logger = logging.getLogger(__name__)
 
 DATA_STALE = "data_stale"
 CSV_UPLOAD = "csv_upload"            # price_bars.source for user-uploaded bars
-# Failures after which the provider is left alone for STOCK_PROVIDER_COOLDOWN_MINUTES
+# Failures after which the provider is left alone (STOCK_PROVIDER_COOLDOWN_MINUTES, doubling per
+# failure in a row up to STOCK_PROVIDER_COOLDOWN_MAX_MINUTES)
 COOLDOWN_STATUSES = ("rate_limited", "unavailable")
 NEWS_STALE = "news_stale"
 NEWS_UNAVAILABLE = "news_unavailable"
@@ -199,24 +200,47 @@ def _price_cache_state(db: Session, symbol: str) -> tuple[datetime | None, date 
     return last_fetch, newest_date, source
 
 
+BACKOFF_LOOKBACK_CALLS = 12          # enough consecutive failures to reach any cap (15 min x 2^11)
+
+
+def cooldown_for(consecutive_failures: int, minutes: float, max_minutes: float) -> float:
+    """
+    Exponential backoff (engine 7.1, after the Phase 7B evaluation): 1 failure -> `minutes`,
+    each further failure in a row doubles it, never above max(minutes, max_minutes).
+    max_minutes == minutes gives engine 7.0's constant cooldown.
+    """
+    if consecutive_failures < 1 or minutes <= 0:
+        return 0.0
+    return min(minutes * 2 ** (consecutive_failures - 1), max(minutes, max_minutes))
+
+
 def provider_cooling_down(db: Session, provider: str, endpoint: str, now: datetime,
-                          minutes: float | None = None) -> str | None:
+                          minutes: float | None = None, max_minutes: float | None = None) -> str | None:
     """
     The error kind if this provider's LAST call for this endpoint was a rate limit or an outage
-    less than `minutes` ago, else None. While it cools down the provider is not called at all:
+    less than the cooldown ago, else None. While it cools down the provider is not called at all:
     a rate-limited provider is left alone, and an offline demo does not wait through retries on
-    every request (it is served the stale cache straight away).
+    every request (it is served the stale cache straight away). The cooldown grows with the number
+    of failures in a row (cooldown_for): the Phase 7B evaluation found that a constant 15 minutes
+    still spent about 58 failed calls per 100 requests during a long outage.
     """
     minutes = settings.STOCK_PROVIDER_COOLDOWN_MINUTES if minutes is None else minutes
+    max_minutes = settings.STOCK_PROVIDER_COOLDOWN_MAX_MINUTES if max_minutes is None else max_minutes
     if minutes <= 0:
         return None
-    last = db.scalars(
+    recent = db.scalars(
         select(ProviderCall).where(ProviderCall.provider == provider, ProviderCall.endpoint == endpoint)
-        .order_by(ProviderCall.at.desc(), ProviderCall.id.desc()).limit(1)
-    ).first()
-    if last is not None and last.status in COOLDOWN_STATUSES and _utc(now) - _utc(last.at) < timedelta(minutes=minutes):
-        return last.status
-    return None
+        .order_by(ProviderCall.at.desc(), ProviderCall.id.desc()).limit(BACKOFF_LOOKBACK_CALLS)
+    ).all()
+    failures = 0
+    for call in recent:                          # newest first: count the failures since the last other status
+        if call.status not in COOLDOWN_STATUSES:
+            break
+        failures += 1
+    if failures == 0:
+        return None
+    wait = timedelta(minutes=cooldown_for(failures, minutes, max_minutes))
+    return recent[0].status if _utc(now) - _utc(recent[0].at) < wait else None
 
 
 def _price_result(db: Session, symbol: str, days: int, today: date, status: CacheStatus,
@@ -239,11 +263,12 @@ def get_prices(
     ttl_hours: float | None = None,
     history_days: int | None = None,
     cooldown_minutes: float | None = None,
+    cooldown_max_minutes: float | None = None,
 ) -> PriceResult:
     """
     Daily bars for the last `days` calendar days, through the fallback chain above.
 
-    `now`, `ttl_hours`, `history_days` and `cooldown_minutes` default to the clock and settings
+    `now`, `ttl_hours`, `history_days`, `cooldown_minutes` and `cooldown_max_minutes` default to the clock and settings
     (tests pass them). `force_refresh` skips step 1 (the seed script uses it).
     Raises NoMarketDataError only at step 4.
     """
@@ -262,7 +287,8 @@ def get_prices(
 
     # 2. Provider (the full window, so the cache always covers any `days`), unless it is cooling down
     try:
-        cooling = provider_cooling_down(db, provider.name, "daily_prices", now, cooldown_minutes)
+        cooling = provider_cooling_down(db, provider.name, "daily_prices", now, cooldown_minutes,
+                                        cooldown_max_minutes)
         if cooling:
             raise ProviderError(cooling, "provider cooling down after a recent failure (not called)", provider.name)
         try:
@@ -298,6 +324,7 @@ def get_news(
     force_refresh: bool = False,
     ttl_hours: float | None = None,
     cooldown_minutes: float | None = None,
+    cooldown_max_minutes: float | None = None,
 ) -> NewsResult:
     """Newest `limit` headlines through the same chain; never raises for provider failures."""
     symbol = normalize_symbol(symbol)
@@ -320,7 +347,7 @@ def get_news(
         return cached("fresh", [])
 
     try:
-        cooling = provider_cooling_down(db, provider.name, "news", now, cooldown_minutes)
+        cooling = provider_cooling_down(db, provider.name, "news", now, cooldown_minutes, cooldown_max_minutes)
         if cooling:
             raise ProviderError(cooling, "provider cooling down after a recent failure (not called)", provider.name)
         try:

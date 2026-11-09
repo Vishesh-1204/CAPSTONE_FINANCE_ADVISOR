@@ -12,6 +12,7 @@ PostgreSQL 16 in Docker (`docker-compose.yml`, service `db`). Tables are defined
 | `0003` | `0003_budget_planning.py` | Phase 4: new tables `financial_profiles`, `budgets`, `budget_runs` (no change to existing tables) |
 | `0004` | `0004_forecast_runs.py` | Phase 5: new table `forecast_runs` (no change to existing tables) |
 | `0005` | `0005_investing.py` | Phase 6: new tables `investment_profiles`, `holdings`, `investment_plans` (no change to existing tables). The first CHECK constraints in the schema |
+| `0006` | `0006_stocks.py` | Phase 7: new tables `watchlist_items`, `price_bars`, `news_items`, `stock_analyses`, `provider_calls` (no change to existing tables). Prices `Numeric(14,4)` with CHECK constraints |
 
 The backend container runs `alembic upgrade head` before starting uvicorn (`backend/Dockerfile`),
 so a normal `docker compose up --build` always brings the schema up to date. **You no longer need
@@ -43,6 +44,8 @@ erDiagram
     users ||--o| investment_profiles : has
     users ||--o{ holdings : "rupees per asset class"
     users ||--o{ investment_plans : "saved plans"
+    users ||--o{ watchlist_items : "watched symbols"
+    users ||--o{ stock_analyses : "saved analyses"
 ```
 
 ## `users`
@@ -255,6 +258,65 @@ Phase 6: one row per generated plan, also the research log of how its explanatio
 
 `explanation_source` (`llm` / `template`) is derived, not stored: `llm` only when `llm_used` and both guards passed.
 
+## Stocks (migration `0006`)
+
+Phase 7. Two kinds of table: **per-user** (`watchlist_items`, `stock_analyses`, every query filters by the token's
+`user_id`) and **shared public market data** (`price_bars`, `news_items`, `provider_calls`: no `user_id`, the same
+cached Nifty bars serve every user). No real market data is committed; the cache fills from the provider (or
+`scripts/seed_market_cache.py`).
+
+### `watchlist_items`
+
+| Column | Type | Notes |
+|---|---|---|
+| `id`, `user_id` | | UNIQUE `uq_watchlist_items_user_symbol` on `(user_id, symbol)`; per-user limit `STOCK_WATCHLIST_LIMIT` (service) |
+| `symbol` | varchar(20) | validated by `core/stock_symbols.py`, upper-case |
+| `added_at` | timestamptz | |
+
+### `price_bars`
+
+| Column | Type | Notes |
+|---|---|---|
+| `id`, `symbol`, `bar_date` | | UNIQUE `uq_price_bars_symbol_bar_date` on `(symbol, bar_date)`: refreshes upsert, never duplicate |
+| `open`, `high`, `low`, `close` | `Numeric(14,4)` | never Float. CHECK all > 0 and `low <= high` |
+| `volume` | bigint, nullable | CHECK `>= 0` |
+| `source` | varchar(20) | `yfinance`, `alphavantage` or `csv_upload` (CSV rows are insert-only and never count as fresh) |
+| `fetched_at` | timestamptz | drives freshness (TTL and "fetched after the latest close") |
+
+### `news_items`
+
+| Column | Type | Notes |
+|---|---|---|
+| `id`, `symbol`, `url` | | UNIQUE `uq_news_items_symbol_url` on `(symbol, url)`; `url` up to 2,048 characters |
+| `headline` | varchar(500) | the headline and link only, never article bodies |
+| `publisher`, `published_at`, `source` | | `source` = `google_rss` or `yfinance` |
+| `sentiment_positive`, `sentiment_negative`, `sentiment_neutral`, `scorer_name` | float / varchar, nullable | written back when an analysis scores the headline (`lexicon` or `finbert`) |
+| `fetched_at` | timestamptz | |
+
+### `stock_analyses`
+
+One row per generated analysis, also the research log of its explanation (same fields as `investment_plans`).
+
+| Column | Type | Notes |
+|---|---|---|
+| `id`, `user_id`, `symbol` | | index `ix_stock_analyses_user_id_created_at` on `(user_id, created_at DESC)` |
+| `created_at` | timestamptz | |
+| `inputs_json` | json | windows, thresholds, scorer setting, half-life, TTL, the clock used |
+| `result_json` | json | indicators, sentiment with the scored headlines, warnings, explanation provider and rejection reasons |
+| `data_as_of` | date | newest bar used |
+| `sources_json` | json | price / benchmark / news source and cache status, scorer |
+| `engine_version` | varchar(20) | `7.0`, then `7.1` (claims guard v3.1 and provider backoff, after the Phase 7B evaluation) |
+| `explanation` | text, nullable | template or guarded LLM text, disclaimer included |
+| `llm_used`, `explanation_faithful`, `claims_compliant`, `llm_calls`, `raw_prohibited_claims` | | as in `investment_plans`; `claims_compliant` = claims guard v3/v3.1 passed |
+
+### `provider_calls`
+
+| Column | Type | Notes |
+|---|---|---|
+| `id`, `provider`, `endpoint` | | `endpoint` = `daily_prices` or `news`; index `(provider, at)` |
+| `status` | varchar(20) | CHECK in `ok`, `rate_limited`, `unavailable`, `not_found`, `bad_response`. Only REAL calls are logged (a call skipped by the cooldown is not) |
+| `at` | timestamptz | the status endpoint counts calls since local midnight; the cooldown backoff counts the failures in a row |
+
 ## Inspecting the data
 
 ```powershell
@@ -263,8 +325,11 @@ docker compose exec db psql -U finance_user -d finance_db
 ```sql
 \dt
 SELECT txn_type, category_source, count(*) FROM transactions GROUP BY 1, 2 ORDER BY 1, 2;
-SELECT version_num FROM alembic_version;   -- should be 0005
+SELECT version_num FROM alembic_version;   -- should be 0006
 SELECT method, feasible, llm_used, explanation_faithful, count(*) FROM budget_runs GROUP BY 1, 2, 3, 4;
 SELECT horizon_days, model_name, low_confidence, count(*) FROM forecast_runs GROUP BY 1, 2, 3;
 SELECT llm_used, explanation_faithful, claims_compliant, count(*) FROM investment_plans GROUP BY 1, 2, 3;
+SELECT symbol, source, count(*), min(bar_date), max(bar_date) FROM price_bars GROUP BY 1, 2 ORDER BY 1;
+SELECT provider, endpoint, status, count(*) FROM provider_calls GROUP BY 1, 2, 3;
+SELECT engine_version, llm_used, explanation_faithful, claims_compliant, count(*) FROM stock_analyses GROUP BY 1, 2, 3, 4;
 ```

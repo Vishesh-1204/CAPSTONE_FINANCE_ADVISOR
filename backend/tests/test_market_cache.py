@@ -291,3 +291,41 @@ def test_news_upsert_keeps_existing_sentiment_and_does_not_duplicate(db):
     row = db.query(NewsItemRow).filter_by(url="https://example.com/n/0").one()
     db.refresh(row)
     assert (row.sentiment_positive, row.scorer_name) == (0.7, "lexicon")
+
+
+# --- Exponential backoff (engine 7.1, after the Phase 7B evaluation) ---
+
+def _log(db, status, at, provider="fake", endpoint="daily_prices"):
+    db.add(ProviderCall(provider=provider, endpoint=endpoint, status=status, at=at))
+    db.commit()
+
+
+def test_cooldown_doubles_per_failure_in_a_row_up_to_the_cap():
+    assert cache.cooldown_for(0, 15, 240) == 0
+    assert [cache.cooldown_for(k, 15, 240) for k in (1, 2, 3, 4, 5, 6)] == [15, 30, 60, 120, 240, 240]
+    assert cache.cooldown_for(3, 15, 15) == 15                    # max == base: engine 7.0's constant cooldown
+    assert cache.cooldown_for(3, 15, 5) == 15                     # a cap below the base never shortens it
+    assert cache.cooldown_for(2, 0, 240) == 0                     # cooldown switched off
+
+
+def test_three_failures_in_a_row_cool_down_for_an_hour(db):
+    for minutes_ago in (120, 60, 0):
+        _log(db, "unavailable", NOW - timedelta(minutes=minutes_ago))
+    cooling = lambda later: cache.provider_cooling_down(db, "fake", "daily_prices", NOW + timedelta(minutes=later),
+                                                        15, 240)
+    assert cooling(59) == "unavailable" and cooling(61) is None
+    assert cache.provider_cooling_down(db, "fake", "daily_prices", NOW + timedelta(minutes=20), 15, 15) is None
+
+
+def test_a_successful_call_resets_the_backoff(db):
+    _log(db, "unavailable", NOW - timedelta(minutes=90))
+    _log(db, "ok", NOW - timedelta(minutes=60))
+    _log(db, "rate_limited", NOW)
+    assert cache.provider_cooling_down(db, "fake", "daily_prices", NOW + timedelta(minutes=16), 15, 240) is None
+
+
+def test_backoff_is_per_endpoint(db):
+    for minutes_ago in (60, 0):
+        _log(db, "unavailable", NOW - timedelta(minutes=minutes_ago), endpoint="news")
+    assert cache.provider_cooling_down(db, "fake", "daily_prices", NOW, 15, 240) is None
+    assert cache.provider_cooling_down(db, "fake", "news", NOW + timedelta(minutes=25), 15, 240) == "unavailable"

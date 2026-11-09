@@ -88,22 +88,41 @@ research value, explainability and maintainability over quick fixes.
 - Done: Phase 6C frontend /investing page (F11, docs/modules/frontend-console.md) + GET /api/investing/plans/{plan_id}
   for the plan history, 771 tests passing, smoke 16/16.
 - In progress: Phase 7 (Stock Intelligence, spec docs/phase7-spec.md) on branch feature/vishesh-stocks,
-  1123 tests passing + 1 skipped (real FinBERT, runs in the ml image), live smoke test 17/17 (also passes
+  1189 tests passing + 1 skipped (real FinBERT, runs in the ml image), live smoke test 17/17 (also passes
   with no internet from the seeded cache). Done: 7A-0 spike (docs/phase7-provider-spike.md: yfinance prices,
   Google News RSS headlines, Alpha Vantage free tier = 100 bars only, not used), 7A-1 pure modules
   (math.fsum fix for Python 3.11), 7A-2 migration 0006 (watchlist_items, price_bars Numeric(14,4), news_items,
   stock_analyses, provider_calls) + strict symbol validator (core/stock_symbols.py), 7A-3 market_data/
   (yfinance adapter = the ONLY yfinance import, approved 2026-11-09; RSS adapter; cache_service fallback chain
-  fresh -> provider -> stale + data_stale -> CSV hint; 15-min provider cooldown; seed_market_cache.py),
+  fresh -> provider -> stale + data_stale -> CSV hint; provider cooldown; seed_market_cache.py),
   7A-4 sentiment/ (lexicon default, FinBERT lazy via requirements-ml.txt + `docker compose --profile ml up`
   on port 8001; model card licence CC BY-NC-SA 4.0, revision pinned), 7A-5 stock_service, stock_explainer
-  (any-number guard + claims guard v3 + no headlines to the LLM), /api/stocks/* (12 routes).
-  Next: 7B evaluation + docs (docs/modules/stocks.md etc.), 7C frontend, 7D bootstrap in /investing.
+  (any-number guard + claims guard + no headlines to the LLM), /api/stocks/* (12 routes).
+  7B evaluation (docs/modules/stocks-evaluation.md, stocks.md; api/database/testing/architecture updated):
+  pre-registered evaluation/stocks_rules.py committed alone first; scikit-learn 1.5.2 + LightGBM 4.5.0 +
+  scipy in requirements.txt (+ libgomp1 in the Dockerfile; default image 716 -> 943 MB); 10 hand-picked NSE
+  large caps + ^NSEI to EVAL_END 2026-10-30 (SHA-256 recorded, no price data committed); datasets fetched by
+  scripts/fetch_sentiment_datasets.py into evaluation/data/ (gitignored): twitter_fin (MIT, primary) and
+  Financial PhraseBank (CC BY-NC-SA 3.0, FinBERT trained on it = contaminated); FiQA not used (gated / no
+  licence). Final run in the ml image -> evaluation/stocks_metrics.csv + .md (committed, deterministic).
+  Results: H1 supported (FinBERT - lexicon macro-F1 +0.091, CI +0.059..+0.120) but TF-IDF+LR beats FinBERT
+  (+0.078); H2 not evaluable (max 24 sentiment days; rho 0.1 needs ~2,500); H3 not supported (pooled acc LR
+  0.5064, LightGBM 0.5010 vs always-up 0.5070; 0/10 beat buy-and-hold after 10 bps; placebo and AR(1) power
+  controls pass); H4 not supported, reversed (bootstrap p10 +1.2..+7.3% ABOVE normal; variance ratio 0.73,
+  exploratory); H5a supported (>= 99.33% served in S1-S4); H5b not supported (35% vs 25% threshold,
+  mis-specified). Engine 7.1 fixes (one round, before/after in the doc): claims guard v3.1 (set B written
+  before the fix: recall 10% -> 20%, hard-neutral FP 40% -> 0%) and cooldown backoff 15 -> 240 min
+  (STOCK_PROVIDER_COOLDOWN_MAX_MINUTES; S4 failed calls/100 58.2 -> 9.5). G3 --g3-only (Gemini, 30
+  analyses): 0% raw advice/prediction, 6.7% fallback (malformed JSON); manual review: 6/28 texts put a correct
+  number on the wrong quantity (the number guard cannot see this).
+  Next: 7C frontend /stocks (in progress), 7D bootstrap in /investing.
   No teammate rules or guard sentences (decided 2026-10-23): all rules and guard sentences are written by
   the method's author, stated as a limitation.
   Phase 7 gaps: offline, the Phase 4-6 LLM explanation calls hang until timeout (smoke needed the
   *_USE_LLM_EXPLANATIONS=false switches); Gemini sometimes returns truncated JSON (template used);
-  uploaded CSV bars are shared by all users (insert-only); news search by ticker code has no relevance filter.
+  uploaded CSV bars are shared by all users (insert-only); news search by ticker code has no relevance filter;
+  the regex claims guard misses most new advice wordings and negated predictions; the app's +/-0.15 headline
+  label rule hurts FinBERT (argmax better; not changed, needs a training-split threshold); no headline history.
 - Known gaps: no HuggingFace/Llama provider in llm/factory.py yet (approved stack); person guard recall 0.857
   (1 person-like string reached the LLM stage in the offline eval); budget guard only checks amounts with a
   currency marker; B2 (--llm real) faithfulness not measured yet; synthetic personas do not react to budgets.
