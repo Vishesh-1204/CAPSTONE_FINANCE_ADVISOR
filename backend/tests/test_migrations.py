@@ -15,6 +15,7 @@ from alembic.autogenerate import compare_metadata
 from alembic.config import Config
 from alembic.migration import MigrationContext
 from sqlalchemy import create_engine, inspect
+from sqlalchemy.exc import IntegrityError
 
 from app.db.base_class import Base
 import app.models  # noqa: F401  (registers every table)
@@ -197,7 +198,8 @@ def test_0005_adds_investing_tables_keeps_data_and_rolls_back_cleanly(db_url):
             return connection.exec_driver_sql("SELECT version_num FROM alembic_version").scalar()
 
     # 1. Upgrade: the tables and the newest-first plan index appear
-    command.upgrade(config, "head")
+    # (targets "0005", not "head": later revisions would change the version number)
+    command.upgrade(config, "0005")
     assert version() == "0005"
     assert _INVESTING_TABLES <= set(inspect(engine).get_table_names())
     with engine.begin() as connection:
@@ -241,8 +243,130 @@ def test_0005_adds_investing_tables_keeps_data_and_rolls_back_cleanly(db_url):
         assert float(connection.exec_driver_sql("SELECT limit_amount FROM budgets").scalar()) == 5000
 
     # 3. Upgrade again: no leftovers block a second run, and the tables are back (empty)
-    command.upgrade(config, "head")
+    command.upgrade(config, "0005")
     assert version() == "0005"
     assert _INVESTING_TABLES <= set(inspect(engine).get_table_names())
     with engine.begin() as connection:
         assert connection.exec_driver_sql("SELECT count(*) FROM investment_plans").scalar() == 0
+
+
+_STOCK_TABLES = {"watchlist_items", "price_bars", "news_items", "stock_analyses", "provider_calls"}
+_STOCK_INDEXES = {"ix_stock_analyses_user_id_created_at", "ix_provider_calls_provider_at"}
+
+
+def _index_sql(connection, name: str) -> str | None:
+    return connection.exec_driver_sql(
+        "SELECT sql FROM sqlite_master WHERE type = 'index' AND name = ?", (name,)
+    ).scalar()
+
+
+def test_0006_applies_on_a_clean_database(db_url):
+    """From an EMPTY database, every revision up to 0006 runs and the five stock tables exist."""
+    command.upgrade(_alembic_config(db_url), "head")
+
+    engine = create_engine(db_url)
+    with engine.connect() as connection:
+        assert connection.exec_driver_sql("SELECT version_num FROM alembic_version").scalar() == "0006"
+    assert _STOCK_TABLES <= set(inspect(engine).get_table_names())
+    # Prices are exact Numeric(14,4), never Float; volume is a 64-bit integer
+    columns = {c["name"]: c["type"] for c in inspect(engine).get_columns("price_bars")}
+    for name in ("open", "high", "low", "close"):
+        assert type(columns[name]).__name__ == "NUMERIC", name
+        assert (columns[name].precision, columns[name].scale) == (14, 4), name
+    assert type(columns["volume"]).__name__ == "BIGINT"
+
+
+def test_0006_adds_stock_tables_keeps_data_and_rolls_back_cleanly(db_url):
+    """
+    The real dev database is at 0005 with data. 0006 must only ADD the five stock
+    tables (with their constraints and indexes), and must be reversible: downgrade
+    to 0005 removes exactly those tables (investing data intact), and upgrading
+    again works.
+    """
+    config = _alembic_config(db_url)
+    command.upgrade(config, "0005")
+
+    engine = create_engine(db_url)
+    with engine.begin() as connection:
+        connection.exec_driver_sql(
+            "INSERT INTO users (id, email, full_name, hashed_password, is_active) VALUES (1, 'a@x.com', 'A', 'x', 1)"
+        )
+        connection.exec_driver_sql(
+            "INSERT INTO investment_plans (user_id, inputs_json, result_json, assumptions_json, engine_version) "
+            "VALUES (1, '{}', '{}', '{}', '6.1')"
+        )
+
+    def version() -> str:
+        with engine.connect() as connection:
+            return connection.exec_driver_sql("SELECT version_num FROM alembic_version").scalar()
+
+    # 1. Upgrade: the tables and indexes appear, old data is untouched
+    command.upgrade(config, "head")
+    assert version() == "0006"
+    assert _STOCK_TABLES <= set(inspect(engine).get_table_names())
+    with engine.begin() as connection:
+        assert "user_id, created_at DESC" in _index_sql(connection, "ix_stock_analyses_user_id_created_at")
+        assert _index_sql(connection, "ix_provider_calls_provider_at") is not None
+        assert connection.exec_driver_sql("SELECT engine_version FROM investment_plans").scalar() == "6.1"
+
+        # The new tables accept rows, and the server defaults fill in
+        connection.exec_driver_sql("INSERT INTO watchlist_items (user_id, symbol) VALUES (1, 'RELIANCE.NS')")
+        connection.exec_driver_sql(
+            "INSERT INTO price_bars (symbol, bar_date, open, high, low, close, volume, source) "
+            "VALUES ('RELIANCE.NS', '2026-11-06', 100.1234, 101.5, 99.75, 100.5, 5000000000, 'yfinance')"
+        )
+        connection.exec_driver_sql(
+            "INSERT INTO news_items (symbol, headline, url, published_at, source) "
+            "VALUES ('RELIANCE.NS', 'Synthetic headline', 'https://example.com/a', '2026-11-08 10:00:00', 'google_rss')"
+        )
+        connection.exec_driver_sql(
+            "INSERT INTO stock_analyses (user_id, symbol, inputs_json, result_json, data_as_of, sources_json, "
+            "engine_version) VALUES (1, 'RELIANCE.NS', '{}', '{}', '2026-11-06', '{}', '7.0')"
+        )
+        connection.exec_driver_sql(
+            "INSERT INTO provider_calls (provider, endpoint, status) VALUES ('yfinance', 'daily_prices', 'ok')"
+        )
+        assert connection.exec_driver_sql("SELECT added_at FROM watchlist_items").scalar() is not None
+        bar = connection.exec_driver_sql("SELECT open, volume, fetched_at FROM price_bars").one()
+        assert float(bar.open) == 100.1234 and bar.volume == 5_000_000_000 and bar.fetched_at is not None
+        analysis = connection.exec_driver_sql(
+            "SELECT llm_used, llm_calls, raw_prohibited_claims, explanation, created_at FROM stock_analyses"
+        ).one()
+        assert (analysis.llm_used, analysis.llm_calls, analysis.raw_prohibited_claims) == (0, 0, 0)
+        assert analysis.explanation is None and analysis.created_at is not None
+        assert connection.exec_driver_sql("SELECT at FROM provider_calls").scalar() is not None
+
+    # The migration (not just the models) carries the UNIQUE and CHECK rules
+    rejected = [
+        "INSERT INTO watchlist_items (user_id, symbol) VALUES (1, 'RELIANCE.NS')",
+        "INSERT INTO price_bars (symbol, bar_date, open, high, low, close, source) "
+        "VALUES ('RELIANCE.NS', '2026-11-06', 1, 1, 1, 1, 'yfinance')",                      # same symbol + date
+        "INSERT INTO price_bars (symbol, bar_date, open, high, low, close, source) "
+        "VALUES ('TCS.NS', '2026-11-06', 1, 1, 2, 1, 'yfinance')",                            # low above high
+        "INSERT INTO price_bars (symbol, bar_date, open, high, low, close, source) "
+        "VALUES ('TCS.NS', '2026-11-07', 0, 1, 1, 1, 'yfinance')",                            # zero price
+        "INSERT INTO news_items (symbol, headline, url, published_at, source) "
+        "VALUES ('RELIANCE.NS', 'Again', 'https://example.com/a', '2026-11-08 11:00:00', 'google_rss')",
+        "INSERT INTO provider_calls (provider, endpoint, status) VALUES ('yfinance', 'daily_prices', 'maybe')",
+    ]
+    for sql in rejected:
+        with pytest.raises(IntegrityError), engine.begin() as connection:
+            connection.exec_driver_sql(sql)
+
+    # 2. Downgrade to 0005: exactly the stock tables (and their indexes) go, investing data stays
+    command.downgrade(config, "0005")
+    assert version() == "0005"
+    tables = set(inspect(engine).get_table_names())
+    assert not (_STOCK_TABLES & tables)
+    assert {"users", "transactions", "investment_plans", "holdings"} <= tables
+    with engine.begin() as connection:
+        assert all(_index_sql(connection, name) is None for name in _STOCK_INDEXES)
+        assert connection.exec_driver_sql("SELECT engine_version FROM investment_plans").scalar() == "6.1"
+
+    # 3. Upgrade again: no leftovers block a second run, and the tables are back (empty)
+    command.upgrade(config, "head")
+    assert version() == "0006"
+    assert _STOCK_TABLES <= set(inspect(engine).get_table_names())
+    with engine.begin() as connection:
+        assert connection.exec_driver_sql("SELECT count(*) FROM price_bars").scalar() == 0
+        assert connection.exec_driver_sql("SELECT count(*) FROM watchlist_items").scalar() == 0

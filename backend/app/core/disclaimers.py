@@ -9,3 +9,10 @@ INVESTING_DISCLAIMER = (
     "Educational planning tool, not financial advice. "
     "Projections are scenarios under stated assumptions, not guarantees."
 )
+
+# Phase 7 Stock Intelligence Agent: on every /api/stocks response, after every explanation,
+# and as the permanent banner on the /stocks page.
+STOCKS_DISCLAIMER = (
+    "Educational analysis tool, not financial advice. "
+    "Past data does not predict future prices."
+)
