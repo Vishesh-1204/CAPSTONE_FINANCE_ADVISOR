@@ -254,8 +254,11 @@ def rsi(prices: list[float], period: int = 14) -> list[float | None]:
 
 
 def _sample_std(values: list[float]) -> float:
-    mean = sum(values) / len(values)
-    return math.sqrt(sum((v - mean) ** 2 for v in values) / (len(values) - 1))
+    # math.fsum adds floats exactly. Plain sum() on Python 3.11 leaves rounding residue
+    # (30 x 0.001 averages to 0.0010000000000000007), so a constant series got a tiny
+    # non-zero std instead of exactly 0 and the Sharpe "zero volatility" check never fired.
+    mean = math.fsum(values) / len(values)
+    return math.sqrt(math.fsum((v - mean) ** 2 for v in values) / (len(values) - 1))
 
 
 def annualized_volatility(returns: list[float], periods_per_year: int = TRADING_DAYS_PER_YEAR) -> float:
