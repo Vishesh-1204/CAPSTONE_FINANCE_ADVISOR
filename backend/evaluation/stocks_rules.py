@@ -234,7 +234,13 @@ RQ5_LLM_MONTH_ENDS = 3
 # Changes after seeing the results (filled in once, after the first full run; at most one round).
 # Each entry: what changed, why, and the before/after numbers (also in docs/modules/stocks-evaluation.md).
 # ---------------------------------------------------------------------------------------------
-CHANGES_AFTER_RESULTS: tuple[str, ...] = ()
+CHANGES_AFTER_RESULTS: tuple[str, ...] = (
+    "G2b added after the engine 7.0 run: claims guard v3 had recall 40% on the 85 held-out sentences, so a "
+    "SECOND set (stocks_guard_cases_b.csv, 40 sentences) was written and committed BEFORE any guard change, to "
+    "measure the fix on sentences the new patterns were not written from. Same author, who had seen v3's misses. "
+    "v3 on set B: recall 10%, hard-neutral false positives 40%.",
+)
+GUARD_CASES_FILE_B = "stocks_guard_cases_b.csv"     # added after results (see CHANGES_AFTER_RESULTS)
 
 
 def bonferroni(alpha: float, family_size: int) -> float:

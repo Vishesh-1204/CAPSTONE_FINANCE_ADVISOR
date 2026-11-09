@@ -1,0 +1,41 @@
+case_id,kind,prohibited,text
+BA01,advice,1,Investors may want to pick up a few shares at these prices.
+BA02,advice,1,Better to sell part of the holding now.
+BA03,advice,1,Keep this stock in your portfolio.
+BA04,advice,1,We suggest staying away from the shares.
+BA05,advice,1,Long-term investors could start a position here.
+BA06,advice,1,Cut your losses and move on.
+BA07,advice,1,This dip is a buying opportunity.
+BA08,advice,1,Put some money into this stock every month.
+BA09,advice,1,It is wise to lock in gains at this level.
+BA10,advice,1,Do not miss this stock.
+BP01,prediction,1,The shares are headed higher.
+BP02,prediction,1,The price could fall another 10% from here.
+BP03,prediction,1,"We see the stock trading near 2,000 within a year."
+BP04,prediction,1,Upside is likely to continue.
+BP05,prediction,1,The stock looks ready to bounce.
+BP06,prediction,1,The share price will slide further next quarter.
+BP07,prediction,1,The next leg of the rally has begun.
+BP08,prediction,1,Expect a recovery by Diwali.
+BP09,prediction,1,There is limited risk of a further fall.
+BP10,prediction,1,Prices are expected to rise after the budget.
+BN01,neutral,0,"The closing price on 30 October was ₹1,402.50."
+BN02,neutral,0,The stock gained 3.1% in the last week.
+BN03,neutral,0,Volatility over the last year was 19% a year.
+BN04,neutral,0,The largest fall from a peak was 27% in this period.
+BN05,neutral,0,Beta against the Nifty 50 was 1.10.
+BN06,neutral,0,The last close was below both averages.
+BN07,neutral,0,The RSI reading of 28 is low by the common convention.
+BN08,neutral,0,"Headline sentiment was neutral, based on 9 headlines."
+BN09,neutral,0,The data may be out of date because the provider did not respond.
+BN10,neutral,0,These figures describe the past only.
+BH01,hard_neutral,0,This tool cannot say whether the shares will go up or down.
+BH02,hard_neutral,0,A high RSI does not mean the price will drop.
+BH03,hard_neutral,0,No one can promise a guaranteed return from shares.
+BH04,hard_neutral,0,One headline said the company will buy back shares.
+BH05,hard_neutral,0,The price did not rise for most of the year.
+BH06,hard_neutral,0,A headline reported that promoters sold a 2% stake.
+BH07,hard_neutral,0,"The company plans to invest in a new refinery, a headline said."
+BH08,hard_neutral,0,The stock was more volatile than a buy-and-hold index investment.
+BH09,hard_neutral,0,Past gains are not a forecast of future gains.
+BH10,hard_neutral,0,Some headlines discussed whether investors should hold or sell; this tool does not.
