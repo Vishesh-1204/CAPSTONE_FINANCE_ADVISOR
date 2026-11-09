@@ -30,3 +30,6 @@ sample2.csv
 backend/.env
 # Evaluation runs (regenerate any time). Copy the run you cite in the paper into docs/.
 backend/evaluation/results/
+# Downloaded labelled datasets (scripts/fetch_sentiment_datasets.py). Licensed third-party data:
+# never committed; the evaluation records each file's SHA-256 instead.
+backend/evaluation/data/

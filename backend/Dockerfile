@@ -2,6 +2,10 @@ FROM python:3.11-slim
 
 WORKDIR /app
 
+# LightGBM's Linux wheel needs the OpenMP runtime (libgomp), which the slim image does not include
+RUN apt-get update && apt-get install -y --no-install-recommends libgomp1 \
+    && rm -rf /var/lib/apt/lists/*
+
 # Install dependencies first (better Docker layer caching).
 # INSTALL_DEV=true (set by docker-compose.yml for local development) also
 # installs test tools and the fixture generator; a production build leaves it
