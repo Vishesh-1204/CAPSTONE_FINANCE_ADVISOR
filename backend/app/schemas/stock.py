@@ -140,8 +140,13 @@ class SentimentOut(BaseModel):
 
 
 class SentimentScoreRequest(BaseModel):
-    """POST /api/stocks/sentiment/score: score one headline with the active scorer (demos)."""
+    """
+    POST /api/stocks/sentiment/score: score one headline (demos). `scorer` picks lexicon or FinBERT for this
+    call (Phase 7C, so the page can show both side by side); omitted = the active SENTIMENT_SCORER. FinBERT
+    asked for but not installed falls back to the lexicon with the warning "finbert_unavailable".
+    """
     headline: str = Field(min_length=1, max_length=MAX_HEADLINE_LENGTH, examples=["Company reports record profit"])
+    scorer: ScorerName | None = None
 
     @field_validator("headline")
     @classmethod

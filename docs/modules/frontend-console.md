@@ -21,6 +21,7 @@ but its client and components are written to be reused there.
 | P8 | `/budgets` (Phase 4: financial profile + income suggestion, generate plan, limits table with inline override / reset, status bars, Recharts spent vs limit) | **done** |
 | F10 | `/forecast` (Phase 5: 30/60/90 toggle, opening balance prefilled from the latest statement balance, cards, Recharts balance line with 80% band, cash-crunch banner, low-confidence notice, template / AI badge, budget warnings, recurring payments) | **done** |
 | F11 | `/investing` (Phase 6C: risk profile with the limiting factor in plain words, holdings editor with weights, generate plan with an optional goal, target vs current allocation chart + rebalance table, SIP card, bad / typical / good projection with goal probability, instrument types, assumptions panel, warnings, AI-written / Template badge, plan history (opens any saved plan), what-if simulator, permanent disclaimer banner) | **done** |
+| F12 | `/stocks` (Phase 7C: watchlist add / remove with the newest data date, refresh with a freshness badge (status, source, "as of") and stale data in plain words, Recharts price with 50- and 200-day averages and 3M / 1Y / 5Y ranges, analysis tiles with the RSI convention label, sentiment card with the headlines and a "not enough headlines" notice, explanation with the AI-written / Template badge, headline scorer (lexicon and, when installed, FinBERT side by side), CSV upload fallback, status panel, permanent disclaimer banner) | **done** |
 
 ## Run it (on the host, not in Docker)
 ```powershell
@@ -72,6 +73,15 @@ Restart `npm run dev` after changing `.env.local` (`NEXT_PUBLIC_` values are bak
 | `components/allocation-chart.tsx`, `components/projection-chart.tsx` | Recharts grouped bars: target vs current %; bad / typical / good (p10 / p50 / p90) per SIP with a dashed goal line |
 | `components/plan-history-list.tsx` | `GET /api/investing/plans`; a click opens the full plan with `GET /api/investing/plans/{id}` |
 | `components/what-if-simulator.tsx` | `POST /api/investing/simulate` (nothing stored); category defaults to the profile's; shows the assumptions in force |
+| `app/(console)/stocks/page.tsx` | `/stocks`: owns two loads (watchlist, status) and the selected symbol (the clicked one if still listed, else the first); the per-symbol sections are re-mounted with `key={symbol}`; permanent disclaimer banner |
+| `lib/stocks.ts` | Plain words for the stock codes (warnings identical to the backend's `WARNING_TEXT`, trend, RSI convention, cache status, providers), ₹ vs "points" for an index, the symbol check |
+| `components/stock-watchlist-card.tsx` | `GET/POST/DELETE /api/stocks/watchlist`: add (checked here and by the backend; 409 when full), remove, select |
+| `components/stock-data-card.tsx` | `POST /{symbol}/refresh` with the freshness badge and `StaleWarnings`; the chart from `GET /{symbol}/prices` (cache only; 404 = "press Refresh") |
+| `components/stock-price-chart.tsx` | Recharts `ComposedChart`: close (thick), 50-day (thin), 200-day (thin dashed) with a per-theme `ChartConfig` |
+| `components/stock-analysis-section.tsx` | Generate (`POST /{symbol}/analysis`) and the latest analysis (`GET .../analysis/latest`, 404 = none yet): indicator tiles, sentiment card with the headlines, explanation with `ExplanationBadge` |
+| `components/headline-scorer.tsx` | `POST /api/stocks/sentiment/score` once per scorer (`scorer` in the body), probabilities as bars; a FinBERT request answered by the lexicon says so |
+| `components/stock-csv-upload.tsx` | `POST /{symbol}/prices/upload` (.csv, at most 1 MB, checked before the call): rows read / saved / skipped and the warnings |
+| `components/stock-status-panel.tsx` | `GET /api/stocks/status`: providers with calls today and the last status, scorer, FinBERT yes / no, cache ages |
 
 ## Common mistakes
 - Calling `fetch` directly from a page (use `lib/api.ts`).
@@ -164,6 +174,46 @@ and a readable "Network error" with it stopped.
 6. Simulator: 10000 a month, 10 years, moderate, goal 2000000 → p10 ≤ p50 ≤ p90, chance of the goal, and the
    history does NOT grow (nothing stored).
 7. Narrow the window to phone width: grids collapse to one or two columns, tables scroll inside their card.
+
+## Stocks page notes (F12, Phase 7C)
+- **The watchlist gates everything:** refresh, prices, upload and analysis answer 404 for a symbol that is not on
+  YOUR list, so the page only offers them for listed symbols. `GET /prices` and `GET /analysis/latest` answer
+  **404 until there is something** (never refreshed / never analysed): empty states with a hint, not errors.
+- **Freshness is always visible:** the badge shows the last refresh's status (cached / just refreshed / stale),
+  the source and the "as of" date, or, before any refresh on this visit, what the cache holds. `data_stale`,
+  `benchmark_stale` and `news_stale` appear in an amber box in plain words (same sentences as the backend
+  explanation). A 503 (provider down AND nothing cached) points to the CSV upload.
+- **Nothing on the page gives advice:** RSI shows its convention label ("high by the common convention (above
+  70)"), never "overbought"; the trend is a fact ("Last close above both averages"); the banner text equals the
+  backend's `STOCKS_DISCLAIMER`.
+- **Headline scorer:** sends `scorer` per request. On the default backend (`:8000`, no torch) only the lexicon is
+  shown, because `GET /status` says `finbert_available: false`. To compare with FinBERT, run
+  `docker compose --profile ml up` and set `NEXT_PUBLIC_API_URL=http://127.0.0.1:8001` (the ml backend) in
+  `frontend/.env.local`; a FinBERT request that came back from the lexicon says so instead of pretending.
+- **Prices for an index (`^NSEI`) are in points, stocks in rupees** (en-IN grouping), like the backend explanation.
+  Symbols are URL-encoded (the caret).
+- **Chart colours:** the neutral theme has grey chart tokens only, so the three lines differ in lightness AND style
+  (thick solid close, thin solid 50-day, thin dashed 200-day). Light mode `--chart-5` / `--chart-2` / `--chart-4`,
+  dark mode `--chart-1` / `--chart-2` / `--muted-foreground`: the dataviz validator passes adjacent separation
+  (ΔE ≥ 16) and contrast (≥ 3:1) in both modes; its chroma and lightness-band checks fail by design (grey).
+  `--chart-1` was avoided in light mode (1.44:1 on white).
+- Headline links open in a new tab with `rel="noopener noreferrer nofollow"` (they are third-party URLs).
+
+## How to test (/stocks)
+`npm run lint` and `npm run build` must pass. Seed the cache once while online
+(`docker compose exec backend python -m scripts.seed_market_cache`), then at http://localhost:3000/stocks:
+1. Empty watchlist: banner shown, "Your watchlist is empty", no red error; the scorer and status panel still work.
+2. Add `reliance.ns`: it appears as RELIANCE.NS with its newest data date and is selected. Add `bad symbol!`: a
+   readable error before any call. Add the same symbol twice: HTTP 409 from the backend.
+3. Refresh: the badge reads "Cached (up to date) · yfinance · as of …" (or "Just refreshed"); the chart shows 1Y with
+   both averages; 3M and 5Y switch the range.
+4. Analyse: tiles (trend, RSI with its convention label, volatility, largest fall, VaR, beta with correlation),
+   sentiment with the headline list, the explanation with "AI-written · guards passed" or "Template".
+5. Add a symbol with no cached data and analyse it with Wi-Fi off: a readable 503 with the CSV hint; upload a small
+   CSV (`date,open,high,low,close`) and see rows read / saved / skipped.
+6. Headline scorer: "Profit surges on record orders" → positive; on the ml backend both scorers are shown.
+7. Status: provider rows with calls today and the last status; cache ages for your symbols and `^NSEI`.
+8. Phone width: the tiles collapse to two columns, the tables scroll inside their card.
 
 ## Transactions, review, summary and rules notes (F3-F6)
 - **Editing a category** (pencil) opens an editor row under the transaction. The dropdown offers only labels that

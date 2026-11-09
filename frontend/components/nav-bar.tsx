@@ -21,6 +21,7 @@ const LINKS = [
   { href: "/budgets", label: "Budgets" },
   { href: "/forecast", label: "Forecast" },
   { href: "/investing", label: "Investing" },
+  { href: "/stocks", label: "Stocks" },
 ];
 
 export function NavBar() {

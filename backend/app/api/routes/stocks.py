@@ -46,8 +46,8 @@ def provider_status(db: Session = Depends(get_db), current_user: User = Depends(
 
 @router.post("/sentiment/score", response_model=SentimentScoreResponse)
 def score_headline(body: SentimentScoreRequest, current_user: User = Depends(get_current_user)):
-    """Scores one headline with the active scorer (lexicon, or FinBERT in the ml profile). Not stored."""
-    return svc.score_one_headline(body.headline)
+    """Scores one headline with `scorer`, or the active one (lexicon, or FinBERT in the ml profile). Not stored."""
+    return svc.score_one_headline(body.headline, body.scorer)
 
 
 @router.get("/watchlist", response_model=WatchlistResponse)

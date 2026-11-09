@@ -36,6 +36,15 @@ import type {
   PlanHistory,
   RecurringList,
   SimulateRequest,
+  AnalysisHistory,
+  PriceUploadResponse,
+  PricesResponse,
+  RefreshResponse,
+  ScorerName,
+  SentimentScoreResponse,
+  StockAnalysis,
+  StockStatus,
+  WatchlistResponse,
   SimulateResponse,
   StatementImportSummary,
   Token,
@@ -285,4 +294,36 @@ export const api = {
   simulateInvestment: (request: SimulateRequest) =>
     apiFetch<SimulateResponse>("/api/investing/simulate", { method: "POST", json: request }),
   getInvestingAssumptions: () => apiFetch<InvestingAssumptions>("/api/investing/assumptions"),
+
+  // stocks (Phase 7). Symbols are encoded ("^NSEI" contains a caret). refresh, prices, upload and analysis need the
+  // symbol on your watchlist (404 otherwise); GET prices and analysis/latest answer 404 until there is something.
+  getWatchlist: () => apiFetch<WatchlistResponse>("/api/stocks/watchlist"),
+  addToWatchlist: (symbol: string) =>
+    apiFetch<WatchlistResponse>("/api/stocks/watchlist", { method: "POST", json: { symbol } }),
+  removeFromWatchlist: (symbol: string) =>
+    apiFetch<WatchlistResponse>(`/api/stocks/watchlist/${encodeURIComponent(symbol)}`, { method: "DELETE" }),
+  refreshStock: (symbol: string) =>
+    apiFetch<RefreshResponse>(`/api/stocks/${encodeURIComponent(symbol)}/refresh`, { method: "POST" }),
+  getStockPrices: (symbol: string, days: number) =>
+    apiFetch<PricesResponse>(`/api/stocks/${encodeURIComponent(symbol)}/prices`, { query: { days } }),
+  uploadStockPrices: (symbol: string, file: File) => {
+    const form = new FormData();
+    form.append("file", file);
+    return apiFetch<PriceUploadResponse>(`/api/stocks/${encodeURIComponent(symbol)}/prices/upload`, {
+      method: "POST",
+      form,
+    });
+  },
+  analyzeStock: (symbol: string) =>
+    apiFetch<StockAnalysis>(`/api/stocks/${encodeURIComponent(symbol)}/analysis`, { method: "POST" }),
+  getLatestStockAnalysis: (symbol: string) =>
+    apiFetch<StockAnalysis>(`/api/stocks/${encodeURIComponent(symbol)}/analysis/latest`),
+  listStockAnalyses: (symbol: string, limit = 20) =>
+    apiFetch<AnalysisHistory>(`/api/stocks/${encodeURIComponent(symbol)}/analyses`, { query: { limit } }),
+  getStockAnalysis: (symbol: string, id: number) =>
+    apiFetch<StockAnalysis>(`/api/stocks/${encodeURIComponent(symbol)}/analyses/${id}`),
+  // `scorer` picks lexicon or FinBERT for this one call (FinBERT falls back to the lexicon with a warning)
+  scoreHeadline: (headline: string, scorer?: ScorerName) =>
+    apiFetch<SentimentScoreResponse>("/api/stocks/sentiment/score", { method: "POST", json: { headline, scorer } }),
+  getStockStatus: () => apiFetch<StockStatus>("/api/stocks/status"),
 };

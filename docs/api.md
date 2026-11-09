@@ -413,7 +413,8 @@ user or another symbol (the same answer, so ids are not revealed). `analyses`: `
 data_as_of, trend, explanation_source}], disclaimer}`, newest first; `limit` 1–100.
 
 ### `POST /api/stocks/sentiment/score`
-Body `{"headline": "Company reports record profit"}` (1–500 characters, not blank, else **422**). Response
+Body `{"headline": "Company reports record profit", "scorer": "finbert"}`: `headline` 1–500 characters, not blank;
+optional `scorer` `lexicon` or `finbert` (omitted = the active `SENTIMENT_SCORER`; anything else **422**). Response
 `{positive, negative, neutral, label, scorer, warnings, disclaimer}`; `scorer` is the one actually used (`lexicon`
 plus `finbert_unavailable` when FinBERT was asked for but could not load).
 

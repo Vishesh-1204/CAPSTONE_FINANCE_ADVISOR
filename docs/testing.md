@@ -3,7 +3,7 @@
 ## Run the tests
 
 ```powershell
-docker compose exec backend python -m pytest tests -q                                  # everything (1,189)
+docker compose exec backend python -m pytest tests -q                                  # everything (1,190)
 docker compose exec backend python -m pytest tests/test_statement_parsers.py -q        # one file
 docker compose exec backend python -m pytest tests -q -k "password"                    # by name
 ```
@@ -16,7 +16,7 @@ Tests need **no Postgres, no network and no API key**:
 `tests/test_migrations.py` is the exception that touches Alembic: it applies all migrations to an empty
 database and compares the result with the models (drift check).
 
-Last full run: **1,189 passed, 1 skipped** (Phase 7B, on `feature/vishesh-stocks`; the skipped one is the real FinBERT
+Last full run: **1,190 passed, 1 skipped** (Phase 7B, on `feature/vishesh-stocks`; the skipped one is the real FinBERT
 test, which runs in the ml image), plus the live smoke
 test below: 17/17 steps passed (also with no internet, from the seeded cache).
 
@@ -83,7 +83,7 @@ test below: 17/17 steps passed (also with no internet, from the seeded cache).
 | Stocks | `test_stock_claims_guard.py` | 88 | guard v3/v3.1 in BOTH directions (advice and predictions rejected, neutral descriptions pass), v3.1 patterns and disclaiming frames, a documented gap, the Phase 6 guard unchanged |
 | Stocks | `test_stock_explainer.py` | 21 | pre-formatted facts, template passes every guard, invented number / shorthand / advice rejected, one call, provider fallback, bad JSON or a provider error → template |
 | Stocks | `test_stock_service.py` | 32 | indicators for 1 to 300 bars never crash (`insufficient_history`), beta on date-aligned returns, warnings, research fields stored, CSV upload rules (insert-only, rejected rows, 422s) |
-| Stocks (HTTP) | `test_stocks_api.py` | 38 | every route needs a login (real auth), user isolation, 422 symbol validation (body and path), watchlist limit 409, disclaimer everywhere, status endpoint |
+| Stocks (HTTP) | `test_stocks_api.py` | 39 | every route needs a login (real auth), user isolation, 422 symbol validation (body and path), watchlist limit 409, disclaimer everywhere, status endpoint, headline `scorer` chosen per call (FinBERT fallback warning, 422 for an unknown one) |
 | Stocks evaluation | `test_stocks_evaluation.py` | 34 | leakage controls: features at t ignore later prices (L1), training only on the past with a new model per fold (L2, L3), scaler fitted inside the fold; metrics, McNemar, strategy costs, dataset parsers on tiny synthetic files, headline-to-day assignment after the close, power, SIP helpers, fallback simulation, G3 raw-text capture with a stub LLM |
 
 Fixtures: `backend/tests/fixtures/statements/` (synthetic; regenerate with

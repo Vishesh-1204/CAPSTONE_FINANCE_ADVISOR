@@ -501,8 +501,9 @@ def get_analysis(db: Session, user_id: int, symbol: str, analysis_id: int) -> di
 
 # --- Headline scorer (demo) ---
 
-def score_one_headline(headline: str) -> dict:
-    result = score_headlines([headline])
+def score_one_headline(headline: str, scorer: str | None = None) -> dict:
+    """One headline with `scorer` (None = the active SENTIMENT_SCORER); FinBERT falls back to the lexicon."""
+    result = score_headlines([headline], scorer)
     probs = result.probabilities[0]
     return {"positive": probs.positive, "negative": probs.negative, "neutral": probs.neutral,
             "label": probs.label, "scorer": result.scorer, "warnings": result.warnings}

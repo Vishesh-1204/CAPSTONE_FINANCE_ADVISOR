@@ -259,3 +259,22 @@ def test_status_shows_providers_calls_today_and_cache_ages(client, db):
     cache = {row["symbol"]: row for row in body["cache"]}
     assert set(cache) == {SYMBOL, BENCHMARK}                           # your watchlist + the benchmark
     assert cache[SYMBOL]["latest_bar_date"] == "2026-11-09" and cache[BENCHMARK]["latest_bar_date"] is None
+
+
+def test_headline_scorer_can_be_chosen_per_call(client, monkeypatch):
+    """Phase 7C: the page asks for each scorer; FinBERT that cannot load falls back with a warning."""
+    from app.sentiment import factory
+    from app.sentiment.base import ScorerUnavailable
+
+    class Broken:
+        name = "finbert"
+
+        def score(self, texts):
+            raise ScorerUnavailable("not installed")
+
+    monkeypatch.setattr(factory, "_finbert", lambda: Broken())
+    lexicon = call(client, "POST", f"{S}/sentiment/score", {"headline": "Profit rises", "scorer": "lexicon"})
+    assert lexicon["scorer"] == "lexicon" and lexicon["warnings"] == []
+    finbert = call(client, "POST", f"{S}/sentiment/score", {"headline": "Profit rises", "scorer": "finbert"})
+    assert finbert["scorer"] == "lexicon" and finbert["warnings"] == ["finbert_unavailable"]
+    call(client, "POST", f"{S}/sentiment/score", {"headline": "Profit rises", "scorer": "bert"}, status=422)
