@@ -208,7 +208,8 @@ the real FinBERT test is skipped unless the model is installed and cached. File-
 
 ## What it connects to next
 
-Phase 7C adds the `/stocks` page of the frontend. Phase 7D adds `method="bootstrap"` to `POST /api/investing/simulate`
-(block bootstrap of cached Nifty 50 monthly returns; the evaluation's RQ4 compares it with the normal method).
+Phase 7C adds the `/stocks` page of the frontend. Phase 7D added `method="bootstrap"` to `POST /api/investing/simulate`
+(block bootstrap of cached Nifty 50 monthly returns rescaled to the portfolio's assumptions; the evaluation's RQ4
+compares it with the normal method). Details: [investing.md](investing.md#what-if-with-a-historical-bootstrap-phase-7d).
 Phase 9 (Automation) moves the daily refresh and headline collection to a Celery schedule, which would also build the
 headline history RQ2 needs.

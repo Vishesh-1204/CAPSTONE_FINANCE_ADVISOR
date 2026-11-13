@@ -6,6 +6,12 @@
 // seed come from the backend settings, so the client cannot change them.
 // Shows the split for that category, the portfolio's assumed return and
 // volatility, and the bad / typical / good range (with the chance of a goal).
+//
+// Phase 7D: a Normal / Historical bootstrap toggle. The bootstrap resamples the
+// benchmark index's real monthly returns (from the backend price cache, rescaled to
+// this portfolio's assumed return and volatility, so only the SHAPE differs: fat
+// tails, bad streaks). The result says which method was ACTUALLY used, the history
+// length and date range, and the "history_too_short" fallback in plain words.
 
 "use client";
 
@@ -13,19 +19,28 @@ import { FlaskConical } from "lucide-react";
 import { useState, type FormEvent } from "react";
 
 import { ApiErrorAlert } from "@/components/api-error-alert";
-import { AssumptionsPanel } from "@/components/investment-plan-result";
+import { AssumptionsPanel, Warnings } from "@/components/investment-plan-result";
 import { ProjectionChart } from "@/components/projection-chart";
 import { StatGrid, StatTile } from "@/components/stat-tile";
+import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
+import { Tabs, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import type { ApiLog } from "@/hooks/use-api-log";
 import { api } from "@/lib/api";
-import { formatMoney, formatPercent, humanize } from "@/lib/format";
-import { ASSET_CLASSES, ASSET_LABELS, RISK_CATEGORIES } from "@/lib/investing";
-import type { InvestingAssumptions, RiskCategory, SimulateRequest, SimulateResponse } from "@/lib/types";
+import { formatDay, formatMoney, formatPercent, humanize } from "@/lib/format";
+import { ASSET_CLASSES, ASSET_LABELS, RISK_CATEGORIES, SIMULATION_METHOD_LABELS } from "@/lib/investing";
+import type {
+  BootstrapHistory,
+  InvestingAssumptions,
+  RiskCategory,
+  SimulateRequest,
+  SimulateResponse,
+  SimulationMethod,
+} from "@/lib/types";
 
 // Same bounds as the backend (schemas/investment.py)
 const MONEY_PATTERN = /^\d+(\.\d{1,2})?$/;
@@ -33,9 +48,16 @@ const YEARS_PATTERN = /^\d+(\.\d+)?$/;
 const MIN_YEARS = 1;
 const MAX_YEARS = 40;
 const MAX_MONTHLY_SIP = 10_000_000;
+const METHODS: SimulationMethod[] = ["normal", "bootstrap"];
 
 /** Returns the request, or an error message. */
-function toRequest(sip: string, years: string, category: RiskCategory, goal: string): SimulateRequest | string {
+function toRequest(
+  sip: string,
+  years: string,
+  category: RiskCategory,
+  goal: string,
+  method: SimulationMethod,
+): SimulateRequest | string {
   if (!MONEY_PATTERN.test(sip) || Number(sip) > MAX_MONTHLY_SIP) {
     return `Monthly SIP must be a number from 0 to ${formatMoney(MAX_MONTHLY_SIP)} with at most 2 decimals.`;
   }
@@ -49,8 +71,36 @@ function toRequest(sip: string, years: string, category: RiskCategory, goal: str
     monthly_sip: Number(sip),
     years: Number(years),
     category,
+    method,
     ...(goal !== "" ? { goal_amount: Number(goal) } : {}),
   };
+}
+
+/** One line on the history the bootstrap used (or found too short). */
+function HistoryNote({ history, used }: { history: BootstrapHistory; used: boolean }) {
+  if (history.monthly_returns === 0 || !history.start || !history.end) {
+    return (
+      <p className="text-xs text-muted-foreground">
+        No complete months of {history.symbol} are in the price cache (the bootstrap needs {history.min_months}).
+      </p>
+    );
+  }
+  const range = `${formatDay(history.start, true)} – ${formatDay(history.end, true)}`;
+  const raw =
+    history.historical_annual_return != null
+      ? ` The index itself returned ${formatPercent(history.historical_annual_return)} a year with volatility ` +
+        `${formatPercent(history.historical_annual_volatility)} (price only, no dividends).`
+      : "";
+  return (
+    <p className="text-xs text-muted-foreground">
+      {used
+        ? `Resampled ${history.monthly_returns} real monthly returns of ${history.symbol} (${range}) in ` +
+          `${history.block_months}-month blocks, rescaled to this portfolio's assumed return and volatility, so ` +
+          `only the shape of past months (bad streaks, fat tails) differs from the normal method.${raw}`
+        : `Found ${history.monthly_returns} complete monthly returns of ${history.symbol} (${range}); the ` +
+          `bootstrap needs at least ${history.min_months}.`}
+    </p>
+  );
 }
 
 export function WhatIfSimulator({
@@ -66,6 +116,7 @@ export function WhatIfSimulator({
   const [years, setYears] = useState("10");
   const [chosenCategory, setChosenCategory] = useState<RiskCategory | null>(null); // null = follow the profile
   const [goal, setGoal] = useState("");
+  const [method, setMethod] = useState<SimulationMethod>("normal");
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<unknown>(null);
   // the response plus the goal that was SENT (the input may be edited after the run)
@@ -74,7 +125,7 @@ export function WhatIfSimulator({
 
   async function simulate(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
-    const request = toRequest(sip.trim(), years.trim(), category, goal.trim());
+    const request = toRequest(sip.trim(), years.trim(), category, goal.trim(), method);
     if (typeof request === "string") {
       setError(new Error(request));
       return;
@@ -99,7 +150,8 @@ export function WhatIfSimulator({
         <CardTitle>5. What-if simulator</CardTitle>
         <CardDescription>
           Try any SIP, period and risk category under the current assumptions. Nothing is saved, and it does not use your
-          profile or holdings (only the category defaults to yours).
+          profile or holdings (only the category defaults to yours). Normal draws each month from a bell curve; the
+          historical bootstrap replays blocks of real index months instead.
         </CardDescription>
       </CardHeader>
       <CardContent className="space-y-5">
@@ -160,6 +212,18 @@ export function WhatIfSimulator({
               />
             </div>
           </div>
+          <div className="space-y-1.5">
+            <Label>Method</Label>
+            <Tabs value={method} onValueChange={(value) => setMethod(value as SimulationMethod)}>
+              <TabsList>
+                {METHODS.map((option) => (
+                  <TabsTrigger key={option} value={option} disabled={busy}>
+                    {SIMULATION_METHOD_LABELS[option]}
+                  </TabsTrigger>
+                ))}
+              </TabsList>
+            </Tabs>
+          </div>
           <Button type="submit" disabled={busy} className="gap-2">
             <FlaskConical className="size-4" />
             {busy ? "Simulating…" : "Simulate"}
@@ -169,6 +233,20 @@ export function WhatIfSimulator({
 
         {result && projection ? (
           <div className="space-y-3 border-t pt-4">
+            <div className="flex flex-wrap items-center gap-2">
+              <Badge variant={result.data.method === "bootstrap" ? "default" : "secondary"}>
+                {SIMULATION_METHOD_LABELS[result.data.method]}
+              </Badge>
+              {result.data.requested_method !== result.data.method && (
+                <span className="text-xs text-muted-foreground">
+                  ({SIMULATION_METHOD_LABELS[result.data.requested_method]} was asked for)
+                </span>
+              )}
+            </div>
+            {result.data.warnings.length > 0 && <Warnings warnings={result.data.warnings} />}
+            {result.data.history && (
+              <HistoryNote history={result.data.history} used={result.data.method === "bootstrap"} />
+            )}
             <div className="text-xs text-muted-foreground">
               {humanize(result.data.category)} split:{" "}
               {ASSET_CLASSES.map(
@@ -192,7 +270,7 @@ export function WhatIfSimulator({
               />
             </StatGrid>
             <ProjectionChart
-              series={[{ label: `SIP ${formatMoney(projection.monthly_sip)}`, projection }]}
+              series={[{ label: `SIP ${formatMoney(projection.monthly_sip)} (${result.data.method})`, projection }]}
               goal={resultGoal}
             />
             <p className="text-xs text-muted-foreground">{result.data.disclaimer}</p>

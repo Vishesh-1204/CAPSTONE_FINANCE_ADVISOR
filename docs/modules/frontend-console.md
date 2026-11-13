@@ -72,7 +72,7 @@ Restart `npm run dev` after changing `.env.local` (`NEXT_PUBLIC_` values are bak
 | `components/investment-plan-result.tsx` | One `InvestmentPlan`: badges, warnings, allocation + rebalance table, SIP card and what it was sized from, projection, instrument types, `AssumptionsPanel`, explanation with `ExplanationBadge` |
 | `components/allocation-chart.tsx`, `components/projection-chart.tsx` | Recharts grouped bars: target vs current %; bad / typical / good (p10 / p50 / p90) per SIP with a dashed goal line |
 | `components/plan-history-list.tsx` | `GET /api/investing/plans`; a click opens the full plan with `GET /api/investing/plans/{id}` |
-| `components/what-if-simulator.tsx` | `POST /api/investing/simulate` (nothing stored); category defaults to the profile's; shows the assumptions in force |
+| `components/what-if-simulator.tsx` | `POST /api/investing/simulate` (nothing stored); category defaults to the profile's; shows the assumptions in force; Normal / Historical bootstrap toggle (7D): a badge with the method actually used, the history length and date range, and `history_too_short` in plain words |
 | `app/(console)/stocks/page.tsx` | `/stocks`: owns two loads (watchlist, status) and the selected symbol (the clicked one if still listed, else the first); the per-symbol sections are re-mounted with `key={symbol}`; permanent disclaimer banner |
 | `lib/stocks.ts` | Plain words for the stock codes (warnings identical to the backend's `WARNING_TEXT`, trend, RSI convention, cache status, providers), ₹ vs "points" for an index, the symbol check |
 | `components/stock-watchlist-card.tsx` | `GET/POST/DELETE /api/stocks/watchlist`: add (checked here and by the backend; 409 when full), remove, select |

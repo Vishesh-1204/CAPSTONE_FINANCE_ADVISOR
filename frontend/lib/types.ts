@@ -505,11 +505,28 @@ export interface PlanHistory {
   disclaimer: string;
 }
 
+// "normal": normally distributed monthly returns. "bootstrap" (Phase 7D): the benchmark's real
+// monthly returns from the price cache, rescaled to the portfolio's assumptions, resampled in blocks.
+export type SimulationMethod = "normal" | "bootstrap";
+
 export interface SimulateRequest {
   monthly_sip: number;
   years: number; // 1-40
   category: RiskCategory;
   goal_amount?: number;
+  method?: SimulationMethod; // default "normal"
+}
+
+/** The benchmark history a bootstrap request used (or found too short). */
+export interface BootstrapHistory {
+  symbol: string;
+  monthly_returns: number; // complete-month returns found
+  start: string | null; // ISO date of the month-end close the first return starts from
+  end: string | null;
+  min_months: number; // fewer -> normal method + "history_too_short"
+  block_months: number;
+  historical_annual_return: number | null; // raw index (price only, no dividends)
+  historical_annual_volatility: number | null;
 }
 
 export interface SimulateResponse {
@@ -518,6 +535,10 @@ export interface SimulateResponse {
   expected_return: number;
   volatility: number;
   projection: Projection;
+  requested_method: SimulationMethod;
+  method: SimulationMethod; // the one actually used ("normal" after a fallback)
+  history: BootstrapHistory | null; // only when the bootstrap was requested
+  warnings: string[];
   disclaimer: string;
 }
 

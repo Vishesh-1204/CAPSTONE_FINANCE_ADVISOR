@@ -5,7 +5,14 @@
 // in one place so every investing component says the same thing.
 // Display only: no maths here. Every number comes from the backend.
 
-import type { AssetClass, LimitingFactor, RebalanceAction, RiskCategory, SipLimitedBy } from "./types";
+import type {
+  AssetClass,
+  LimitingFactor,
+  RebalanceAction,
+  RiskCategory,
+  SimulationMethod,
+  SipLimitedBy,
+} from "./types";
 
 /** Same order as the backend (allocation.ASSET_CLASSES), so tables and charts always line up. */
 export const ASSET_CLASSES: AssetClass[] = ["equity", "debt", "gold", "cash"];
@@ -74,4 +81,18 @@ export const WARNING_TEXT: Record<string, { title: string; body: string }> = {
       "Your whole low-end surplus goes to the emergency fund (so the SIP is ₹0), and filling it will still take " +
       "more than 12 months.",
   },
+  // What-if simulator only (Phase 7D)
+  history_too_short: {
+    title: "Not enough market history for the bootstrap",
+    body:
+      "The historical bootstrap needs more complete months of the benchmark index than the price cache holds, so " +
+      "this result uses the normal method. Run an analysis on the Stocks page while online (it also fetches the " +
+      "benchmark's 10-year history), then simulate again.",
+  },
+};
+
+/** Plain words for the what-if methods (investment_service.SIMULATION_METHODS). */
+export const SIMULATION_METHOD_LABELS: Record<SimulationMethod, string> = {
+  normal: "Normal (assumed)",
+  bootstrap: "Historical bootstrap",
 };

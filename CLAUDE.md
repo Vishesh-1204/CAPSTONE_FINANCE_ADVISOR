@@ -88,7 +88,7 @@ research value, explainability and maintainability over quick fixes.
 - Done: Phase 6C frontend /investing page (F11, docs/modules/frontend-console.md) + GET /api/investing/plans/{plan_id}
   for the plan history, 771 tests passing, smoke 16/16.
 - In progress: Phase 7 (Stock Intelligence, spec docs/phase7-spec.md) on branch feature/vishesh-stocks,
-  1190 tests passing + 1 skipped (real FinBERT, runs in the ml image), live smoke test 17/17 (also passes
+  1209 tests passing + 1 skipped (real FinBERT, runs in the ml image), live smoke test 17/17 (also passes
   with no internet from the seeded cache). Done: 7A-0 spike (docs/phase7-provider-spike.md: yfinance prices,
   Google News RSS headlines, Alpha Vantage free tier = 100 bars only, not used), 7A-1 pure modules
   (math.fsum fix for Python 3.11), 7A-2 migration 0006 (watchlist_items, price_bars Numeric(14,4), news_items,
@@ -119,7 +119,13 @@ research value, explainability and maintainability over quick fixes.
   (warning sentences = backend WARNING_TEXT), grey per-theme chart colours checked with the dataviz validator;
   POST /api/stocks/sentiment/score gained an optional `scorer` (lexicon | finbert) so lexicon and FinBERT show
   side by side (FinBERT only on the ml backend; NEXT_PUBLIC_API_URL=http://127.0.0.1:8001). lint + build pass.
-  Next: 7D bootstrap in /investing.
+  7D: POST /api/investing/simulate gained method="bootstrap" (default "normal"): ^NSEI complete-month returns from
+  the CACHED price_bars only (current month dropped, newest unbroken run of months), rescaled to the portfolio's
+  assumed mean/volatility (match_moments; raw equity returns would ignore the category), block_bootstrap_sip with
+  INVEST_BOOTSTRAP_BLOCK_MONTHS=6; < INVEST_BOOTSTRAP_MIN_MONTHS=60 -> normal + "history_too_short". Response adds
+  requested_method, method, history (months, start, end, raw index return/vol), warnings. /investing what-if has a
+  Normal / Historical bootstrap toggle. Dev cache: 119 months (Nov 2016 - Oct 2026); bootstrap p10 1.6-2.5% above
+  normal, p90 below (narrower, consistent with RQ4). Docs: docs/modules/investing.md (7D section).
   No teammate rules or guard sentences (decided 2026-10-23): all rules and guard sentences are written by
   the method's author, stated as a limitation.
   Phase 7 gaps: offline, the Phase 4-6 LLM explanation calls hang until timeout (smoke needed the

@@ -130,6 +130,10 @@ class Settings(BaseSettings):
     INVEST_FORECAST_MAX_AGE_DAYS: int = Field(default=31, ge=1)
     # Ablation switch: False = template explanations only, no LLM call.
     INVEST_USE_LLM_EXPLANATIONS: bool = True
+    # What-if method="bootstrap" (Phase 7D): months per resampled block (6 = RQ4's primary block) ...
+    INVEST_BOOTSTRAP_BLOCK_MONTHS: int = Field(default=6, ge=1, le=24)
+    # ... and the fewest monthly benchmark returns it needs; fewer = normal method + "history_too_short".
+    INVEST_BOOTSTRAP_MIN_MONTHS: int = Field(default=60, ge=24, le=600)
 
     # --- Stock Intelligence Agent (Phase 7) ---
     # Where daily prices come from. Only yfinance is built: the 7A-0 spike

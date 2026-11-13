@@ -350,10 +350,19 @@ One saved plan as a full `InvestmentPlanResponse` (the frontend history list ope
 **404** when the id does not exist or belongs to another user (the same answer, so ids are not revealed).
 
 ### `POST /api/investing/simulate`
-Body `{"monthly_sip": 10000, "years": 10, "category": "moderate", "goal_amount": null, "annual_step_up": 0}`:
-`years` 1–40, `monthly_sip` ≤ ₹1,00,00,000, `annual_step_up` 0–0.5, `category` conservative|moderate|aggressive.
-Not saved; the number of paths and the seed come from settings (a client cannot choose them).
-Response `{category, target_allocation, expected_return, volatility, projection, disclaimer}`.
+Body `{"monthly_sip": 10000, "years": 10, "category": "moderate", "goal_amount": null, "annual_step_up": 0,
+"method": "normal"}`: `years` 1–40, `monthly_sip` ≤ ₹1,00,00,000, `annual_step_up` 0–0.5, `category`
+conservative|moderate|aggressive, `method` normal|bootstrap (default normal; anything else → **422**).
+Not saved; the number of paths, the seed and the bootstrap block length come from settings (a client cannot choose them).
+Response `{category, target_allocation, expected_return, volatility, projection, requested_method, method, history,
+warnings, disclaimer}`.
+
+`method: "bootstrap"` (Phase 7D) resamples the benchmark's (`STOCK_BENCHMARK_SYMBOL`, ^NSEI) real complete-month
+returns from the **cached** `price_bars` (never the provider), rescaled to the portfolio's assumed mean and volatility,
+in blocks of `INVEST_BOOTSTRAP_BLOCK_MONTHS` (6). `history` = `{symbol, monthly_returns, start, end, min_months,
+block_months, historical_annual_return, historical_annual_volatility}` (the last two are the raw index, price only).
+Fewer than `INVEST_BOOTSTRAP_MIN_MONTHS` (60) returns, or nothing cached → `method: "normal"` (exactly the normal
+result) with `warnings: ["history_too_short"]`. With `method: "normal"`, `history` is `null`.
 
 ### `GET /api/investing/assumptions`
 `{assets [{asset_class, expected_return, volatility}], sip_safety_factor, mc_paths, mc_seed, note, disclaimer}`.

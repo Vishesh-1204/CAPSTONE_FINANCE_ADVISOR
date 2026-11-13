@@ -3,7 +3,7 @@
 ## Run the tests
 
 ```powershell
-docker compose exec backend python -m pytest tests -q                                  # everything (1,190)
+docker compose exec backend python -m pytest tests -q                                  # everything (1,209)
 docker compose exec backend python -m pytest tests/test_statement_parsers.py -q        # one file
 docker compose exec backend python -m pytest tests -q -k "password"                    # by name
 ```
@@ -16,7 +16,7 @@ Tests need **no Postgres, no network and no API key**:
 `tests/test_migrations.py` is the exception that touches Alembic: it applies all migrations to an empty
 database and compares the result with the models (drift check).
 
-Last full run: **1,190 passed, 1 skipped** (Phase 7B, on `feature/vishesh-stocks`; the skipped one is the real FinBERT
+Last full run: **1,209 passed, 1 skipped** (Phase 7D, on `feature/vishesh-stocks`; the skipped one is the real FinBERT
 test, which runs in the ml image), plus the live smoke
 test below: 17/17 steps passed (also with no internet, from the seeded cache).
 
@@ -65,7 +65,7 @@ test below: 17/17 steps passed (also with no internet, from the seeded cache).
 | Investing (pure) | `test_sip_planner.py` | 11 | future value, required SIP, emergency top-up, safety factor, months to goal |
 | Investing (pure) | `test_monte_carlo.py` | 6 | same seed same result, ordered percentiles, zero volatility = closed form |
 | Investing (pure) | `test_claims_guard.py` | 13 | promises caught (incl. curly apostrophe), balanced text passes, negations flagged on purpose |
-| Investing | `test_investing_data_model.py` | 19 | schema Literals = the maths' lists, bounds, duplicate holdings, disclaimer on every response, CHECK and UNIQUE rules, plan defaults |
+| Investing | `test_investing_data_model.py` | 20 | schema Literals = the maths' lists (incl. simulation methods), bounds, duplicate holdings, disclaimer on every response, CHECK and UNIQUE rules, plan defaults |
 | Investing | `test_investing_service.py` | 28 | lower-band surplus formula, 30-day run chosen, forecast_missing / stale, capacity vs tolerance limit, emergency top-up, goal cap, horizon cap, isolation, reproducible plans, LLM log |
 | Investing | `test_investment_explainer.py` | 25 | Indian-grouped formatting, template passes every guard, invented amount / percentage / lakh rejected, claims rejected and counted, one call, provider fallback |
 | Investing (HTTP) | `test_investing_api.py` | 34 | every route needs a login (real auth), 422 validation, 409 without a profile, user isolation, body `user_id` ignored, disclaimer everywhere, simulate not stored |
@@ -76,6 +76,7 @@ test below: 17/17 steps passed (also with no internet, from the seeded cache).
 | Stocks (pure) | `test_sentiment_aggregation.py` | 10 | half-life weighting, labels at +/-0.15, "not reliable" under 3 headlines |
 | Stocks (pure) | `test_walk_forward.py` | 10 | splits never overlap, directional accuracy skips flat days, exact binomial p (53% of 100 is luck, 65% is not) |
 | Stocks (pure) | `test_bootstrap_returns.py` | 6 | seeded, ordered percentiles, every simulated month is a real one |
+| Investing (7D) | `test_investing_bootstrap.py` | 18 | month-end returns (current month dropped, gaps cut), moment matching, `method="bootstrap"` on synthetic cached bars, `history_too_short` fallback = the normal result, inclusive 60-month minimum, range follows the category, no provider call, API fields and 422 |
 | Stocks | `test_stocks_data_model.py` | 54 | strict symbol validator (incl. non-ASCII), Literals = model constants, `Numeric(14,4)`, CHECK and UNIQUE rules, disclaimer on every response |
 | Stocks (data) | `test_market_data_providers.py` | 44 | yfinance adapter on synthetic fixtures: today's unfinished bar dropped, invalid rows dropped, error kinds by class name, offline empty table = `unavailable`, retries only for `unavailable`; RSS parsing and query building |
 | Stocks (data) | `test_market_cache.py` | 36 | fresh hit, miss then fetch, provider failure → stale + `data_stale`, nothing cached → clear error, upsert never duplicates, CSV rows never fresh, cooldown and its engine 7.1 backoff (doubling, cap, reset after a success, per endpoint) |
@@ -167,7 +168,9 @@ fresh cache and with an expired one (`data_stale`, `benchmark_stale`, `news_stal
 20. `POST /api/investing/plan` after a 30-day forecast → `surplus.source: "forecast"`, `forecast_run_id` set, a
     `disclaimer`, `explanation_source` `llm` or `template`. Without the forecast → `warnings` has `forecast_missing`.
 21. `POST /api/investing/simulate` with `years: 41` → 422; with `years: 10` → a range, and `GET /api/investing/plans`
-    does not list it.
+    does not list it. With `"method": "bootstrap"` → `method: "bootstrap"` and a `history` with ^NSEI's months and date
+    range (after an analysis on `/stocks` has filled the cache); on an empty cache → `method: "normal"` and
+    `warnings: ["history_too_short"]`.
 
 ## Common mistakes
 - Running `pytest` on the host instead of in the container (different Python, missing deps).

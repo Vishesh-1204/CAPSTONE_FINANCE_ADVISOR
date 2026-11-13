@@ -25,6 +25,7 @@ LimitingFactor = Literal["tolerance", "capacity", "both"]
 RebalanceAction = Literal["add", "reduce", "hold"]
 SipLimitedBy = Literal["capacity", "target", "none"]
 ExplanationSource = Literal["llm", "template"]
+SimulationMethod = Literal["normal", "bootstrap"]                      # investment_service.SIMULATION_METHODS
 
 # Bounds (design choices for a sane, educational tool)
 MAX_HOLDINGS = 50
@@ -256,12 +257,32 @@ class PlanHistoryResponse(_WithDisclaimer):
 # --- What-if simulation (never stored) ---
 
 class SimulateRequest(BaseModel):
-    """POST /api/investing/simulate. The number of paths and the seed come from settings."""
+    """
+    POST /api/investing/simulate. The number of paths, the seed and the bootstrap block length
+    come from settings. method="bootstrap" (Phase 7D) resamples the benchmark's real monthly returns.
+    """
     monthly_sip: Decimal = Field(ge=0, le=MAX_MONTHLY_SIP, max_digits=14, decimal_places=2, examples=[10000])
     years: float = Field(ge=SIMULATE_MIN_YEARS, le=SIMULATE_MAX_YEARS, examples=[10])
     category: RiskCategory
     goal_amount: Decimal | None = Field(default=None, gt=0, max_digits=14, decimal_places=2)
     annual_step_up: float = Field(default=0.0, ge=0, le=MAX_ANNUAL_STEP_UP)
+    method: SimulationMethod = "normal"
+
+
+class BootstrapHistoryOut(BaseModel):
+    """
+    The benchmark history a bootstrap request used (or found too short). Its returns are RESCALED to
+    the portfolio's assumed mean and volatility before resampling, so only their shape is used; the
+    historical_* fields are the raw index figures, for comparison.
+    """
+    symbol: str
+    monthly_returns: int                  # how many complete-month returns were found
+    start: date | None                    # month-end close the first return starts from (None: no history)
+    end: date | None                      # month-end close of the last return
+    min_months: int                       # fewer than this -> normal method + "history_too_short"
+    block_months: int
+    historical_annual_return: float | None      # raw index: price only, no dividends
+    historical_annual_volatility: float | None
 
 
 class SimulateResponse(_WithDisclaimer):
@@ -270,3 +291,7 @@ class SimulateResponse(_WithDisclaimer):
     expected_return: float                # portfolio-level, from the assumptions
     volatility: float
     projection: ProjectionOut
+    requested_method: SimulationMethod
+    method: SimulationMethod              # the one actually used ("normal" after a fallback)
+    history: BootstrapHistoryOut | None = None    # only when the bootstrap was requested
+    warnings: list[str] = []

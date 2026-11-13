@@ -80,7 +80,7 @@ id therefore looks exactly like a missing id (404), which reveals nothing.
 | `scripts/make_synthetic_panel.py` | Generates the seeded 24-month, 30-user, 4-persona panel for the forecast evaluation |
 | `scripts/seed_market_cache.py`, `fetch_sentiment_datasets.py` | Phase 7: fill the price/headline cache once while online; download the RQ1 datasets at pinned revisions (not committed) |
 | `scripts/smoke_test.py` | Live end-to-end check of the running API (17 steps) |
-| `tests/` | 1,190 unit and HTTP tests (in-memory SQLite, fake LLM, fake market-data providers; no network) |
+| `tests/` | 1,209 unit and HTTP tests (in-memory SQLite, fake LLM, fake market-data providers; no network) |
 
 ## 4. Flow 1: upload a statement
 
