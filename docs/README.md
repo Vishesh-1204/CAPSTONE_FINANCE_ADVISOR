@@ -31,10 +31,13 @@ Read in this order if you are new to the project:
 | Forecast evaluation (research) | [modules/forecast-evaluation.md](modules/forecast-evaluation.md) | `evaluation/evaluate_forecast.py`, `scripts/make_synthetic_panel.py` |
 | Investment Advisor Agent | [modules/investing.md](modules/investing.md) | `services/investment_service.py`, `services/investing/`, `agents/investment_explainer.py` |
 | Investment evaluation (research) | [modules/investing-evaluation.md](modules/investing-evaluation.md) | `evaluation/evaluate_investing.py`, `evaluation/investing_rules.py`, `investing_personas.py`, `investing_methods.py` |
+| Stock Intelligence Agent | [modules/stocks.md](modules/stocks.md) | `services/stock_service.py`, `services/stocks/`, `market_data/`, `sentiment/`, `agents/stock_explainer.py` |
+| Stock evaluation (research) | [modules/stocks-evaluation.md](modules/stocks-evaluation.md) | `evaluation/evaluate_stocks.py`, `evaluation/stocks_rules.py`, `stocks_*.py`, `scripts/fetch_sentiment_datasets.py` |
 | Frontend Test Console | [modules/frontend-console.md](modules/frontend-console.md) | `frontend/` |
 
 Design sources: [phase3b-v3-spec.md](phase3b-v3-spec.md) (Phase 3B v3), [phase4-spec.md](phase4-spec.md) (Phase 4)
-[phase5-spec.md](phase5-spec.md) (Phase 5) and [phase6-spec.md](phase6-spec.md) (Phase 6).
+[phase5-spec.md](phase5-spec.md) (Phase 5), [phase6-spec.md](phase6-spec.md) (Phase 6) and [phase7-spec.md](phase7-spec.md) (Phase 7,
+with the provider spike in [phase7-provider-spike.md](phase7-provider-spike.md)).
 
 ## Conventions used in these docs
 

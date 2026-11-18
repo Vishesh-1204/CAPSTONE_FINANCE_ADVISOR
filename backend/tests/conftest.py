@@ -153,3 +153,21 @@ def add_forecast_run(db, user_id: int = 1, as_of: date = date(2026, 10, 22), hor
     db.add(run)
     db.commit()
     return run
+
+
+@pytest.fixture()
+def block_network(monkeypatch):
+    """
+    Phase 7 rule: NO automated test may call the network. Market-data tests use this fixture
+    (pytestmark = pytest.mark.usefixtures("block_network")), so any attempt to open a real
+    connection fails loudly instead of quietly hitting Yahoo or Google.
+    """
+    import socket
+
+    def refuse(*args, **kwargs):
+        raise RuntimeError("network access is blocked in tests (use a fake provider or a fixture)")
+
+    monkeypatch.setattr(socket.socket, "connect", refuse)
+    monkeypatch.setattr(socket.socket, "connect_ex", refuse)
+    monkeypatch.setattr(socket, "create_connection", refuse)
+    monkeypatch.setattr(socket, "getaddrinfo", refuse)

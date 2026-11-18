@@ -34,6 +34,11 @@ def test_risk_categories_match_the_allocation_policy_and_risk_scoring():
     assert get_args(schemas.RiskCategory) == (CONSERVATIVE, MODERATE, AGGRESSIVE)
 
 
+def test_simulation_methods_match_the_service():
+    from app.services.investment_service import SIMULATION_METHODS
+    assert get_args(schemas.SimulationMethod) == SIMULATION_METHODS
+
+
 def test_every_response_carries_the_disclaimer():
     responses = [
         cls for name, cls in vars(schemas).items()

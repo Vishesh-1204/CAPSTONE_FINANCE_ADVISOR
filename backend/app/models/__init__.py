@@ -10,10 +10,12 @@ from app.models.forecast import ForecastRun
 from app.models.import_batch import ImportBatch
 from app.models.investment import Holding, InvestmentPlan, InvestmentProfile
 from app.models.payee_rule import PayeeRule
+from app.models.stock import NewsItemRow, PriceBar, ProviderCall, StockAnalysis, WatchlistItem
 from app.models.transaction import Transaction
 from app.models.user import User
 
 __all__ = [
     "Budget", "BudgetRun", "FinancialProfile", "ForecastRun", "Holding", "ImportBatch", "InvestmentPlan",
-    "InvestmentProfile", "PayeeRule", "Transaction", "User",
+    "InvestmentProfile", "NewsItemRow", "PayeeRule", "PriceBar", "ProviderCall", "StockAnalysis", "Transaction",
+    "User", "WatchlistItem",
 ]

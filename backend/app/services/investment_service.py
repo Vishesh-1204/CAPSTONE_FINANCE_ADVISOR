@@ -17,11 +17,14 @@
 #   8. explanation: template or ONE guarded LLM call (agents/investment_explainer.py)
 #   9. store an investment_plans row with the explanation's research log
 #
+# simulate() (what-if, nothing stored) can also use method="bootstrap" (Phase 7D): the benchmark's
+# cached monthly returns, rescaled to the portfolio's assumed mean/volatility, block-resampled.
+#
 # Security: every query filters by the user_id from the JWT.
 
 import logging
 from dataclasses import asdict, dataclass
-from datetime import date
+from datetime import date, datetime, timezone
 from decimal import Decimal
 
 from fastapi import HTTPException, status
@@ -30,6 +33,9 @@ from sqlalchemy.orm import Session
 from app.agents.investment_explainer import InvestmentExplainer
 from app.core.config import settings
 from app.core.money import to_money
+from app.core.stock_symbols import normalize_symbol
+from app.market_data import cache_service
+from app.market_data.base import IST
 from app.models.forecast import ForecastRun
 from app.models.investment import Holding, InvestmentPlan, InvestmentProfile
 from app.schemas.investment import HoldingIn, InvestmentProfileUpdate, SimulateRequest
@@ -39,10 +45,13 @@ from app.services.investing.allocation import ASSET_CLASSES, rebalance_actions, 
 from app.services.investing.assumptions import InvestingAssumptions, load_assumptions
 from app.services.investing.claims_guard import find_prohibited_claims
 from app.services.investing.instrument_catalog import instruments_for
-from app.services.investing.monte_carlo import simulate_sip
+from app.services.investing.monte_carlo import SimulationResult, simulate_sip
 from app.services.investing.portfolio_stats import portfolio_return_and_volatility
 from app.services.investing.risk_scoring import CapacityFacts, RiskProfile, ToleranceAnswers, build_risk_profile
 from app.services.investing.sip_planner import months_to_reach, recommend_sip, required_sip
+from app.services.stocks.bootstrap_returns import (
+    MonthlyHistory, annualised, block_bootstrap_sip, match_moments, mean_and_sd, monthly_history,
+)
 
 logger = logging.getLogger(__name__)
 
@@ -59,6 +68,13 @@ WARNING_SURPLUS_UNKNOWN = "surplus_unknown"
 WARNING_ESSENTIALS_UNKNOWN = "essentials_unknown"
 WARNING_NO_HOLDINGS = "no_holdings"
 WARNING_EMERGENCY_FILL_SLOW = "emergency_fill_slow"   # the surplus is smaller than the top-up the fill period needs
+# What-if only: method="bootstrap" was asked for, but the cached benchmark has too few monthly returns
+WARNING_HISTORY_TOO_SHORT = "history_too_short"
+
+# What-if simulation methods (schemas/investment.SimulationMethod must match)
+METHOD_NORMAL = "normal"
+METHOD_BOOTSTRAP = "bootstrap"
+SIMULATION_METHODS = (METHOD_NORMAL, METHOD_BOOTSTRAP)
 
 SURPLUS_FROM_FORECAST = "forecast"
 SURPLUS_FROM_BUDGET = "budget"
@@ -252,6 +268,14 @@ def _projection(
         monthly_sip, years, mean, volatility, n_paths=assumptions.mc_paths, seed=assumptions.mc_seed,
         goal=goal, annual_step_up=annual_step_up,
     )
+    return _projection_out(result, monthly_sip, years, mean, goal, annual_step_up)
+
+
+def _projection_out(
+    result: SimulationResult, monthly_sip: float, years: float, mean: float, goal: float | None,
+    annual_step_up: float,
+) -> dict:
+    """ProjectionOut from either simulator. months_to_goal is deterministic (expected return), same for both."""
     # months_to_reach has no step-up, so it is only reported for a flat SIP
     months = months_to_reach(goal, monthly_sip, mean) if goal is not None and annual_step_up == 0 else None
     return {
@@ -428,18 +452,67 @@ def list_plans(db: Session, user_id: int, limit: int) -> dict:
 
 # --- What-if and assumptions (nothing stored) ---
 
-def simulate(data: SimulateRequest) -> dict:
-    """POST /simulate: any SIP, years and category under the current assumptions. Not stored."""
+def benchmark_history(db: Session, now: datetime) -> tuple[str, MonthlyHistory]:
+    """
+    The benchmark's complete-month returns from the CACHED price_bars (never the provider: a what-if
+    must not trigger outside calls). Nothing cached = an empty history, not an error.
+    """
+    symbol = normalize_symbol(settings.STOCK_BENCHMARK_SYMBOL)
+    try:
+        prices = cache_service.read_prices(db, symbol, settings.STOCK_HISTORY_DAYS, now=now)
+    except cache_service.NoMarketDataError:
+        return symbol, MonthlyHistory([], [])
+    today = now.astimezone(IST).date()
+    return symbol, monthly_history([b.bar_date for b in prices.bars], [float(b.close) for b in prices.bars], today)
+
+
+def _history_out(symbol: str, history: MonthlyHistory) -> dict:
+    raw_return = raw_volatility = None
+    if len(history.returns) >= 2:
+        raw_return, raw_volatility = (round(v, 6) for v in annualised(*mean_and_sd(history.returns)))
+    return {
+        "symbol": symbol, "monthly_returns": len(history.returns), "start": history.start, "end": history.end,
+        "min_months": settings.INVEST_BOOTSTRAP_MIN_MONTHS, "block_months": settings.INVEST_BOOTSTRAP_BLOCK_MONTHS,
+        "historical_annual_return": raw_return, "historical_annual_volatility": raw_volatility,
+    }
+
+
+def simulate(db: Session, data: SimulateRequest, now: datetime | None = None) -> dict:
+    """
+    POST /simulate: any SIP, years and category under the current assumptions. Not stored.
+    method="bootstrap": the benchmark's real monthly returns, rescaled to this portfolio's assumed
+    mean and volatility, resampled in blocks. Too little history -> the normal method + a warning.
+    """
     assumptions = load_assumptions()
     target = target_allocation(data.category, data.years)
     mean, volatility = portfolio_return_and_volatility(target, assumptions.assets)
     goal = float(data.goal_amount) if data.goal_amount is not None else None
-    return {
+    sip = float(data.monthly_sip)
+    response = {
         "category": data.category, "target_allocation": target,
         "expected_return": round(mean, 6), "volatility": round(volatility, 6),
-        "projection": _projection(float(data.monthly_sip), data.years, mean, volatility, goal, assumptions,
-                                  annual_step_up=data.annual_step_up),
+        "requested_method": data.method, "method": METHOD_NORMAL, "history": None, "warnings": [],
     }
+
+    if data.method == METHOD_BOOTSTRAP:
+        symbol, history = benchmark_history(db, now or datetime.now(timezone.utc))
+        response["history"] = _history_out(symbol, history)
+        if len(history.returns) >= settings.INVEST_BOOTSTRAP_MIN_MONTHS:
+            result = block_bootstrap_sip(
+                match_moments(history.returns, mean, volatility), sip, data.years,
+                n_paths=assumptions.mc_paths, block_length=settings.INVEST_BOOTSTRAP_BLOCK_MONTHS,
+                seed=assumptions.mc_seed, goal=goal, annual_step_up=data.annual_step_up,
+            )
+            response["method"] = METHOD_BOOTSTRAP
+            response["projection"] = _projection_out(result, sip, data.years, mean, goal, data.annual_step_up)
+            return response
+        logger.info("bootstrap needs %d monthly returns of %s, found %d: normal method used",
+                    settings.INVEST_BOOTSTRAP_MIN_MONTHS, symbol, len(history.returns))
+        response["warnings"].append(WARNING_HISTORY_TOO_SHORT)
+
+    response["projection"] = _projection(sip, data.years, mean, volatility, goal, assumptions,
+                                         annual_step_up=data.annual_step_up)
+    return response
 
 
 def get_assumptions() -> dict:

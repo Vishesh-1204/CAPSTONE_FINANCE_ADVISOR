@@ -130,7 +130,8 @@ export function InvestmentPlanResult({ plan }: { plan: InvestmentPlan }) {
   );
 }
 
-function Warnings({ warnings }: { warnings: string[] }) {
+/** Plain-words alerts for warning codes (also used by the what-if simulator). */
+export function Warnings({ warnings }: { warnings: string[] }) {
   if (warnings.length === 0) {
     return <p className="text-sm text-muted-foreground">No warnings for this plan.</p>;
   }

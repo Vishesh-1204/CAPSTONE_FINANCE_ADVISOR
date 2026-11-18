@@ -505,11 +505,28 @@ export interface PlanHistory {
   disclaimer: string;
 }
 
+// "normal": normally distributed monthly returns. "bootstrap" (Phase 7D): the benchmark's real
+// monthly returns from the price cache, rescaled to the portfolio's assumptions, resampled in blocks.
+export type SimulationMethod = "normal" | "bootstrap";
+
 export interface SimulateRequest {
   monthly_sip: number;
   years: number; // 1-40
   category: RiskCategory;
   goal_amount?: number;
+  method?: SimulationMethod; // default "normal"
+}
+
+/** The benchmark history a bootstrap request used (or found too short). */
+export interface BootstrapHistory {
+  symbol: string;
+  monthly_returns: number; // complete-month returns found
+  start: string | null; // ISO date of the month-end close the first return starts from
+  end: string | null;
+  min_months: number; // fewer -> normal method + "history_too_short"
+  block_months: number;
+  historical_annual_return: number | null; // raw index (price only, no dividends)
+  historical_annual_volatility: number | null;
 }
 
 export interface SimulateResponse {
@@ -518,5 +535,184 @@ export interface SimulateResponse {
   expected_return: number;
   volatility: number;
   projection: Projection;
+  requested_method: SimulationMethod;
+  method: SimulationMethod; // the one actually used ("normal" after a fallback)
+  history: BootstrapHistory | null; // only when the bootstrap was requested
+  warnings: string[];
+  disclaimer: string;
+}
+
+// ---------------------------------------------------------------------------
+// Stock Intelligence (Phase 7) — mirrors backend/app/schemas/stock.py.
+// Educational analysis tool, not financial advice: every response has `disclaimer`.
+// ---------------------------------------------------------------------------
+
+export type PriceSource = "yfinance" | "alphavantage" | "csv_upload";
+export type NewsSource = "google_rss" | "yfinance";
+export type ScorerName = "lexicon" | "finbert";
+export type SentimentLabel = "positive" | "neutral" | "negative";
+export type CacheStatus = "fresh" | "refreshed" | "stale";
+export type TrendLabel = "above_both_averages" | "below_both_averages" | "between_averages" | "not_enough_history";
+export type RsiLabel = "high" | "normal" | "low";
+export type ProviderCallStatus = "ok" | "rate_limited" | "unavailable" | "not_found" | "bad_response";
+
+export interface WatchlistItem {
+  symbol: string;
+  added_at: string | null;
+  last_bar_date: string | null; // newest cached bar; null until the first refresh
+}
+
+export interface WatchlistResponse {
+  items: WatchlistItem[];
+  limit: number;
+  disclaimer: string;
+}
+
+export interface RefreshResponse {
+  symbol: string;
+  cache_status: CacheStatus; // fresh = served from the cache, refreshed = new provider data, stale = provider failed
+  price_source: PriceSource | null;
+  news_source: NewsSource | null;
+  data_as_of: string | null; // newest bar after the refresh (YYYY-MM-DD)
+  bars_saved: number;
+  headlines_saved: number;
+  warnings: string[]; // "data_stale", "news_stale", "news_unavailable"
+  disclaimer: string;
+}
+
+export interface PriceBarPoint {
+  bar_date: string;
+  open: number;
+  high: number;
+  low: number;
+  close: number;
+  volume: number | null;
+  sma_50: number | null; // null until there are 50 bars
+  sma_200: number | null;
+}
+
+export interface PricesResponse {
+  symbol: string;
+  bars: PriceBarPoint[]; // oldest first
+  sources: PriceSource[];
+  data_as_of: string | null;
+  warnings: string[];
+  disclaimer: string;
+}
+
+export interface PriceUploadResponse {
+  symbol: string;
+  rows_read: number;
+  bars_saved: number;
+  rows_rejected: number;
+  data_as_of: string | null;
+  warnings: string[]; // "rows_rejected", "existing_days_kept"
+  disclaimer: string;
+}
+
+export interface Headline {
+  headline: string;
+  url: string;
+  publisher: string | null;
+  published_at: string;
+  source: NewsSource;
+  sentiment_positive: number | null;
+  sentiment_negative: number | null;
+  sentiment_neutral: number | null;
+  scorer_name: ScorerName | null;
+}
+
+export interface StockSentiment {
+  score: number; // -1 (all bad news) to +1 (all good news), newer headlines count more
+  label: SentimentLabel;
+  n_items: number;
+  reliable: boolean; // false: too few headlines
+  effective_weight: number;
+  scorer: ScorerName;
+  headlines: Headline[];
+}
+
+export interface SentimentScoreResponse {
+  positive: number;
+  negative: number;
+  neutral: number;
+  label: SentimentLabel;
+  scorer: ScorerName; // the scorer actually used (lexicon if FinBERT was unavailable)
+  warnings: string[]; // "finbert_unavailable"
+  disclaimer: string;
+}
+
+/** Facts about the PAST. null = not enough history for that measure (with a warning). */
+export interface StockIndicators {
+  bars_used: number;
+  last_close: number;
+  sma_50: number | null;
+  sma_200: number | null;
+  trend: TrendLabel;
+  rsi_14: number | null;
+  rsi_label: RsiLabel | null;
+  annualized_volatility: number | null; // fraction
+  max_drawdown: number | null; // negative fraction: -0.25 = a 25% fall from the peak
+  var_95_one_day: number | null; // positive loss fraction
+  change_1m: number | null;
+  change_1y: number | null;
+  benchmark: string | null;
+  beta: number | null;
+  correlation: number | null;
+}
+
+export interface StockAnalysis {
+  id: number;
+  symbol: string;
+  created_at: string | null;
+  data_as_of: string;
+  indicators: StockIndicators;
+  sentiment: StockSentiment | null; // null when no headlines could be loaded
+  sources: Record<string, string>;
+  warnings: string[];
+  explanation: string | null;
+  explanation_source: ExplanationSource;
+  llm_used: boolean;
+  explanation_faithful: boolean | null;
+  claims_compliant: boolean | null;
+  engine_version: string;
+  disclaimer: string;
+}
+
+export interface AnalysisHistoryItem {
+  id: number;
+  symbol: string;
+  created_at: string | null;
+  data_as_of: string;
+  trend: TrendLabel;
+  explanation_source: ExplanationSource;
+}
+
+export interface AnalysisHistory {
+  analyses: AnalysisHistoryItem[];
+  disclaimer: string;
+}
+
+export interface ProviderStatus {
+  provider: string;
+  calls_today: number;
+  daily_limit: number | null; // null: no published limit
+  last_call_at: string | null;
+  last_status: ProviderCallStatus | null;
+}
+
+export interface CacheAge {
+  symbol: string;
+  latest_bar_date: string | null;
+  fetched_at: string | null;
+}
+
+export interface StockStatus {
+  market_data_provider: "yfinance" | "alphavantage";
+  news_provider: NewsSource;
+  sentiment_scorer: ScorerName;
+  finbert_available: boolean;
+  providers: ProviderStatus[];
+  cache: CacheAge[]; // your watchlist plus the benchmark
   disclaimer: string;
 }

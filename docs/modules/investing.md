@@ -104,8 +104,45 @@ A real plan from the live smoke test (synthetic user, goal ₹5,00,000 in 5 year
 ## API
 
 All under `/api/investing`, JWT required: `PUT|GET /profile`, `PUT|GET /holdings`, `POST /plan`, `GET /plan/latest`,
-`GET /plans`, `GET /plans/{plan_id}`, `POST /simulate` (what-if, not stored, paths fixed by settings), `GET /assumptions`. Details and
+`GET /plans`, `GET /plans/{plan_id}`, `POST /simulate` (what-if, not stored, paths fixed by settings; optional
+`method="bootstrap"`, see below), `GET /assumptions`. Details and
 validation rules: [../api.md](../api.md#investing).
+
+## What-if with a historical bootstrap (Phase 7D)
+
+`POST /simulate` with `method="bootstrap"` swaps the normal Monte Carlo for
+`services/stocks/bootstrap_returns.block_bootstrap_sip`:
+
+1. `investment_service.benchmark_history` reads the benchmark's daily bars from the price cache only
+   (`cache_service.read_prices`, `STOCK_HISTORY_DAYS` window; a what-if never calls a provider).
+2. `monthly_history` keeps the last close of each month, drops the unfinished current month, and keeps only the
+   newest unbroken run of calendar months (a gap would otherwise become one fake multi-month "monthly" return).
+3. Fewer than `INVEST_BOOTSTRAP_MIN_MONTHS` (60) returns → the normal method, unchanged, plus `history_too_short`.
+4. `match_moments` rescales the returns to the portfolio's assumed monthly mean and standard deviation
+   (`r' = m + (r - mean) * s / sd`). **Why:** the benchmark is an equity index; raw returns would give a conservative
+   mix the same range as an all-equity one. After rescaling, normal vs bootstrap differ only in the shape of the
+   distribution (fat tails, skew, and streaks kept together in 6-month blocks): the same matched comparison as RQ4.
+5. Blocks of `INVEST_BOOTSTRAP_BLOCK_MONTHS` months, `INVEST_MC_PATHS` paths, `INVEST_MC_SEED`.
+   `months_to_goal` stays the deterministic expected-return figure (the same under both methods).
+
+On the dev cache (^NSEI, 119 monthly returns, 30 Nov 2016 – 30 Oct 2026; raw index 12.4% a year, volatility 16.2%,
+price only), ₹10,000 a month for 10 years, goal ₹20 lakh:
+
+| Category | Normal p10 / p50 / p90 | Bootstrap p10 / p50 / p90 | P(goal) normal → bootstrap |
+|---|---|---|---|
+| conservative | 15.06 / 17.15 / 19.48 lakh | 15.30 / 17.09 / 19.21 lakh | 5.9% → 4.1% |
+| moderate | 14.50 / 18.43 / 23.38 lakh | 14.85 / 18.32 / 22.82 lakh | 33.0% → 30.6% |
+| aggressive | 13.93 / 19.12 / 26.29 lakh | 14.28 / 18.94 / 25.51 lakh | 42.1% → 41.1% |
+
+The bootstrap range is narrower on both sides (bad case about 1.6–2.5% higher, good case lower), matching RQ4
+(bootstrap p10 above normal; variance ratio 0.73, i.e. months partly reverse each other). These are illustrative
+scenarios under placeholder assumptions, not predictions. The numbers depend on the cache contents, so they are not
+committed as an evaluation result.
+
+Limitations: one equity index stands in for the whole portfolio's shape (debt and gold have their own, different
+distributions); price index only (no dividends; irrelevant after rescaling the mean, but the raw `historical_*`
+figures understate total return); ten years hold one big crash (March 2020), so the tails rest on very few blocks;
+the block bootstrap breaks the dependence at block edges.
 
 ## LLM, guards and privacy
 
@@ -182,5 +219,5 @@ the service only reads saved runs. File-by-file coverage: [../testing.md](../tes
 ## What it connects to next
 
 Phase 7 (Stock Intelligence) plugs in as an optional "satellite" slice and supplies real index history for a
-bootstrap Monte Carlo (normal vs historical). Phase 8 (Goal Planning) reuses `required_sip`, `months_to_reach` and
+bootstrap Monte Carlo (normal vs historical; built in 7D, see above). Phase 8 (Goal Planning) reuses `required_sip`, `months_to_reach` and
 `simulate_sip`. Phase 6C adds the `/investing` page of the frontend.

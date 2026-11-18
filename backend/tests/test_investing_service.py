@@ -353,7 +353,7 @@ def test_prohibited_claim_is_logged_and_the_template_is_stored(db, monkeypatch):
 def test_simulate_is_deterministic_and_not_stored(db):
     request = SimulateRequest(monthly_sip=Decimal("10000"), years=10, category="moderate",
                               goal_amount=Decimal("2000000"))
-    first, second = svc.simulate(request), svc.simulate(request)
+    first, second = svc.simulate(db, request), svc.simulate(db, request)
     assert first == second
     projection = first["projection"]
     assert projection["p10"] <= projection["p50"] <= projection["p90"]
@@ -364,7 +364,7 @@ def test_simulate_is_deterministic_and_not_stored(db):
 def test_simulate_with_step_up_reports_no_months_to_goal(db):
     request = SimulateRequest(monthly_sip=Decimal("10000"), years=10, category="moderate",
                               goal_amount=Decimal("2000000"), annual_step_up=0.1)
-    assert svc.simulate(request)["projection"]["months_to_goal"] is None
+    assert svc.simulate(db, request)["projection"]["months_to_goal"] is None
 
 
 def test_assumptions_come_from_settings(monkeypatch):

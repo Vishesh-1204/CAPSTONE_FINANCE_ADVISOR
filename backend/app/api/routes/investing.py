@@ -9,7 +9,8 @@
 # as_of is optional (default: today, UTC) and may not be in the future; it exists
 # so a plan can be reproduced or demoed on past data, like the forecast routes.
 # POST /simulate is a what-if: nothing is stored, and the number of Monte Carlo
-# paths comes from settings (a client cannot ask for a billion paths).
+# paths comes from settings (a client cannot ask for a billion paths). Its bootstrap method reads
+# only the SHARED benchmark price cache (no user data, no provider call).
 
 from datetime import date
 
@@ -117,9 +118,15 @@ def plan_by_id(plan_id: int, db: Session = Depends(get_db), current_user: User =
 # --- What-if and assumptions (nothing stored) ---
 
 @router.post("/simulate", response_model=SimulateResponse)
-def simulate(body: SimulateRequest, current_user: User = Depends(get_current_user)):
-    """What-if: any SIP, years (1-40) and risk category under the current assumptions. Not saved."""
-    return svc.simulate(body)
+def simulate(body: SimulateRequest, db: Session = Depends(get_db), current_user: User = Depends(get_current_user)):
+    """
+    What-if: any SIP, years (1-40) and risk category under the current assumptions. Not saved.
+    method="normal" (default): normally distributed monthly returns. method="bootstrap": the
+    benchmark's real monthly returns from the price cache (rescaled to the portfolio's assumed
+    return and volatility), resampled in blocks; with too little history it falls back to
+    "normal" and adds the warning "history_too_short". `history` shows what was used.
+    """
+    return svc.simulate(db, body)
 
 
 @router.get("/assumptions", response_model=AssumptionsResponse)

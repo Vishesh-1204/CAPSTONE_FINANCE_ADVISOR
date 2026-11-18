@@ -10,7 +10,9 @@ Planning Agent**: a rules engine turns the categorized expenses into monthly lim
 explains them (see [modules/budget-planning.md](modules/budget-planning.md)). Phase 5 adds the **Financial
 Forecast Agent** ([modules/forecasting.md](modules/forecasting.md)) and Phase 6 the **Investment Advisor Agent**
 ([modules/investing.md](modules/investing.md)): a risk profile, a target allocation and an affordable SIP sized
-from the forecast's lower band, explained by one guarded LLM call. Educational, not financial advice.
+from the forecast's lower band, explained by one guarded LLM call. Phase 7 adds the **Stock Intelligence Agent**
+([modules/stocks.md](modules/stocks.md)): trend, risk and news sentiment for a watchlist from cached public market
+data, with a fallback chain for when the provider is down. Educational, not financial advice.
 
 ```mermaid
 flowchart LR
@@ -20,6 +22,7 @@ flowchart LR
         API["FastAPI backend :8000"] --> DB[("PostgreSQL 16")]
     end
     API -- "cleaned merchant strings only;<br/>budgets, forecast, investing: aggregates only" --> LLM["LLM provider<br/>(Gemini dev / OpenAI)"]
+    API -- "symbols only<br/>(cached in the DB)" --> MD["Market data<br/>(yfinance prices, Google News RSS)"]
 ```
 
 ## 2. Layers (each layer only calls the one below it)
@@ -30,6 +33,8 @@ api/routes/   HTTP only: parse the request, call ONE service function, return th
 services/     business logic: import, enrich, categorize, override, summarize
    │      └──► agents/   LLM reasoning only (prompt, batching, retries); no DB, no HTTP
    │                └──► llm/   provider abstraction; the ONLY place a vendor SDK is imported
+   ├──► market_data/  market-data adapters + cache (Phase 7); the ONLY place yfinance is imported
+   └──► sentiment/    headline scorers (Phase 7); FinBERT imports torch/transformers lazily
 models/ + db/ SQLAlchemy tables and the session
 core/         config, security, constants shared by everyone (categories, txn types, dictionary)
 schemas/      Pydantic request/response shapes (the API contract)
@@ -49,7 +54,7 @@ id therefore looks exactly like a missing id (404), which reveals nothing.
 |---|---|
 | `app/main.py` | Creates the app, CORS middleware, registers routers, `/health` |
 | `app/api/deps.py` | `get_current_user` (JWT → `User`) |
-| `app/api/routes/` | `auth`, `statements`, `transactions`, `payee_rules`, `categories`, `profile`, `budgets`, `forecast`, `investing` |
+| `app/api/routes/` | `auth`, `statements`, `transactions`, `payee_rules`, `categories`, `profile`, `budgets`, `forecast`, `investing`, `stocks` |
 | `app/services/` | All business logic (see the module pages) |
 | `app/services/statement_parsers/` | `base.py` (interface), `csv_parser`, `xlsx_parser`, `pdf_parser`, `tabular.py` (shared) |
 | `app/agents/expense_categorizer.py` | The LLM layer of the categorizer |
@@ -59,16 +64,23 @@ id therefore looks exactly like a missing id (404), which reveals nothing.
 | `app/services/investing/` | Phase 6 building blocks, pure: risk scoring, allocation, portfolio stats, SIP planner, Monte Carlo, claims guard, instrument catalog; `assumptions.py` reads the `INVEST_*` settings |
 | `app/services/investment_service.py` | Phase 6 orchestration: profile, holdings, forecast surplus, essentials, plan, simulate |
 | `app/agents/investment_explainer.py` | Investment explanation: pre-formatted facts, one LLM call, rupee + percentage + lakh/crore + claims guards, disclaimer added by code |
+| `app/services/stocks/` | Phase 7 pure modules: indicators, risk metrics, sentiment aggregation, lexicon, walk-forward statistics, block bootstrap |
+| `app/market_data/` | Phase 7: `base.py` (protocols, `PriceBar`, `NewsItem`, `ProviderError`, retries), `yfinance_provider.py` (the only yfinance import), `rss_news_provider.py` (stdlib), `factory.py`, `cache_service.py` (fallback chain, upserts, `provider_calls`, cooldown with backoff) |
+| `app/sentiment/` | Phase 7: `base.py` (scorer protocol), `lexicon_scorer.py`, `finbert_scorer.py` (lazy, optional), `factory.py` (fallback + `finbert_unavailable`) |
+| `app/services/stock_service.py` | Phase 7 orchestration: watchlist, refresh, chart prices, CSV upload, analysis, status |
+| `app/agents/stock_explainer.py` | Stock explanation: pre-formatted facts, one LLM call, any-number + shorthand + claims v3.1 guards, no headlines sent |
+| `app/core/stock_symbols.py` | Strict symbol validator (before any URL or query) |
 | `app/llm/` | `base.py`, `factory.py`, `gemini_provider.py`, `openai_provider.py` |
 | `app/core/` | `config.py`, `security.py`, `categories.py`, `transaction_types.py`, `merchant_dictionary.py`, `money.py`, `month_utils.py`, `disclaimers.py`, `logging_config.py` |
 | `app/models/`, `app/schemas/` | Tables and API shapes |
-| `migrations/` | Alembic: `0001_baseline`, `0002_statement_ingestion_and_overrides`, `0003_budget_planning`, `0004_forecast_runs`, `0005_investing` |
-| `evaluation/` | Research harnesses (`evaluate_categorizer.py`, `evaluate_budget.py`, `evaluate_forecast.py`, `evaluate_investing.py` with `investing_rules.py`, `investing_personas.py`, `investing_methods.py`), datasets, `budget_metrics.csv`, `forecast_metrics.csv`, `investing_metrics.csv`, `results/` (gitignored) |
+| `migrations/` | Alembic: `0001_baseline`, `0002_statement_ingestion_and_overrides`, `0003_budget_planning`, `0004_forecast_runs`, `0005_investing`, `0006_stocks` |
+| `evaluation/` | Research harnesses (`evaluate_categorizer.py`, `evaluate_budget.py`, `evaluate_forecast.py`, `evaluate_investing.py` with `investing_rules.py`, `investing_personas.py`, `investing_methods.py`; `evaluate_stocks.py` with `stocks_rules.py` (pre-registration) and the `stocks_*` helpers), datasets, `budget_metrics.csv`, `forecast_metrics.csv`, `investing_metrics.csv`, `stocks_metrics.csv`, `results/` and `data/` (gitignored) |
 | `scripts/make_synthetic_statements.py` | Generates the synthetic PDF/XLSX/CSV fixtures (dev only) |
 | `scripts/make_synthetic_history.py` | Generates the seeded 6-month, 3-persona history for the budget evaluation |
 | `scripts/make_synthetic_panel.py` | Generates the seeded 24-month, 30-user, 4-persona panel for the forecast evaluation |
-| `scripts/smoke_test.py` | Live end-to-end check of the running API (16 steps) |
-| `tests/` | 745 unit and HTTP tests (in-memory SQLite, fake LLM) |
+| `scripts/seed_market_cache.py`, `fetch_sentiment_datasets.py` | Phase 7: fill the price/headline cache once while online; download the RQ1 datasets at pinned revisions (not committed) |
+| `scripts/smoke_test.py` | Live end-to-end check of the running API (17 steps) |
+| `tests/` | 1,209 unit and HTTP tests (in-memory SQLite, fake LLM, fake market-data providers; no network) |
 
 ## 4. Flow 1: upload a statement
 
@@ -164,6 +176,12 @@ Everything left of the LLM arrow in section 1 is local. Specifically:
 | SIP sized from the forecast's LOWER band x 0.8, after an emergency top-up | One bad month should not break the plan; ties Phase 5 uncertainty to Phase 6 |
 | Numbers pre-formatted for the LLM, four guards, disclaimer added by code after them | The model copies instead of re-rounding; promises and invented numbers fall back to the template |
 | Claims checker injected into the explainer by the service | Agents must not import services; `claims_guard.py` stays with the other pure investing modules |
+| Stocks: market data behind a provider protocol, cache first, fallback chain fresh → provider → stale → CSV hint | One environment variable switches provider; the demo works when the provider (or the internet) does not; a small free quota lasts |
+| Provider cooldown that doubles per failure in a row (engine 7.1) | Polite to a rate-limited provider and no waiting through retries offline; the Phase 7B simulation showed a constant 15 minutes still wasted about 58 calls per 100 requests in a long outage |
+| Price and headline rows shared by every user; watchlists and analyses per user | Public market data needs one cache, not one per user; a per-user watchlist limit protects the quota |
+| No headlines sent to the LLM, only the aggregate sentiment | A headline is untrusted text (prompt injection) |
+| Any-number guard plus claims guard v3.1 (advice, predictions) for stock text | Stricter than Phases 4-6 because every number in the facts is a string the model can copy; the guard is a regex and misses new wordings, so the template and narrow facts remain the real safety net |
+| FinBERT optional and lazy (`ml` Compose profile) | torch and the model are heavy; the default image and every test run without them |
 
 ## 8. Known gaps (carry into later phases)
 
@@ -175,6 +193,11 @@ Everything left of the LLM arrow in section 1 is local. Specifically:
   understate fat tails; the claims guard misses promises worded without its trigger words and flags every
   negation on purpose; on the Phase 5 panel a SIP from the lower band x 0.8 still exceeds the actual next-month
   surplus about 28% of the time (see [modules/investing-evaluation.md](modules/investing-evaluation.md)).
+- Stocks: yfinance is an unofficial route (it may change or rate-limit); cached prices and uploaded CSV bars are
+  shared by all users; the news search has no relevance filter and free RSS gives about 30 recent headlines (no
+  headline history, so the sentiment-lead question could not be tested); offline, the Phase 4-6 LLM explanation
+  calls hang until their timeout; the claims guard v3.1 caught only 20% of advice/prediction sentences written
+  after it (see [modules/stocks-evaluation.md](modules/stocks-evaluation.md)).
 - Scanned PDFs are rejected (no OCR).
 - The budget guard only checks amounts with a currency marker (₹ / Rs. / INR); a bare "5000" is not checked.
 - The budget evaluation uses synthetic people who do not react to their budget (see [modules/budget-evaluation.md](modules/budget-evaluation.md)).

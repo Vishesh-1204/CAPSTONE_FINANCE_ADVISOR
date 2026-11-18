@@ -61,6 +61,18 @@ The Pydantic shapes live in `backend/app/schemas/`; the TypeScript mirror is `fr
 | GET | `/api/investing/plans/{plan_id}` | One of your plans in full (404 if missing or not yours) |
 | POST | `/api/investing/simulate` | What-if projection (not saved) |
 | GET | `/api/investing/assumptions` | The return/volatility assumptions in force |
+| GET | `/api/stocks/watchlist` | Your watchlist with the newest cached bar date |
+| POST | `/api/stocks/watchlist` | Add a symbol (validated; per-user limit, 409 when full or a duplicate) |
+| DELETE | `/api/stocks/watchlist/{symbol}` | Remove a symbol |
+| POST | `/api/stocks/{symbol}/refresh` | Prices and headlines through the cache and fallback chain |
+| GET | `/api/stocks/{symbol}/prices?days=` | Cached daily bars with SMA 50/200 (never calls a provider) |
+| POST | `/api/stocks/{symbol}/prices/upload` | CSV fallback when no provider works (adds missing days only) |
+| POST | `/api/stocks/{symbol}/analysis` | Generate and save an analysis snapshot |
+| GET | `/api/stocks/{symbol}/analysis/latest` | Your newest analysis of the symbol |
+| GET | `/api/stocks/{symbol}/analyses` | Your analyses of the symbol (summary), newest first |
+| GET | `/api/stocks/{symbol}/analyses/{id}` | One of your analyses in full |
+| POST | `/api/stocks/sentiment/score` | Score one headline with the active scorer |
+| GET | `/api/stocks/status` | Providers, calls today, cache ages, FinBERT available |
 
 ---
 
@@ -338,14 +350,87 @@ One saved plan as a full `InvestmentPlanResponse` (the frontend history list ope
 **404** when the id does not exist or belongs to another user (the same answer, so ids are not revealed).
 
 ### `POST /api/investing/simulate`
-Body `{"monthly_sip": 10000, "years": 10, "category": "moderate", "goal_amount": null, "annual_step_up": 0}`:
-`years` 1–40, `monthly_sip` ≤ ₹1,00,00,000, `annual_step_up` 0–0.5, `category` conservative|moderate|aggressive.
-Not saved; the number of paths and the seed come from settings (a client cannot choose them).
-Response `{category, target_allocation, expected_return, volatility, projection, disclaimer}`.
+Body `{"monthly_sip": 10000, "years": 10, "category": "moderate", "goal_amount": null, "annual_step_up": 0,
+"method": "normal"}`: `years` 1–40, `monthly_sip` ≤ ₹1,00,00,000, `annual_step_up` 0–0.5, `category`
+conservative|moderate|aggressive, `method` normal|bootstrap (default normal; anything else → **422**).
+Not saved; the number of paths, the seed and the bootstrap block length come from settings (a client cannot choose them).
+Response `{category, target_allocation, expected_return, volatility, projection, requested_method, method, history,
+warnings, disclaimer}`.
+
+`method: "bootstrap"` (Phase 7D) resamples the benchmark's (`STOCK_BENCHMARK_SYMBOL`, ^NSEI) real complete-month
+returns from the **cached** `price_bars` (never the provider), rescaled to the portfolio's assumed mean and volatility,
+in blocks of `INVEST_BOOTSTRAP_BLOCK_MONTHS` (6). `history` = `{symbol, monthly_returns, start, end, min_months,
+block_months, historical_annual_return, historical_annual_volatility}` (the last two are the raw index, price only).
+Fewer than `INVEST_BOOTSTRAP_MIN_MONTHS` (60) returns, or nothing cached → `method: "normal"` (exactly the normal
+result) with `warnings: ["history_too_short"]`. With `method: "normal"`, `history` is `null`.
 
 ### `GET /api/investing/assumptions`
 `{assets [{asset_class, expected_return, volatility}], sip_safety_factor, mc_paths, mc_seed, note, disclaimer}`.
 The defaults are illustrative placeholders (see `INVEST_*` in `backend/.env.example`).
+
+---
+
+## Stocks
+
+**Educational analysis tool, not financial advice. Past data does not predict future prices.** Every response carries
+`disclaimer` (added by code). The user is always the one in the token. `{symbol}` must match the strict symbol pattern
+(ASCII letters, digits, `.`, `-`, an optional leading `^`, at most 20 characters; upper-cased), else **422**. `refresh`,
+`prices`, `prices/upload` and `POST .../analysis` need the symbol on YOUR watchlist (**404** otherwise); the analysis
+reads only return your own analyses. Price and headline rows are shared public market data; watchlists and analyses
+are per user.
+How it works: [modules/stocks.md](modules/stocks.md).
+
+### `GET /api/stocks/watchlist` · `POST /api/stocks/watchlist` · `DELETE /api/stocks/watchlist/{symbol}`
+POST body `{"symbol": "reliance.ns"}` (stored upper-cased) → **201**. Already on the list, or the list is full
+(`STOCK_WATCHLIST_LIMIT`, default 10) → **409**. DELETE of a symbol not on the list → **404**.
+Response `{items [{symbol, added_at, last_bar_date}], limit, disclaimer}`.
+
+### `POST /api/stocks/{symbol}/refresh`
+Runs the fallback chain for prices and headlines: fresh cache → provider → stale cache (`data_stale`) → **503** whose
+message points to the CSV upload. Response `{symbol, cache_status ("fresh"|"refreshed"|"stale"), price_source,
+news_source, data_as_of, bars_saved, headlines_saved, warnings, disclaimer}`. Warnings: `data_stale`, `news_stale`,
+`news_unavailable`.
+
+### `GET /api/stocks/{symbol}/prices?days=365`
+Cache only (never calls a provider); `days` 1–3650. Nothing cached → **404** ("refresh it first"). Response `{symbol,
+bars [{bar_date, open, high, low, close, volume, sma_50, sma_200}] (oldest first; the averages use 300 extra days of
+warm-up so they start on the first bar), sources, data_as_of, warnings, disclaimer}`; `data_stale` when the newest
+bar is older than the freshness rule allows.
+
+### `POST /api/stocks/{symbol}/prices/upload`
+`multipart/form-data` with `file`: a UTF-8 CSV with the columns `date, open, high, low, close` (`volume` optional),
+dates as `YYYY-MM-DD`, `DD-MM-YYYY`, `DD/MM/YYYY`, `DD-Mon-YYYY` or `DD Mon YYYY`. At most 1 MB (**413**) and 20,000
+rows; missing columns or not UTF-8 → **422**. Invalid rows (bad date, a future date, a missing or non-positive price,
+low above high) are counted, not saved. **Insert-only:** days already cached are kept (`existing_days_kept`), and
+uploaded rows never count as fresh. Response `{symbol, rows_read, bars_saved, rows_rejected, data_as_of, warnings,
+disclaimer}`.
+
+### `POST /api/stocks/{symbol}/analysis`
+Builds, explains and saves an analysis (no body). No usable prices → **503**. Response `StockAnalysisResponse`:
+`id, symbol, created_at, data_as_of, indicators {bars_used, last_close, sma_50, sma_200, trend
+("above_both_averages"|"below_both_averages"|"between_averages"|"not_enough_history"), rsi_14, rsi_label
+("high"|"normal"|"low"), annualized_volatility, max_drawdown (negative fraction), var_95_one_day (positive loss
+fraction), change_1m, change_1y, benchmark, beta, correlation}` (`null` = not enough history), `sentiment {score,
+label, n_items, reliable, effective_weight, scorer, headlines [...]}` or `null`, `sources, warnings, explanation,
+explanation_source ("llm"|"template"), llm_used, explanation_faithful, claims_compliant, engine_version, disclaimer`.
+Warnings: `data_stale`, `insufficient_history`, `benchmark_unavailable`, `benchmark_stale`, `news_stale`,
+`news_unavailable`, `few_headlines`, `finbert_unavailable`.
+
+### `GET /api/stocks/{symbol}/analysis/latest` · `GET /api/stocks/{symbol}/analyses?limit=20` · `GET /api/stocks/{symbol}/analyses/{id}`
+`latest` and `/{id}`: a full `StockAnalysisResponse`; **404** before the first, or when the id belongs to another
+user or another symbol (the same answer, so ids are not revealed). `analyses`: `{analyses [{id, symbol, created_at,
+data_as_of, trend, explanation_source}], disclaimer}`, newest first; `limit` 1–100.
+
+### `POST /api/stocks/sentiment/score`
+Body `{"headline": "Company reports record profit", "scorer": "finbert"}`: `headline` 1–500 characters, not blank;
+optional `scorer` `lexicon` or `finbert` (omitted = the active `SENTIMENT_SCORER`; anything else **422**). Response
+`{positive, negative, neutral, label, scorer, warnings, disclaimer}`; `scorer` is the one actually used (`lexicon`
+plus `finbert_unavailable` when FinBERT was asked for but could not load).
+
+### `GET /api/stocks/status`
+`{market_data_provider, news_provider, sentiment_scorer, finbert_available, providers [{provider, calls_today,
+daily_limit (null: no published limit), last_call_at, last_status}], cache [{symbol, latest_bar_date, fetched_at}]
+(your watchlist plus the benchmark), disclaimer}`.
 
 ---
 
@@ -384,4 +469,10 @@ curl.exe -s -X PUT http://127.0.0.1:8000/api/investing/profile -H "Authorization
   -d '{\"answers\": {\"reaction_to_20pct_drop\": 4, \"investing_experience\": 2, \"return_vs_safety\": 4}, \"liquid_savings\": 150000, \"income_stability\": 4, \"dependents\": 1, \"horizon_years\": 10}'
 curl.exe -s -X POST http://127.0.0.1:8000/api/investing/plan -H "Authorization: Bearer $token" `
   -H "Content-Type: application/json" -d '{\"goal_amount\": 500000, \"goal_years\": 5}'
+
+# stocks: watchlist, refresh (needs internet once, or the seeded cache), analysis
+curl.exe -s -X POST http://127.0.0.1:8000/api/stocks/watchlist -H "Authorization: Bearer $token" `
+  -H "Content-Type: application/json" -d '{\"symbol\": \"RELIANCE.NS\"}'
+curl.exe -s -X POST http://127.0.0.1:8000/api/stocks/RELIANCE.NS/refresh -H "Authorization: Bearer $token"
+curl.exe -s -X POST http://127.0.0.1:8000/api/stocks/RELIANCE.NS/analysis -H "Authorization: Bearer $token"
 ```

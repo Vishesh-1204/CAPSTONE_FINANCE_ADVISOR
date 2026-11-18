@@ -39,3 +39,22 @@ pdfplumber==0.11.10
 
 openpyxl==3.1.5
 
+
+# Phase 7 market data (docs/phase7-spec.md section 0, docs/phase7-provider-spike.md).
+# OUTSIDE the original approved stack: no approved library provides market prices. Approved
+# by Vishesh on 2026-11-09 ONLY for the data-provider adapter (app/market_data/yfinance_provider.py,
+# the only file that may import it), after the 7A-0 spike showed it is the only free source with
+# 252+ daily bars for NSE symbols. Unofficial Yahoo route: cached, never redistributed.
+yfinance==1.8.0
+
+# Pinned with yfinance: pandas 3.x needs numpy>=2, but langchain 0.3.7 needs numpy<2
+# (found by the spike). pandas 2.2.x works with numpy 1.26.
+pandas==2.2.3
+
+# Phase 7B evaluation (docs/phase7-spec.md section 9, RQ1 and RQ3): scikit-learn and LightGBM are in
+# the APPROVED stack (ML). Used by evaluation/ (TF-IDF + logistic regression, walk-forward direction
+# models), not by the running app. scipy is pinned because scikit-learn and LightGBM need it.
+# All three versions support numpy 1.26 (langchain 0.3.7 needs numpy<2).
+scikit-learn==1.5.2
+scipy==1.14.1
+lightgbm==4.5.0

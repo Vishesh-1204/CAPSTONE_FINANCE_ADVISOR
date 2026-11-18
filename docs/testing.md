@@ -3,7 +3,7 @@
 ## Run the tests
 
 ```powershell
-docker compose exec backend python -m pytest tests -q                                  # everything (745)
+docker compose exec backend python -m pytest tests -q                                  # everything (1,209)
 docker compose exec backend python -m pytest tests/test_statement_parsers.py -q        # one file
 docker compose exec backend python -m pytest tests -q -k "password"                    # by name
 ```
@@ -16,14 +16,15 @@ Tests need **no Postgres, no network and no API key**:
 `tests/test_migrations.py` is the exception that touches Alembic: it applies all migrations to an empty
 database and compares the result with the models (drift check).
 
-Last full run: **745 passed** (Phase 6A + 6B, on `feature/vishesh-investing`), plus the live smoke
-test below: 16/16 steps passed.
+Last full run: **1,209 passed, 1 skipped** (Phase 7D, on `feature/vishesh-stocks`; the skipped one is the real FinBERT
+test, which runs in the ml image), plus the live smoke
+test below: 17/17 steps passed (also with no internet, from the seeded cache).
 
 ## What each test file covers
 
 | Module | File | Tests | Covers |
 |---|---|---|---|
-| Migrations | `test_migrations.py` | 7 | migrations 0001-0005 apply on an empty DB, 0004 and 0005 keep existing data, 0005 downgrades to 0004 cleanly and upgrades again; models and migrations match |
+| Migrations | `test_migrations.py` | 9 | migrations 0001-0006 apply on an empty DB, 0004-0006 keep existing data, 0005 and 0006 downgrade cleanly and upgrade again; models and migrations match |
 | Ingestion | `test_statement_parsers.py` | 27 | XLSX, HDFC-like and SBI-like PDFs, password right/wrong/missing, password never in logs/errors, scanned → 422, balance check, cross-format duplicates |
 | Ingestion | `test_statement_import.py` | 22 | CSV through the shared pipeline: header detection, amount/date formats, credits imported, duplicates, import batches |
 | Ingestion (HTTP) | `test_statements_api.py` | 6 | upload summary, import batches, deprecated `/upload-csv` alias |
@@ -64,12 +65,27 @@ test below: 16/16 steps passed.
 | Investing (pure) | `test_sip_planner.py` | 11 | future value, required SIP, emergency top-up, safety factor, months to goal |
 | Investing (pure) | `test_monte_carlo.py` | 6 | same seed same result, ordered percentiles, zero volatility = closed form |
 | Investing (pure) | `test_claims_guard.py` | 13 | promises caught (incl. curly apostrophe), balanced text passes, negations flagged on purpose |
-| Investing | `test_investing_data_model.py` | 19 | schema Literals = the maths' lists, bounds, duplicate holdings, disclaimer on every response, CHECK and UNIQUE rules, plan defaults |
+| Investing | `test_investing_data_model.py` | 20 | schema Literals = the maths' lists (incl. simulation methods), bounds, duplicate holdings, disclaimer on every response, CHECK and UNIQUE rules, plan defaults |
 | Investing | `test_investing_service.py` | 28 | lower-band surplus formula, 30-day run chosen, forecast_missing / stale, capacity vs tolerance limit, emergency top-up, goal cap, horizon cap, isolation, reproducible plans, LLM log |
 | Investing | `test_investment_explainer.py` | 25 | Indian-grouped formatting, template passes every guard, invented amount / percentage / lakh rejected, claims rejected and counted, one call, provider fallback |
 | Investing (HTTP) | `test_investing_api.py` | 34 | every route needs a login (real auth), 422 validation, 409 without a profile, user isolation, body `user_id` ignored, disclaimer everywhere, simulate not stored |
 | Investing evaluation | `test_investing_evaluation.py` | 15 | rule labels, personas reproducible, every method and ablation, evaluation P = the real service, panel replay monotonic, guard cases, deterministic report |
 | Forecast evaluation | `test_forecast_evaluation.py` | 14 | harness runs offline, every method x horizon, no leakage (future changed, no forecast changes), service = pure numbers, statement opening balance, guard catches a fake LLM, F6.1 ablations, metric formulas |
+| Stocks (pure) | `test_indicators.py` | 15 | returns, SMA/EMA, Wilder RSI, volatility, max drawdown, CAGR (spec reference tests) |
+| Stocks (pure) | `test_risk_metrics.py` | 10 | Sharpe (None for zero volatility, `math.fsum`), historical VaR, beta, correlation |
+| Stocks (pure) | `test_sentiment_aggregation.py` | 10 | half-life weighting, labels at +/-0.15, "not reliable" under 3 headlines |
+| Stocks (pure) | `test_walk_forward.py` | 10 | splits never overlap, directional accuracy skips flat days, exact binomial p (53% of 100 is luck, 65% is not) |
+| Stocks (pure) | `test_bootstrap_returns.py` | 6 | seeded, ordered percentiles, every simulated month is a real one |
+| Investing (7D) | `test_investing_bootstrap.py` | 18 | month-end returns (current month dropped, gaps cut), moment matching, `method="bootstrap"` on synthetic cached bars, `history_too_short` fallback = the normal result, inclusive 60-month minimum, range follows the category, no provider call, API fields and 422 |
+| Stocks | `test_stocks_data_model.py` | 54 | strict symbol validator (incl. non-ASCII), Literals = model constants, `Numeric(14,4)`, CHECK and UNIQUE rules, disclaimer on every response |
+| Stocks (data) | `test_market_data_providers.py` | 44 | yfinance adapter on synthetic fixtures: today's unfinished bar dropped, invalid rows dropped, error kinds by class name, offline empty table = `unavailable`, retries only for `unavailable`; RSS parsing and query building |
+| Stocks (data) | `test_market_cache.py` | 36 | fresh hit, miss then fetch, provider failure → stale + `data_stale`, nothing cached → clear error, upsert never duplicates, CSV rows never fresh, cooldown and its engine 7.1 backoff (doubling, cap, reset after a success, per endpoint) |
+| Stocks (sentiment) | `test_sentiment_scorers.py` | 18 | stub FinBERT loader, label mapping by name, lazy import (app start imports neither torch nor transformers), fallback warning; the real-model test is SKIPPED unless the model is installed and cached |
+| Stocks | `test_stock_claims_guard.py` | 88 | guard v3/v3.1 in BOTH directions (advice and predictions rejected, neutral descriptions pass), v3.1 patterns and disclaiming frames, a documented gap, the Phase 6 guard unchanged |
+| Stocks | `test_stock_explainer.py` | 21 | pre-formatted facts, template passes every guard, invented number / shorthand / advice rejected, one call, provider fallback, bad JSON or a provider error → template |
+| Stocks | `test_stock_service.py` | 32 | indicators for 1 to 300 bars never crash (`insufficient_history`), beta on date-aligned returns, warnings, research fields stored, CSV upload rules (insert-only, rejected rows, 422s) |
+| Stocks (HTTP) | `test_stocks_api.py` | 39 | every route needs a login (real auth), user isolation, 422 symbol validation (body and path), watchlist limit 409, disclaimer everywhere, status endpoint, headline `scorer` chosen per call (FinBERT fallback warning, 422 for an unknown one) |
+| Stocks evaluation | `test_stocks_evaluation.py` | 34 | leakage controls: features at t ignore later prices (L1), training only on the past with a new model per fold (L2, L3), scaler fitted inside the fold; metrics, McNemar, strategy costs, dataset parsers on tiny synthetic files, headline-to-day assignment after the close, power, SIP helpers, fallback simulation, G3 raw-text capture with a stub LLM |
 
 Fixtures: `backend/tests/fixtures/statements/` (synthetic; regenerate with
 `docker compose exec backend python -m scripts.make_synthetic_statements`). PDF/XLSX fixtures are marked
@@ -94,7 +110,7 @@ docker compose exec backend python -m scripts.smoke_test
 docker compose exec backend python -m scripts.smoke_test --base-url http://127.0.0.1:8000   # explicit URL
 ```
 
-It runs 16 steps and prints one `PASS`/`FAIL` line per step. It stops at the first failure (later
+It runs 17 steps and prints one `PASS`/`FAIL` line per step. It stops at the first failure (later
 steps depend on earlier ones) and exits `1`. Exit `0` means every step passed:
 
 | # | Step | What it checks |
@@ -113,11 +129,17 @@ steps depend on earlier ones) and exits `1`. Exit `0` means every step passed:
 | 14 | 30-day forecast | typed `opening_balance` used, 30 trajectory days, end = opening + net cash flow, end inside its band, the SIP is not a fixed expense |
 | 15 | forecast reads | `latest` is that run, `history` lists it, `recurring` answers |
 | 16 | investing | profile and holdings saved; the plan uses THIS user's 30-day forecast, its split sums to 1, SIP ≤ capacity, p10 ≤ p50 ≤ p90, disclaimer on every response, `latest` is that plan, `simulate` stores nothing |
+| 17 | stocks | `RELIANCE.NS` added to the watchlist, status answers, an analysis with at least 252 bars (works from the seeded cache, so it passes with NO internet; only the stale-data warnings are accepted), `latest` is that analysis, 30 days of chart prices, a headline scored, disclaimer on every response, the symbol removed |
 
 Notes: it uses the standard library only (`urllib`), so it needs no extra dependency. Each run leaves one
 synthetic user in the dev DB, which is harmless. With an LLM key in `.env`, the budget explanation makes
 one real LLM call per generation (`llm_used=True`). Only category names and totals are sent. Without a key
 the template is used and the test still passes.
+
+Offline smoke (Phase 7): seed the cache once while online (`python -m scripts.seed_market_cache`), then run with
+`STOCK_USE_LLM_EXPLANATIONS=false` and the Phase 4-6 `*_USE_LLM_EXPLANATIONS=false` switches: offline, those older
+LLM calls hang until their timeout (a known gap). Verified 17/17 on a Docker network with no internet access, with a
+fresh cache and with an expired one (`data_stale`, `benchmark_stale`, `news_stale`).
 
 ## Manual end-to-end checklist (Swagger or the Test Console)
 
@@ -146,7 +168,9 @@ the template is used and the test still passes.
 20. `POST /api/investing/plan` after a 30-day forecast → `surplus.source: "forecast"`, `forecast_run_id` set, a
     `disclaimer`, `explanation_source` `llm` or `template`. Without the forecast → `warnings` has `forecast_missing`.
 21. `POST /api/investing/simulate` with `years: 41` → 422; with `years: 10` → a range, and `GET /api/investing/plans`
-    does not list it.
+    does not list it. With `"method": "bootstrap"` → `method: "bootstrap"` and a `history` with ^NSEI's months and date
+    range (after an analysis on `/stocks` has filled the cache); on an empty cache → `method: "normal"` and
+    `warnings: ["history_too_short"]`.
 
 ## Common mistakes
 - Running `pytest` on the host instead of in the container (different Python, missing deps).

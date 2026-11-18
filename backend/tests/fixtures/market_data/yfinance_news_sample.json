@@ -1,0 +1,15 @@
+{
+  "_comment": "SYNTHETIC fixture in the two shapes yfinance Ticker.news has used: the new nested 'content' shape and the older flat shape. Made-up headlines and example.com links. Expected: 3 valid items (newest first); the duplicate link, the item without a date and the non-http link are skipped.",
+  "items": [
+    {"id": "a1", "content": {"title": "Synthetic Corp opens a new plant", "pubDate": "2026-11-08T09:30:00Z",
+      "canonicalUrl": {"url": "https://example.com/news/plant"}, "provider": {"displayName": "Example Wire"}}},
+    {"id": "a2", "content": {"title": "Synthetic Corp quarterly results  announced", "pubDate": "2026-11-06T14:00:00Z",
+      "clickThroughUrl": {"url": "https://example.com/news/results"}, "provider": {"displayName": "Example Times"}}},
+    {"uuid": "b1", "title": "Synthetic Corp board meets", "link": "https://example.com/news/board",
+      "publisher": "Example Daily", "providerPublishTime": 1794045600},
+    {"uuid": "b2", "title": "Duplicate of the plant story", "link": "https://example.com/news/plant",
+      "publisher": "Example Daily", "providerPublishTime": 1793959200},
+    {"id": "a3", "content": {"title": "No date on this one", "canonicalUrl": {"url": "https://example.com/news/nodate"}}},
+    {"uuid": "b3", "title": "Bad link", "link": "javascript:alert(1)", "providerPublishTime": 1794045600}
+  ]
+}
